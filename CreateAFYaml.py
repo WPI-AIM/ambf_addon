@@ -2,12 +2,12 @@ bl_info = {
     "name": "AF Multi-Body Config Creator",
     "author": "Adnan Munawar",
     "version": (0, 1),
-    "blender": (2, 75, 0),
-    "location": "View3D > Add > Mesh > New Object",
+    "blender": (2, 79, 0),
+    "location": "View3D > Add > Mesh > AF Multi-Body",
     "description": "Helps Generate AF Multi-Body Config File and Saves both High and Low Resolution(Collision) Meshes",
     "warning": "",
-    "wiki_url": "",
-    "category": "Add Mesh",
+    "wiki_url": "https://github.com/adnanmunawar/af_multibody_config",
+    "category": "AF Multi-Body",
     }
 
 import bpy
@@ -42,9 +42,12 @@ class BodyTemplate():
                      'mesh': "",
                      'mass': 0.0,
                      'scale': 1.0,
-                     'inertial offset': {'position': {'x': 0, 'y': 0, 'z': 0}},
-                     'position': {'x':0, 'y':0, 'z':0},
-                     'rotation': {'r':0, 'p':0, 'y':0},
+                     'location': {
+                        'position': {'x':0, 'y':0, 'z':0},
+                        'orientation': {'r':0, 'p':0, 'y':0}},
+                     'inertial offset': {
+                        'position': {'x': 0, 'y': 0, 'z': 0},
+                        'orientation': {'r': 0, 'p': 0, 'y': 0}},
                      'color': 'blue_corn_flower'}
 
 # Joint Template for the some commonly used of afJoint's data
@@ -92,8 +95,8 @@ class CreateAFYAML(bpy.types.Operator):
         bodyData['mesh'] = obj.name + extension
         localPos = obj.matrix_local.translation
         localRot = obj.matrix_local.to_euler()
-        bodyPos = bodyData['position']
-        bodyRot = bodyData['rotation']
+        bodyPos = bodyData['location']['position']
+        bodyRot = bodyData['location']['orientation']
         bodyPos['x'] = round(localPos.x, 3)
         bodyPos['y'] = round(localPos.y, 3)
         bodyPos['z'] = round(localPos.z, 3)
