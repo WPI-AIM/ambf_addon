@@ -13,6 +13,7 @@ bl_info = {
 import bpy
 import yaml
 import os
+from pathlib import Path
 import mathutils
 from enum import Enum
 from collections import OrderedDict
@@ -115,6 +116,8 @@ class CreateAFYAML(bpy.types.Operator):
         return center
 
     def load_body_data(self, afmb_yaml, obj):
+        if obj.hide is True:
+            return
         body = BodyTemplate()
         body_data = body.afmb_data
         body_yaml_name = self.get_body_prefixed_name(obj.name)
@@ -145,6 +148,12 @@ class CreateAFYAML(bpy.types.Operator):
 
     def load_joint_data(self, afmb_yaml, obj):
         if obj.rigid_body_constraint:
+            if obj.rigid_body_constraint.object1:
+                if obj.rigid_body_constraint.object1.hide is True:
+                    return
+            if obj.rigid_body_constraint.object2:
+                if obj.rigid_body_constraint.object2.hide is True:
+                    return
             if obj.rigid_body_constraint.type == 'FIXED':
                 fixed_constraint = obj.rigid_body_constraint
                 if fixed_constraint.object1 is None or fixed_constraint.object2 is None:
@@ -236,6 +245,12 @@ class CreateAFYAML(bpy.types.Operator):
         yaml.dump(self._afmb_yaml, output_file)
 
 
+def select_all_objects(select = True):
+    # First deselect all objects
+    for obj in bpy.data.objects:
+        obj.select = select
+
+
 class SaveAFMeshes(bpy.types.Operator):
     bl_idname = "myops.add_save_af_meshes"
     bl_label = "Save Meshes"
@@ -246,8 +261,7 @@ class SaveAFMeshes(bpy.types.Operator):
 
     def save_meshes(self, context):
         # First deselect all objects
-        for obj in bpy.data.objects:
-            obj.select = False
+        select_all_objects(False)
 
         save_path = context.scene.afmb_yaml_mesh_path
         high_res_path = os.path.join(save_path, 'high_res/')
@@ -342,33 +356,41 @@ class CreateAFYAMLPanel(bpy.types.Panel):
 
     bpy.types.Scene.afmb_yaml_conf_path = bpy.props.StringProperty \
       (
-      name = "Config (Save To)",
-      default = "",
-      description = "Define the root path of the project",
-      subtype = 'FILE_PATH'
+        name = "Config (Save To)",
+        default = "",
+        description = "Define the root path of the project",
+        subtype = 'FILE_PATH'
       )
 
     bpy.types.Scene.afmb_yaml_mesh_path = bpy.props.StringProperty \
       (
-      name = "Meshes (Save To)",
-      default = "",
-      description = "Define the path to save to mesh files",
-      subtype = 'DIR_PATH'
+        name = "Meshes (Save To)",
+        default = "",
+        description = "Define the path to save to mesh files",
+        subtype = 'DIR_PATH'
       )
 
     bpy.types.Scene.mesh_output_type = bpy.props.EnumProperty \
         (
-        items = [('STL', 'STL', 'STL'),('OBJ', 'OBJ', 'OBJ'),('3DS', '3DS', '3DS'),('PLY', 'PLY', 'PLY')],
-        name = "Mesh Type"
+            items = [('STL', 'STL', 'STL'),('OBJ', 'OBJ', 'OBJ'),('3DS', '3DS', '3DS'),('PLY', 'PLY', 'PLY')],
+            name = "Mesh Type"
         )
 
     # bpy.context.scene['mesh_output_type'] = 0
 
     bpy.types.Scene.mesh_max_vertices = bpy.props.IntProperty \
         (
-        name = "",
-        default = 150,
-        description = "The maximum number of vertices the low resolution collision mesh is allowed to have",
+            name = "",
+            default = 150,
+            description = "The maximum number of vertices the low resolution collision mesh is allowed to have",
+        )
+
+    bpy.types.Scene.external_afmb_yaml_filepath = bpy.props.StringProperty \
+        (
+            name="AMBF Config",
+            default="",
+            description="Load AFMB YAML FILE",
+            subtype='FILE_PATH'
         )
 
     setup_yaml()
@@ -431,6 +453,17 @@ class CreateAFYAMLPanel(bpy.types.Panel):
         col.alignment = 'CENTER'
         col.operator("myops.toggle_modifiers_visibility")
 
+        # Load AFMB File Into Blender
+        layout.label(text="LOAD AFMB FILE :")
+        # Load
+        col = layout.column()
+        col.alignment = 'CENTER'
+        col.prop(context.scene, 'external_afmb_yaml_filepath')
+        
+        col = layout.column()
+        col.alignment = 'CENTER'
+        col.operator("myops.load_afmb_yaml_config")
+
 
 class RemoveModifiers(bpy.types.Operator):
     bl_idname = "myops.remove_modifiers"
@@ -452,6 +485,87 @@ class ToggleModifiersVisibility(bpy.types.Operator):
             for mod in obj.modifiers:
                 mod.show_viewport = not mod.show_viewport
         return {'FINISHED'}
+    
+class LoadAFMBYAML(bpy.types.Operator):
+    bl_idname = "myops.load_afmb_yaml_config"
+    bl_label = "Load AFMB YAML Config"
+    
+    def __init__(self):
+        self._afmb = None
+        # A dict for body name as defined in YAML File and the Name Blender gives
+        # the body
+        self._blender_remapped_body_names = {}
+        
+    def execute(self, context):
+        print('HOWDY PARTNER')
+        yaml_file = open(context.scene['external_afmb_yaml_filepath'])
+        self._afmb = yaml.load(yaml_file)
+        
+        bodies_list = self._afmb['bodies']
+        joints_list = self._afmb['joints']
+        
+        num_bodies = len(bodies_list)
+        print('Number of Bodies Specified = ', num_bodies)
+        high_res_path = self._afmb['high resolution path']
+        for body_name in bodies_list:
+            body = self._afmb[body_name]
+            print(body['name'])
+            body_high_res_path = ''
+            if 'high resolution path' in body:
+                body_high_res_path = body['high resolution path']
+            else:
+                body_high_res_path = high_res_path
+            body_name = body['name']
+            body_mesh_name = body['mesh']
+            body_mass = body['mass']
+            body_location_xyz = body['location']['position']
+            body_location_rpy = body['location']['orientation']
+            mesh_filepath = Path(os.path.join(body_high_res_path, body_mesh_name))
+
+            if mesh_filepath.suffix in ['.stl', '.STL']:
+                bpy.ops.import_mesh.stl(filepath=str(mesh_filepath.resolve()))
+
+            if mesh_filepath.suffix in ['.obj', '.OBJ']:
+                bpy.ops.import_scene.obj(filepath=str(mesh_filepath.resolve()))
+
+            obj_handle = context.selected_objects[0]
+            self._blender_remapped_body_names[body_name] = obj_handle.name
+
+            bpy.ops.rigidbody.object_add()
+            if body_mass == 0.0:
+                context.scene.objects.active = obj_handle
+                bpy.ops.rigidbody.constraint_add(type='FIXED')
+                obj_handle.rigid_body_constraint.object2 = obj_handle
+            obj_handle.rigid_body.mass = body_mass
+            obj_handle.matrix_world.translation[0] = body_location_xyz['x']
+            obj_handle.matrix_world.translation[1] = body_location_xyz['y']
+            obj_handle.matrix_world.translation[2] = body_location_xyz['z']
+            obj_handle.rotation_euler = (body_location_rpy['r'],
+                                         body_location_rpy['p'],
+                                         body_location_rpy['y'])
+
+        for joint_name in joints_list:
+            joint = self._afmb[joint_name]
+            select_all_objects(False)
+            parent_body_name = joint['parent']
+            child_body_name = joint['child']
+            parent_body = self._afmb[parent_body_name]
+            child_body = self._afmb[child_body_name]
+            if 'type' in joint:
+                joint_type = joint['type']
+            else:
+                joint_type = 'HINGE'
+
+            child_obj_handle = bpy.data.objects[self._blender_remapped_body_names[child_body['name']]]
+            context.scene.objects.active = child_obj_handle
+            child_obj_handle.select = True
+            bpy.ops.rigidbody.constraint_add(type=joint_type)
+            child_obj_handle.rigid_body_constraint.object1 = bpy.data.objects[self._blender_remapped_body_names[parent_body['name']]]
+            child_obj_handle.rigid_body_constraint.object2 = bpy.data.objects[self._blender_remapped_body_names[child_body['name']]]
+
+        print('Printing Blender Remapped Body Names')
+        print(self._blender_remapped_body_names)    
+        return {'FINISHED'}
 
 
 def register():
@@ -460,6 +574,7 @@ def register():
     bpy.utils.register_class(GenerateLowResMeshModifiers)
     bpy.utils.register_class(CreateAFYAML)
     bpy.utils.register_class(SaveAFMeshes)
+    bpy.utils.register_class(LoadAFMBYAML)
     bpy.utils.register_class(CreateAFYAMLPanel)
 
 
@@ -469,6 +584,7 @@ def unregister():
     bpy.utils.unregister_class(GenerateLowResMeshModifiers)
     bpy.utils.unregister_class(CreateAFYAML)
     bpy.utils.unregister_class(SaveAFMeshes)
+    bpy.utils.unregister_class(LoadAFMBYAML)
     bpy.utils.unregister_class(CreateAFYAMLPanel)
 
 
