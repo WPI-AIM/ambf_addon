@@ -15,6 +15,19 @@ import yaml
 import os
 import mathutils
 from enum import Enum
+from collections import OrderedDict
+
+from collections import OrderedDict
+
+
+# https://stackoverflow.com/questions/31605131/dumping-a-dictionary-to-a-yaml-file-while-preserving-order/31609484
+def represent_dictionary_order(self, dict_data):
+    return self.represent_mapping('tag:yaml.org,2002:map', dict_data.items())
+
+
+def setup_yaml():
+    yaml.add_representer(OrderedDict, represent_dictionary_order)
+
 
 # Enum Class for Mesh Type
 class MeshType(Enum):
@@ -23,7 +36,8 @@ class MeshType(Enum):
     mesh3DS = 2
     meshPLY = 3
 
-def getExtension(val):
+
+def get_extension(val):
     if val == MeshType.meshSTL.value:
         extension = '.STL'
     elif val == MeshType.meshOBJ.value:
@@ -32,37 +46,42 @@ def getExtension(val):
         extension = '.3DS'
     elif val == MeshType.meshPLY.value:
         extension = '.PLY'
+    else:
+        extension = None
 
     return extension
 
+
 # Body Template for the some commonly used of afBody's data
-class BodyTemplate():
+class BodyTemplate:
     def __init__(self):
-        self.data = {'name': "",
-                     'mesh': "",
-                     'mass': 0.0,
-                     'scale': 1.0,
-                     'location': {
-                        'position': {'x':0, 'y':0, 'z':0},
-                        'orientation': {'r':0, 'p':0, 'y':0}},
-                     'inertial offset': {
-                        'position': {'x': 0, 'y': 0, 'z': 0},
-                        'orientation': {'r': 0, 'p': 0, 'y': 0}},
-                     'color': 'blue_corn_flower'}
+        self.afmb_data = {'name': "",
+                          'mesh': "",
+                          'mass': 0.0,
+                          'scale': 1.0,
+                          'location': {
+                             'position': {'x':0, 'y':0, 'z':0},
+                             'orientation': {'r':0, 'p':0, 'y':0}},
+                          'inertial offset': {
+                             'position': {'x': 0, 'y': 0, 'z': 0},
+                             'orientation': {'r': 0, 'p': 0, 'y': 0}},
+                          'color': 'random'}
+
 
 # Joint Template for the some commonly used of afJoint's data
-class JointTemplate():
+class JointTemplate:
     def __init__(self):
-        self.data = {'name': '',
-                     'parent': '',
-                     'child': '',
-                     'parent axis': {'x': 0, 'y': 0.0, 'z': 1.0},
-                     'parent pivot': {'x': 0, 'y': 0.0, 'z': 0},
-                     'child axis': {'x': 0, 'y': 0.0, 'z': 1.0},
-                     'child pivot': {'x': 0, 'y': 0.0, 'z': 0},
-                     'joint limits': {'low': -1.2, 'high': 1.2},
-                     'enable motor': 0,
-                     'max motor impulse' : 0}
+        self.afmb_data = {'name': '',
+                          'parent': '',
+                          'child': '',
+                          'parent axis': {'x': 0, 'y': 0.0, 'z': 1.0},
+                          'parent pivot': {'x': 0, 'y': 0.0, 'z': 0},
+                          'child axis': {'x': 0, 'y': 0.0, 'z': 1.0},
+                          'child pivot': {'x': 0, 'y': 0.0, 'z': 0},
+                          'joint limits': {'low': -1.2, 'high': 1.2},
+                          'enable motor': 0,
+                          'max motor impulse': 0}
+
 
 class CreateAFYAML(bpy.types.Operator):
     """Tooltip"""
@@ -70,136 +89,167 @@ class CreateAFYAML(bpy.types.Operator):
     bl_label = "Write Multi-Body AF Config"
 
     def __init__(self):
-        self.bodiesList = []
-        self.jointsList = []
+        self._body_names_list = []
+        self._joint_names_list = []
+        self.body_name_prefix = 'BODY '
+        self.joint_name_prefix = 'JOINT '
+        self._afmb_yaml = None
 
     def execute(self, context):
-        self.saveAFYAML(context)
+        self.generate_afmb_yaml(context)
         return {'FINISHED'}
+
+    def get_body_prefixed_name(self, urdf_body_str):
+        return self.body_name_prefix + urdf_body_str
+
+    def get_joint_prefixed_name(self, urdf_joint_str):
+        return self.joint_name_prefix + urdf_joint_str
 
     # Courtesy of:
     # https://blender.stackexchange.com/questions/62040/get-center-of-geometry-of-an-object
-    def computeLocalCOM(self, obj):
+    def compute_local_com(self, obj):
         vcos = [ v.co for v in obj.data.vertices ]
-        findCenter = lambda l: ( max(l) + min(l) ) / 2
-        x,y,z  = [ [ v[i] for v in vcos ] for i in range(3) ]
-        center = [ findCenter(axis) for axis in [x,y,z] ]
+        find_center = lambda l: ( max(l) + min(l)) / 2
+        x, y, z = [[v[i] for v in vcos] for i in range(3)]
+        center = [find_center(axis) for axis in [x, y, z]]
         return center
 
-    def loadBodyData(self, afYAML, obj):
+    def load_body_data(self, afmb_yaml, obj):
         body = BodyTemplate()
-        bodyData = body.data
+        body_data = body.afmb_data
+        body_yaml_name = self.get_body_prefixed_name(obj.name)
         output_mesh = bpy.context.scene['mesh_output_type']
-        extension = getExtension(output_mesh)
-        bodyData['name'] = obj.name
-        bodyData['mesh'] = obj.name + extension
-        localPos = obj.matrix_local.translation
-        localRot = obj.matrix_local.to_euler()
-        bodyPos = bodyData['location']['position']
-        bodyRot = bodyData['location']['orientation']
-        bodyPos['x'] = round(localPos.x, 3)
-        bodyPos['y'] = round(localPos.y, 3)
-        bodyPos['z'] = round(localPos.z, 3)
-        bodyRot['r'] = round(localRot[0], 3)
-        bodyRot['p'] = round(localRot[1], 3)
-        bodyRot['y'] = round(localRot[2], 3)
+        extension = get_extension(output_mesh)
+        body_data['name'] = obj.name
+        body_data['mesh'] = obj.name + extension
+        local_pos = obj.matrix_local.translation
+        local_rot = obj.matrix_local.to_euler()
+        body_pos = body_data['location']['position']
+        body_rot = body_data['location']['orientation']
+        body_pos['x'] = round(local_pos.x, 3)
+        body_pos['y'] = round(local_pos.y, 3)
+        body_pos['z'] = round(local_pos.z, 3)
+        body_rot['r'] = round(local_rot[0], 3)
+        body_rot['p'] = round(local_rot[1], 3)
+        body_rot['y'] = round(local_rot[2], 3)
         if obj.rigid_body:
-            bodyData['mass'] = round(obj.rigid_body.mass, 3)
-        bodyCOM = self.computeLocalCOM(obj)
-        bodyDPos = bodyData['inertial offset']['position']
-        bodyDPos['x'] = round(bodyCOM[0], 3)
-        bodyDPos['y'] = round(bodyCOM[1], 3)
-        bodyDPos['z'] = round(bodyCOM[2], 3)
-        afYAML[obj.name] = bodyData
-        self.bodiesList.append(obj.name)
+            body_data['mass'] = round(obj.rigid_body.mass, 3)
+        body_com = self.compute_local_com(obj)
+        body_d_pos = body_data['inertial offset']['position']
+        body_d_pos['x'] = round(body_com[0], 3)
+        body_d_pos['y'] = round(body_com[1], 3)
+        body_d_pos['z'] = round(body_com[2], 3)
 
-    def loadJointData(self, afYAML, obj):
+        afmb_yaml[body_yaml_name] = body_data
+        self._body_names_list.append(body_yaml_name)
+
+    def load_joint_data(self, afmb_yaml, obj):
         if obj.rigid_body_constraint:
+            if obj.rigid_body_constraint.type == 'FIXED':
+                fixed_constraint = obj.rigid_body_constraint
+                if fixed_constraint.object1 is None or fixed_constraint.object2 is None:
+                    if fixed_constraint.object1:
+                        afmb_yaml[self.get_body_prefixed_name(fixed_constraint.object1.name)]['mass'] = 0.0
+                    elif fixed_constraint.object2 is None:
+                        afmb_yaml[self.get_body_prefixed_name(fixed_constraint.object2.name)]['mass'] = 0.0
+
             if obj.rigid_body_constraint.type == 'HINGE':
                 hinge = obj.rigid_body_constraint
                 joint = JointTemplate()
-                jointData = joint.data
+                joint_data = joint.afmb_data
                 if hinge.object1:
                     parent = hinge.object1
                     child = hinge.object2
-                    jointData['name'] = parent.name + "-" + child.name
-                    jointData['parent'] = parent.name
-                    jointData['child'] = child.name
-                    parentPivot, parentAxis = self.computeParentPivotAndAxis(parent, child)
-                    parentPivotData = jointData["parent pivot"]
-                    parentAxisData = jointData["parent axis"]
-                    parentPivotData['x'] = round(parentPivot.x, 3)
-                    parentPivotData['y'] = round(parentPivot.y, 3)
-                    parentPivotData['z'] = round(parentPivot.z, 3)
-                    parentAxisData['x'] = round(parentAxis.x, 3)
-                    parentAxisData['y'] = round(parentAxis.y, 3)
-                    parentAxisData['z'] = round(parentAxis.z, 3)
-                    childPivotData = jointData["child pivot"]
-                    childAxisData = jointData["child axis"]
-                    childPivotData['x'] = 0.0
-                    childPivotData['y'] = 0.0
-                    childPivotData['z'] = 0.0
-                    childAxisData['x'] = 0.0
-                    childAxisData['y'] = 0.0
-                    childAxisData['z'] = 1.0
-                    jointLimitData = jointData["joint limits"]
-                    jointLimitData['low'] = round(hinge.limit_ang_z_lower, 3)
-                    jointLimitData['high'] = round(hinge.limit_ang_z_upper, 3)
-                    afYAML[jointData['name']] = jointData
-                    self.jointsList.append(jointData['name'])
+                    joint_data['name'] = parent.name + "-" + child.name
+                    joint_data['parent'] = self.get_body_prefixed_name(parent.name)
+                    joint_data['child'] = self.get_body_prefixed_name(child.name)
+                    parent_pivot, parent_axis = self.compute_parent_pivot_and_axis(parent, child)
+                    parent_pivot_data = joint_data["parent pivot"]
+                    parent_axis_data = joint_data["parent axis"]
+                    parent_pivot_data['x'] = round(parent_pivot.x, 3)
+                    parent_pivot_data['y'] = round(parent_pivot.y, 3)
+                    parent_pivot_data['z'] = round(parent_pivot.z, 3)
+                    parent_axis_data['x'] = round(parent_axis.x, 3)
+                    parent_axis_data['y'] = round(parent_axis.y, 3)
+                    parent_axis_data['z'] = round(parent_axis.z, 3)
+                    child_pivot_data = joint_data["child pivot"]
+                    child_axis_data = joint_data["child axis"]
+                    child_pivot_data['x'] = 0.0
+                    child_pivot_data['y'] = 0.0
+                    child_pivot_data['z'] = 0.0
+                    child_axis_data['x'] = 0.0
+                    child_axis_data['y'] = 0.0
+                    child_axis_data['z'] = 1.0
+                    joint_limit_data = joint_data["joint limits"]
+                    joint_limit_data['low'] = round(hinge.limit_ang_z_lower, 3)
+                    joint_limit_data['high'] = round(hinge.limit_ang_z_upper, 3)
 
-    def computeParentPivotAndAxis(self, parent, child):
+                    joint_yaml_name = self.get_joint_prefixed_name(joint_data['name'])
+                    afmb_yaml[joint_yaml_name] = joint_data
+                    self._joint_names_list.append(joint_yaml_name)
+
+    def compute_parent_pivot_and_axis(self, parent, child):
         # Transform of Parent in World
-        T_p_w = parent.matrix_world.copy()
+        t_p_w = parent.matrix_world.copy()
         # Transform of Child in World
-        T_c_w = child.matrix_world.copy()
+        t_c_w = child.matrix_world.copy()
 
         # Copy over the transform to invert it
-        T_w_p = T_p_w.copy()
-        T_w_p.invert()
+        t_w_p = t_p_w.copy()
+        t_w_p.invert()
         # Transform of Child in Parent
-        #T_c_p = T_w_p * T_c_w
-        T_c_p = T_w_p * T_c_w
-        parentPivot = T_c_p.translation
-        #The third col of rotation matrix is the z axes of child in parent
-        parentAxis = T_c_p.col[2]
-        return parentPivot, parentAxis
+        # t_c_p = t_w_p * t_c_w
+        t_c_p = t_w_p * t_c_w
+        parent_pivot = t_c_p.translation
+        # The third col of rotation matrix is the z axes of child in parent
+        parent_axis = t_c_p.col[2]
+        return parent_pivot, parent_axis
 
+    def generate_afmb_yaml(self, context):
+        num_objs = len(bpy.data.objects)
+        save_to = context.scene.afmb_yaml_conf_path
+        file_name = os.path.basename(save_to)
+        save_path = os.path.dirname(save_to)
+        if not file_name:
+            file_name = 'default.yaml'
+        output_file_name = os.path.join(save_path, file_name)
+        output_file = open(output_file_name, 'w')
+        print('Output filename is: ', output_file_name)
 
-    def saveAFYAML(self, context):
-        numObjs = len(bpy.data.objects)
-        save_to = context.scene.afyaml_conf_path
-        fileName = os.path.basename(save_to)
-        savePath = os.path.dirname(save_to)
-        if not fileName:
-            fileName = 'default.yaml'
-        outputFileName = os.path.join(savePath, fileName)
-        outputFile = open(outputFileName, 'w')
-        print('Output filename is: ', outputFileName)
-        afYAML = {}
-        afYAML['high resolution path'] = os.path.join(context.scene.afyaml_mesh_path, 'high_res/')
-        afYAML['low resolution path'] = os.path.join(context.scene.afyaml_mesh_path, 'low_res/')
+        # For inorder processing, set the bodies and joints tag at the top of the map
+        self._afmb_yaml = OrderedDict()
+        self._afmb_yaml['bodies'] = []
+        self._afmb_yaml['joints'] = []
+        self._afmb_yaml['high resolution path'] = os.path.join(context.scene.afmb_yaml_mesh_path, 'high_res/')
+        self._afmb_yaml['low resolution path'] = os.path.join(context.scene.afmb_yaml_mesh_path, 'low_res/')
+
         for obj in bpy.data.objects:
-            self.loadBodyData(afYAML, obj)
-            self.loadJointData(afYAML, obj)
-        afYAML['bodies'] = self.bodiesList
-        afYAML['joints'] = self.jointsList
-        yaml.dump(afYAML, outputFile)
+            self.load_body_data(self._afmb_yaml, obj)
+
+        for obj in bpy.data.objects:
+            self.load_joint_data(self._afmb_yaml, obj)
+
+        # Now populate the bodies and joints tag
+        self._afmb_yaml['bodies'] = self._body_names_list
+        self._afmb_yaml['joints'] = self._joint_names_list
+
+        yaml.dump(self._afmb_yaml, output_file)
+
 
 class SaveAFMeshes(bpy.types.Operator):
     bl_idname = "myops.add_save_af_meshes"
     bl_label = "Save Meshes"
 
     def execute(self, context):
-        self.saveMeshes(context)
+        self.save_meshes(context)
         return {'FINISHED'}
 
-    def saveMeshes(self, context):
+    def save_meshes(self, context):
         # First deselect all objects
         for obj in bpy.data.objects:
             obj.select = False
 
-        save_path = context.scene.afyaml_mesh_path
+        save_path = context.scene.afmb_yaml_mesh_path
         high_res_path = os.path.join(save_path, 'high_res/')
         low_res_path = os.path.join(save_path, 'low_res/')
         os.makedirs(high_res_path, exist_ok= True)
@@ -211,26 +261,26 @@ class SaveAFMeshes(bpy.types.Operator):
         # export it as a mesh, and then place it back to its original transform
         for obj in bpy.data.objects:
             obj.select = True
-            objTrans = obj.matrix_world.copy()
-            obj.matrix_world.translation = mathutils.Vector([0,0,0])
-            obj.rotation_euler = mathutils.Euler([0,0,0])
+            obj_trans = obj.matrix_world.copy()
+            obj.matrix_world.translation = mathutils.Vector([0, 0, 0])
+            obj.rotation_euler = mathutils.Euler([0, 0, 0])
             # Mesh Type is .stl
             if mesh_type == MeshType.meshSTL.value:
-                objName = obj.name + '.STL'
-                filename_high_res = os.path.join(high_res_path, objName)
-                filename_low_res = os.path.join(low_res_path, objName)
+                obj_name = obj.name + '.STL'
+                filename_high_res = os.path.join(high_res_path, obj_name)
+                filename_low_res = os.path.join(low_res_path, obj_name)
                 bpy.ops.export_mesh.stl(filepath=filename_high_res, use_selection=True, use_mesh_modifiers=False)
                 bpy.ops.export_mesh.stl(filepath=filename_low_res, use_selection=True, use_mesh_modifiers=True)
             elif mesh_type == MeshType.meshOBJ.value:
-                objName = obj.name + '.OBJ'
-                filename_high_res = os.path.join(high_res_path, objName)
-                filename_low_res = os.path.join(low_res_path, objName)
+                obj_name = obj.name + '.OBJ'
+                filename_high_res = os.path.join(high_res_path, obj_name)
+                filename_low_res = os.path.join(low_res_path, obj_name)
                 bpy.ops.export_scene.obj(filepath=filename_high_res, use_selection=True, use_mesh_modifiers=False)
                 bpy.ops.export_scene.obj(filepath=filename_low_res, use_selection=True, use_mesh_modifiers=True)
             elif mesh_type == MeshType.mesh3DS.value:
-                objName = obj.name + '.3DS'
-                filename_high_res = os.path.join(high_res_path, objName)
-                filename_low_res = os.path.join(low_res_path, objName)
+                obj_name = obj.name + '.3DS'
+                filename_high_res = os.path.join(high_res_path, obj_name)
+                filename_low_res = os.path.join(low_res_path, obj_name)
                 # 3DS doesn't support supressing modifiers, so we explicitly
                 # toggle them to save as high res and low res meshes
                 # STILL BUGGY
@@ -244,16 +294,16 @@ class SaveAFMeshes(bpy.types.Operator):
                 # .PLY export has a bug in which it only saves the mesh that is
                 # active in context of view. Hence we explicitly select this object
                 # as active in the scene on top of being selected
-                objName = obj.name + '.PLY'
-                filename_high_res = os.path.join(high_res_path, objName)
-                filename_low_res = os.path.join(low_res_path, objName)
+                obj_name = obj.name + '.PLY'
+                filename_high_res = os.path.join(high_res_path, obj_name)
+                filename_low_res = os.path.join(low_res_path, obj_name)
                 bpy.context.scene.objects.active = obj
                 bpy.ops.export_mesh.ply(filepath=filename_high_res, use_mesh_modifiers=False)
                 bpy.ops.export_mesh.ply(filepath=filename_low_res, use_mesh_modifiers=True)
                 # Make sure to deselect the mesh
                 bpy.context.scene.objects.active = None
 
-            obj.matrix_world = objTrans
+            obj.matrix_world = obj_trans
             obj.select = False
 
 
@@ -272,25 +322,25 @@ class GenerateLowResMeshModifiers(bpy.types.Operator):
         vertices_max = context.scene.mesh_max_vertices
         # Select each object iteratively and generate its low-res mesh
         for obj in bpy.data.objects:
-            decimateMod = obj.modifiers.new('decimateMod', 'DECIMATE')
+            decimate_mod = obj.modifiers.new('decimate_mod', 'DECIMATE')
             if len(obj.data.vertices) > vertices_max:
                 reduction_ratio = vertices_max / len(obj.data.vertices)
-                decimateMod.use_symmetry = False
-                decimateMod.use_collapse_triangulate = True
-                decimateMod.ratio = reduction_ratio
-                decimateMod.show_viewport = True
+                decimate_mod.use_symmetry = False
+                decimate_mod.use_collapse_triangulate = True
+                decimate_mod.ratio = reduction_ratio
+                decimate_mod.show_viewport = True
         return {'FINISHED'}
 
 
 class CreateAFYAMLPanel(bpy.types.Panel):
     """Creates a Panel in the Tool Shelf"""
     bl_label = "AF FILE CREATION"
-    bl_idname = "OBJECT_PT_afYAML"
+    bl_idname = "OBJECT_PT_afmb_yaml"
     bl_space_type = 'VIEW_3D'
     bl_region_type = 'TOOLS'
     bl_category = "AF Multi-Body"
 
-    bpy.types.Scene.afyaml_conf_path = bpy.props.StringProperty \
+    bpy.types.Scene.afmb_yaml_conf_path = bpy.props.StringProperty \
       (
       name = "Config (Save To)",
       default = "",
@@ -298,7 +348,7 @@ class CreateAFYAMLPanel(bpy.types.Panel):
       subtype = 'FILE_PATH'
       )
 
-    bpy.types.Scene.afyaml_mesh_path = bpy.props.StringProperty \
+    bpy.types.Scene.afmb_yaml_mesh_path = bpy.props.StringProperty \
       (
       name = "Meshes (Save To)",
       default = "",
@@ -312,7 +362,7 @@ class CreateAFYAMLPanel(bpy.types.Panel):
         name = "Mesh Type"
         )
 
-    #bpy.context.scene['mesh_output_type'] = 0
+    # bpy.context.scene['mesh_output_type'] = 0
 
     bpy.types.Scene.mesh_max_vertices = bpy.props.IntProperty \
         (
@@ -321,6 +371,7 @@ class CreateAFYAMLPanel(bpy.types.Panel):
         description = "The maximum number of vertices the low resolution collision mesh is allowed to have",
         )
 
+    setup_yaml()
 
     def draw(self, context):
         layout = self.layout
@@ -346,7 +397,7 @@ class CreateAFYAMLPanel(bpy.types.Panel):
         layout.label(text="Step 2: SELECT LOCATION AND SAVE MESHES")
 
         # Meshes Save Location
-        layout.column().prop(context.scene, 'afyaml_mesh_path')
+        layout.column().prop(context.scene, 'afmb_yaml_mesh_path')
 
         # Select the Mesh-Type for saving the meshes
         col= layout.column()
@@ -358,11 +409,11 @@ class CreateAFYAMLPanel(bpy.types.Panel):
         col.alignment = 'CENTER'
         col.operator("myops.add_save_af_meshes")
 
-        layout.label(text="Step 3: GENERATE AF MULTIBODY CONFIG")
+        layout.label(text="Step 3: GENERATE AF MULTI-BODY CONFIG")
 
         # Config File Save Location
         col = layout.column()
-        col.prop(context.scene, 'afyaml_conf_path')
+        col.prop(context.scene, 'afmb_yaml_conf_path')
         # Config File Save Button
         col = layout.column()
         col.alignment = 'CENTER'
@@ -391,6 +442,7 @@ class RemoveModifiers(bpy.types.Operator):
                 obj.modifiers.remove(mod)
         return {'FINISHED'}
 
+
 class ToggleModifiersVisibility(bpy.types.Operator):
     bl_idname = "myops.toggle_modifiers_visibility"
     bl_label = "Toggle Modifiers Visibility"
@@ -401,6 +453,7 @@ class ToggleModifiersVisibility(bpy.types.Operator):
                 mod.show_viewport = not mod.show_viewport
         return {'FINISHED'}
 
+
 def register():
     bpy.utils.register_class(ToggleModifiersVisibility)
     bpy.utils.register_class(RemoveModifiers)
@@ -409,6 +462,7 @@ def register():
     bpy.utils.register_class(SaveAFMeshes)
     bpy.utils.register_class(CreateAFYAMLPanel)
 
+
 def unregister():
     bpy.utils.unregister_class(ToggleModifiersVisibility)
     bpy.utils.unregister_class(RemoveModifiers)
@@ -416,6 +470,7 @@ def unregister():
     bpy.utils.unregister_class(CreateAFYAML)
     bpy.utils.unregister_class(SaveAFMeshes)
     bpy.utils.unregister_class(CreateAFYAMLPanel)
+
 
 if __name__ == "__main__":
     register()
