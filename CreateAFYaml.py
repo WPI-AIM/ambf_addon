@@ -56,32 +56,32 @@ def get_extension(val):
 # Body Template for the some commonly used of afBody's data
 class BodyTemplate:
     def __init__(self):
-        self.afmb_data = {'name': "",
-                          'mesh': "",
-                          'mass': 0.0,
-                          'scale': 1.0,
-                          'location': {
-                             'position': {'x':0, 'y':0, 'z':0},
-                             'orientation': {'r':0, 'p':0, 'y':0}},
-                          'inertial offset': {
-                             'position': {'x': 0, 'y': 0, 'z': 0},
-                             'orientation': {'r': 0, 'p': 0, 'y': 0}},
-                          'color': 'random'}
+        self._afmb_data = {'name': "",
+                           'mesh': "",
+                           'mass': 0.0,
+                           'scale': 1.0,
+                           'location': {
+                              'position': {'x':0, 'y':0, 'z':0},
+                              'orientation': {'r':0, 'p':0, 'y':0}},
+                           'inertial offset': {
+                              'position': {'x': 0, 'y': 0, 'z': 0},
+                              'orientation': {'r': 0, 'p': 0, 'y': 0}},
+                           'color': 'random'}
 
 
 # Joint Template for the some commonly used of afJoint's data
 class JointTemplate:
     def __init__(self):
-        self.afmb_data = {'name': '',
-                          'parent': '',
-                          'child': '',
-                          'parent axis': {'x': 0, 'y': 0.0, 'z': 1.0},
-                          'parent pivot': {'x': 0, 'y': 0.0, 'z': 0},
-                          'child axis': {'x': 0, 'y': 0.0, 'z': 1.0},
-                          'child pivot': {'x': 0, 'y': 0.0, 'z': 0},
-                          'joint limits': {'low': -1.2, 'high': 1.2},
-                          'enable motor': 0,
-                          'max motor impulse': 0}
+        self._afmb_data = {'name': '',
+                           'parent': '',
+                           'child': '',
+                           'parent axis': {'x': 0, 'y': 0.0, 'z': 1.0},
+                           'parent pivot': {'x': 0, 'y': 0.0, 'z': 0},
+                           'child axis': {'x': 0, 'y': 0.0, 'z': 1.0},
+                           'child pivot': {'x': 0, 'y': 0.0, 'z': 0},
+                           'joint limits': {'low': -1.2, 'high': 1.2},
+                           'enable motor': 0,
+                           'max motor impulse': 0}
 
 
 class CreateAFYAML(bpy.types.Operator):
@@ -119,22 +119,22 @@ class CreateAFYAML(bpy.types.Operator):
         if obj.hide is True:
             return
         body = BodyTemplate()
-        body_data = body.afmb_data
+        body_data = body._afmb_data
         body_yaml_name = self.get_body_prefixed_name(obj.name)
         output_mesh = bpy.context.scene['mesh_output_type']
         extension = get_extension(output_mesh)
         body_data['name'] = obj.name
         body_data['mesh'] = obj.name + extension
-        local_pos = obj.matrix_local.translation
-        local_rot = obj.matrix_local.to_euler()
+        world_pos = obj.matrix_world.translation
+        world_rot = obj.matrix_world.to_euler()
         body_pos = body_data['location']['position']
         body_rot = body_data['location']['orientation']
-        body_pos['x'] = round(local_pos.x, 3)
-        body_pos['y'] = round(local_pos.y, 3)
-        body_pos['z'] = round(local_pos.z, 3)
-        body_rot['r'] = round(local_rot[0], 3)
-        body_rot['p'] = round(local_rot[1], 3)
-        body_rot['y'] = round(local_rot[2], 3)
+        body_pos['x'] = round(world_pos.x, 3)
+        body_pos['y'] = round(world_pos.y, 3)
+        body_pos['z'] = round(world_pos.z, 3)
+        body_rot['r'] = round(world_rot[0], 3)
+        body_rot['p'] = round(world_rot[1], 3)
+        body_rot['y'] = round(world_rot[2], 3)
         if obj.rigid_body:
             body_data['mass'] = round(obj.rigid_body.mass, 3)
         body_com = self.compute_local_com(obj)
@@ -165,7 +165,7 @@ class CreateAFYAML(bpy.types.Operator):
             if obj.rigid_body_constraint.type == 'HINGE':
                 hinge = obj.rigid_body_constraint
                 joint = JointTemplate()
-                joint_data = joint.afmb_data
+                joint_data = joint._afmb_data
                 if hinge.object1:
                     parent = hinge.object1
                     child = hinge.object2
@@ -259,6 +259,47 @@ class SaveAFMeshes(bpy.types.Operator):
         self.save_meshes(context)
         return {'FINISHED'}
 
+    # This recursive function is specialized to deal with
+    # tree based hierarchy. In such cases we have to ensure
+    # to move the parent to origin first and then its children successively
+    # otherwise moving any parent after its child has been moved with move the
+    # child as well
+    def set_to_origin(self, p_obj, obj_name_mat_list):
+        if p_obj.children is None:
+            return
+        obj_name_mat_list.append([p_obj.name, p_obj.matrix_world.copy()])
+        p_obj.matrix_world.translation = mathutils.Vector([0,0,0])
+        p_obj.matrix_world.identity()
+        for c_obj in p_obj.children:
+            self.set_to_origin(c_obj, obj_name_mat_list)
+
+    # Since Blender exports meshes w.r.t world transform and not the
+    # the local mesh transform, we explicitly push each object to origin
+    # and remember its world transform for putting it back later on
+    def set_all_meshes_to_origin(self):
+        obj_name_mat_list = []
+        for p_obj in bpy.data.objects:
+            if p_obj.parent is None:
+                self.set_to_origin(p_obj, obj_name_mat_list)
+        return obj_name_mat_list
+
+    # This recursive function works in similar fashion to the
+    # set_to_origin function, but uses the know default transform
+    # to set the tree back to default in a hierarchial fashion
+    def reset_back_to_default(self, p_obj, obj_name_mat_list):
+        if p_obj.children is None:
+            return
+        for item in obj_name_mat_list:
+            if p_obj.name == item[0]:
+                p_obj.matrix_world = item[1]
+        for c_obj in p_obj.children:
+            self.reset_back_to_default(c_obj, obj_name_mat_list)
+
+    def reset_meshes_to_original_position(self, obj_name_mat_list):
+        for p_obj in bpy.data.objects:
+            if p_obj.parent is None:
+                self.reset_back_to_default(p_obj, obj_name_mat_list)
+
     def save_meshes(self, context):
         # First deselect all objects
         select_all_objects(False)
@@ -266,20 +307,18 @@ class SaveAFMeshes(bpy.types.Operator):
         save_path = context.scene.afmb_yaml_mesh_path
         high_res_path = os.path.join(save_path, 'high_res/')
         low_res_path = os.path.join(save_path, 'low_res/')
-        os.makedirs(high_res_path, exist_ok= True)
-        os.makedirs(low_res_path, exist_ok= True)
+        os.makedirs(high_res_path, exist_ok=True)
+        os.makedirs(low_res_path, exist_ok=True)
         mesh_type = bpy.context.scene['mesh_output_type']
-        # Select each object iteratively, save it, and then deselect it
-        # Since Blender exports meshes w.r.t world transform and not the
-        # the local mesh transform, we explicity push each object to origin,
-        # export it as a mesh, and then place it back to its original transform
+
+        mesh_name_mat_list = self.set_all_meshes_to_origin()
+
         for obj in bpy.data.objects:
-            obj.select = True
-            obj_trans = obj.matrix_world.copy()
-            obj.matrix_world.translation = mathutils.Vector([0, 0, 0])
-            obj.rotation_euler = mathutils.Euler([0, 0, 0])
             # Mesh Type is .stl
+            obj.select = True
             if mesh_type == MeshType.meshSTL.value:
+                # No need to iterate over objects and save them individually for stl file
+                # blender provides batch mode saving for STL
                 obj_name = obj.name + '.STL'
                 filename_high_res = os.path.join(high_res_path, obj_name)
                 filename_low_res = os.path.join(low_res_path, obj_name)
@@ -317,8 +356,8 @@ class SaveAFMeshes(bpy.types.Operator):
                 # Make sure to deselect the mesh
                 bpy.context.scene.objects.active = None
 
-            obj.matrix_world = obj_trans
             obj.select = False
+        self.reset_meshes_to_original_position(mesh_name_mat_list)
 
 
 class GenerateLowResMeshModifiers(bpy.types.Operator):
