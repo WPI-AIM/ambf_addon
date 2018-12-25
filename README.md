@@ -1,4 +1,4 @@
-# Blender AFMB Interface
+# Blender AFMB Add-on
 Blender Add-on for creating and loading AFMB yaml config files
 
 # Introduction:
@@ -6,6 +6,7 @@ This is a plugin to ease the creation of AF MultiBodies using Blender and load e
 
 #### Author:
 Adnan Munawar
+
 Email: amunawar@wpi.edu
 
 #### Decription:
