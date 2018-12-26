@@ -65,6 +65,8 @@ class BodyTemplate:
                               'position': {'x': 0, 'y': 0, 'z': 0},
                               'orientation': {'r': 0, 'p': 0, 'y': 0}},
                            'color': 'random'}
+        # Transform of Child Rel to Joint, which in inverse of t_c_j
+        self.t_j_c = mathutils.Matrix()
 
 
 # Joint Template for the some commonly used of afJoint's data
@@ -214,7 +216,7 @@ class CreateAFYAML(bpy.types.Operator):
 
     def generate_afmb_yaml(self, context):
         num_objs = len(bpy.data.objects)
-        save_to = context.scene.afmb_yaml_conf_path
+        save_to = bpy.path.abspath(context.scene.afmb_yaml_conf_path)
         file_name = os.path.basename(save_to)
         save_path = os.path.dirname(save_to)
         if not file_name:
@@ -227,8 +229,8 @@ class CreateAFYAML(bpy.types.Operator):
         self._afmb_yaml = OrderedDict()
         self._afmb_yaml['bodies'] = []
         self._afmb_yaml['joints'] = []
-        self._afmb_yaml['high resolution path'] = os.path.join(context.scene.afmb_yaml_mesh_path, 'high_res/')
-        self._afmb_yaml['low resolution path'] = os.path.join(context.scene.afmb_yaml_mesh_path, 'low_res/')
+        self._afmb_yaml['high resolution path'] = os.path.join(bpy.path.abspath(context.scene.afmb_yaml_mesh_path), 'high_res/')
+        self._afmb_yaml['low resolution path'] = os.path.join(bpy.path.abspath(context.scene.afmb_yaml_mesh_path), 'low_res/')
 
         for obj in bpy.data.objects:
             self.load_body_data(self._afmb_yaml, obj)
@@ -302,7 +304,7 @@ class SaveAFMeshes(bpy.types.Operator):
         # First deselect all objects
         select_all_objects(False)
 
-        save_path = context.scene.afmb_yaml_mesh_path
+        save_path = bpy.path.abspath(context.scene.afmb_yaml_mesh_path)
         high_res_path = os.path.join(save_path, 'high_res/')
         low_res_path = os.path.join(save_path, 'low_res/')
         os.makedirs(high_res_path, exist_ok=True)
@@ -393,38 +395,38 @@ class CreateAFYAMLPanel(bpy.types.Panel):
 
     bpy.types.Scene.afmb_yaml_conf_path = bpy.props.StringProperty \
       (
-        name = "Config (Save To)",
-        default = "",
-        description = "Define the root path of the project",
-        subtype = 'FILE_PATH'
+        name="Config (Save To)",
+        default="",
+        description="Define the root path of the project",
+        subtype='FILE_PATH'
       )
 
     bpy.types.Scene.afmb_yaml_mesh_path = bpy.props.StringProperty \
       (
-        name = "Meshes (Save To)",
-        default = "",
+        name="Meshes (Save To)",
+        default="",
         description = "Define the path to save to mesh files",
-        subtype = 'DIR_PATH'
+        subtype='DIR_PATH'
       )
 
     bpy.types.Scene.mesh_output_type = bpy.props.EnumProperty \
         (
-            items = [('STL', 'STL', 'STL'),('OBJ', 'OBJ', 'OBJ'),('3DS', '3DS', '3DS'),('PLY', 'PLY', 'PLY')],
-            name = "Mesh Type"
+            items=[('STL', 'STL', 'STL'),('OBJ', 'OBJ', 'OBJ'),('3DS', '3DS', '3DS'),('PLY', 'PLY', 'PLY')],
+            name="Mesh Type"
         )
 
     # bpy.context.scene['mesh_output_type'] = 0
 
     bpy.types.Scene.mesh_max_vertices = bpy.props.IntProperty \
         (
-            name = "",
-            default = 150,
-            description = "The maximum number of vertices the low resolution collision mesh is allowed to have",
+            name="",
+            default=150,
+            description="The maximum number of vertices the low resolution collision mesh is allowed to have",
         )
 
     bpy.types.Scene.external_afmb_yaml_filepath = bpy.props.StringProperty \
         (
-            name="AMBF Config",
+            name="AFMB Config",
             default="",
             description="Load AFMB YAML FILE",
             subtype='FILE_PATH'
@@ -530,32 +532,34 @@ class LoadAFMBYAML(bpy.types.Operator):
     
     def __init__(self):
         self._afmb = None
+        # A dict of T_c_j frames for each body
+        self._body_t_c_j = {}
         # A dict for body name as defined in YAML File and the Name Blender gives
         # the body
         self._blender_remapped_body_names = {}
         
     def execute(self, context):
         print('HOWDY PARTNER')
-        yaml_file = open(context.scene['external_afmb_yaml_filepath'])
+        yaml_file = open(bpy.path.abspath(context.scene['external_afmb_yaml_filepath']))
         self._afmb = yaml.load(yaml_file)
         
         bodies_list = self._afmb['bodies']
         joints_list = self._afmb['joints']
         
         num_bodies = len(bodies_list)
-        print('Number of Bodies Specified = ', num_bodies)
+        # print('Number of Bodies Specified = ', num_bodies)
         high_res_path = self._afmb['high resolution path']
         for body_name in bodies_list:
             body = self._afmb[body_name]
-            print(body['name'])
-            body_high_res_path = ''
+            # print(body['name'])
             if 'high resolution path' in body:
                 body_high_res_path = body['high resolution path']
             else:
                 body_high_res_path = high_res_path
-            body_name = body['name']
+            af_name = body['name']
             body_mesh_name = body['mesh']
             body_mass = body['mass']
+            self._body_t_c_j[body_name] = mathutils.Matrix()
 
             body_location_xyz = {'x': 0, 'y': 0, 'z': 0}
             body_location_rpy = {'r': 0, 'p': 0, 'y': 0}
@@ -589,7 +593,41 @@ class LoadAFMBYAML(bpy.types.Operator):
             obj_handle.rotation_euler = (body_location_rpy['r'],
                                          body_location_rpy['p'],
                                          body_location_rpy['y'])
+                                         
+        print('Remapped Body Names: ', self._blender_remapped_body_names)
 
+        # First fill all T_c_j transforms
+        for joint_name in joints_list:
+            joint = self._afmb[joint_name]
+            if 'child pivot' in joint:
+                c_pvt = joint['child pivot']
+                c_axis = joint['child axis']
+
+                # Universal Z axis
+                nz = mathutils.Vector([0, 0, 1])
+                # Child's Joint Axis in child's frame
+                ax_cj = mathutils.Vector([c_axis['x'], c_axis['y'], c_axis['z']])
+                # Axis of rotation between child's joints axis and nz
+                ax_cj_rotation_axis = nz.cross(ax_cj)
+                # Angle between child's joints axis and nz
+                ax_cj_offset_angle = nz.angle(ax_cj)
+                if ax_cj_rotation_axis.length <= 0.9:
+                    ax_cj_rotation_axis = mathutils.Vector([0, 1, 0])
+                temp_mat2 = mathutils.Matrix()
+                # Rotation matrix representing the above angular offset
+                r_j_c = temp_mat2.Rotation(ax_cj_offset_angle, 4, ax_cj_rotation_axis)
+
+                # Transformation of joint in child frame
+                t_j_c = mathutils.Matrix()
+                t_j_c.translation = mathutils.Vector([c_pvt['x'], c_pvt['y'], c_pvt['z']])
+                # Now apply the rotation based on the axes deflection from nz
+                t_j_c *= r_j_c
+                t_c_j = t_j_c.copy()
+                t_c_j.invert()
+                self._body_t_c_j[joint['child']] = t_c_j
+        print('Body Names and T_j_c', self._body_t_c_j)
+        
+        # Finally assign joints and set correct positions
         for joint_name in joints_list:
             joint = self._afmb[joint_name]
             select_all_objects(False)
@@ -602,11 +640,11 @@ class LoadAFMBYAML(bpy.types.Operator):
                 joint_type = joint['type']
             else:
                 joint_type = 'HINGE'
-            parent_obj_handle = bpy.data.objects[self._blender_remapped_body_names[parent_body['name']]]
-            child_obj_handle = bpy.data.objects[self._blender_remapped_body_names[child_body['name']]]
-            print('JOINT:', joint_name)
-            print('\tParent: ', parent_obj_handle.name)
-            print('\tChild: ', child_obj_handle.name)
+            parent_obj_handle = bpy.data.objects[self._blender_remapped_body_names[parent_body_name]]
+            child_obj_handle = bpy.data.objects[self._blender_remapped_body_names[child_body_name]]
+            # print('JOINT:', joint_name)
+            # print('\tParent: ', parent_obj_handle.name)
+            # print('\tChild: ', child_obj_handle.name)
             if 'parent pivot' in joint:
                 p_pvt = joint['parent pivot']
                 p_axis = joint['parent axis']
@@ -646,22 +684,28 @@ class LoadAFMBYAML(bpy.types.Operator):
 
                     # Transformation matrix representing parent in world frame
                     t_p_w = parent_obj_handle.matrix_world.copy()
+                    
+                    # Transform of parent it it's previous joint
+                    t_p_j_pre = self._body_t_c_j[joint['parent']]
+                    #
+                    
                     # Transformation of joint in parent frame
                     t_j_p = mathutils.Matrix()
                     t_j_p.translation = mathutils.Vector([p_pvt['x'], p_pvt['y'], p_pvt['z']])
-                    t_j_p = t_j_p * r_j_p
+                    t_j_p = t_p_j_pre * t_j_p * r_j_p
                     # Transformation of joint in child frame
                     t_j_c = mathutils.Matrix()
                     t_j_c.translation = mathutils.Vector([c_pvt['x'], c_pvt['y'], c_pvt['z']])
                     t_j_c *= r_j_c
-                    print(t_j_c)
+                    # print(t_j_c)
                     # Transformation of child in joints frame
                     t_c_j = t_j_c.copy()
                     t_c_j.invert()
                     # Transformation of child in parents frame
-                    t_c_p = t_p_w * t_j_p * t_c_j
+                    t_c_p = t_p_w * t_j_p
 
                     child_obj_handle.matrix_world = t_c_p
+                    child_obj_handle.data.transform(t_c_j)
                     child_obj_handle.select = True
                     parent_obj_handle.select = True
                     context.scene.objects.active = parent_obj_handle
@@ -670,8 +714,8 @@ class LoadAFMBYAML(bpy.types.Operator):
             context.scene.objects.active = child_obj_handle
             child_obj_handle.select = True
             bpy.ops.rigidbody.constraint_add(type=joint_type)
-            child_obj_handle.rigid_body_constraint.object1 = bpy.data.objects[self._blender_remapped_body_names[parent_body['name']]]
-            child_obj_handle.rigid_body_constraint.object2 = bpy.data.objects[self._blender_remapped_body_names[child_body['name']]]
+            child_obj_handle.rigid_body_constraint.object1 = bpy.data.objects[self._blender_remapped_body_names[parent_body_name]]
+            child_obj_handle.rigid_body_constraint.object2 = bpy.data.objects[self._blender_remapped_body_names[child_body_name]]
 
             if 'joint limits' in joint:
                 child_obj_handle.rigid_body_constraint.limit_ang_z_upper = joint['joint limits']['high']
