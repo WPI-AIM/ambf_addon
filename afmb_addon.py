@@ -18,8 +18,6 @@ import mathutils
 from enum import Enum
 from collections import OrderedDict
 
-from collections import OrderedDict
-
 
 # https://stackoverflow.com/questions/31605131/dumping-a-dictionary-to-a-yaml-file-while-preserving-order/31609484
 def represent_dictionary_order(self, dict_data):
@@ -614,22 +612,38 @@ class LoadAFMBYAML(bpy.types.Operator):
                 p_axis = joint['parent axis']
                 if 'child pivot' in joint:
                     c_pvt = joint['child pivot']
+                    c_axis = joint['child axis']
 
                     # Latest release of blender (2.79) only supports joints along child's z axis
                     # which requires a workaround for this limitation. We rotate the joint frame by the
                     # angular offset of parent's joint axis, w.r.t to parent's z axis.
 
-                    # Parent's z axis in parent's frame
-                    v_j_z = mathutils.Vector([0, 0, 1])
+                    # Universal Z axis
+                    nz = mathutils.Vector([0, 0, 1])
                     # Parent's Joint Axis in parent's frame
-                    v_j_p = mathutils.Vector([p_axis['x'], p_axis['y'], p_axis['z']])
-                    # Axis of rotation between parent's joints axis and parent's z
-                    rot_axis = v_j_z.cross(v_j_p)
-                    # Angle between parent's joints axis and parent's z
-                    rot_angle = v_j_z.angle(v_j_p)
-                    temp_mat = mathutils.Matrix()
+                    ax_pj = mathutils.Vector([p_axis['x'], p_axis['y'], p_axis['z']])
+                    # Axis of rotation between parent's joints axis and nz
+                    ax_pj_rotation_axis = nz.cross(ax_pj)
+                    if ax_pj_rotation_axis.length <= 0.9:
+                        ax_pj_rotation_axis = mathutils.Vector([0, 1, 0])
+                    # Angle between parent's joints axis and nz
+                    ax_pj_offset_angle = nz.angle(ax_pj)
+                    temp_mat1 = mathutils.Matrix()
                     # Rotation matrix representing the above angular offset
-                    r_j_p = temp_mat.Rotation(rot_angle, 4, rot_axis)
+                    r_j_p = temp_mat1.Rotation(ax_pj_offset_angle, 4, ax_pj_rotation_axis)
+
+                    # Child's Joint Axis in child's frame
+                    ax_cj = mathutils.Vector([c_axis['x'], c_axis['y'], c_axis['z']])
+                    # Axis of rotation between child's joints axis and nz
+                    ax_cj_rotation_axis = nz.cross(ax_cj)
+                    # Angle between child's joints axis and nz
+                    ax_cj_offset_angle = nz.angle(ax_cj)
+                    if ax_cj_rotation_axis.length <= 0.9:
+                        ax_cj_rotation_axis = mathutils.Vector([0, 1, 0])
+                    temp_mat2 = mathutils.Matrix()
+                    # Rotation matrix representing the above angular offset
+                    r_j_c = temp_mat2.Rotation(ax_cj_offset_angle, 4, ax_cj_rotation_axis)
+
                     # Transformation matrix representing parent in world frame
                     t_p_w = parent_obj_handle.matrix_world.copy()
                     # Transformation of joint in parent frame
@@ -639,6 +653,8 @@ class LoadAFMBYAML(bpy.types.Operator):
                     # Transformation of joint in child frame
                     t_j_c = mathutils.Matrix()
                     t_j_c.translation = mathutils.Vector([c_pvt['x'], c_pvt['y'], c_pvt['z']])
+                    t_j_c *= r_j_c
+                    print(t_j_c)
                     # Transformation of child in joints frame
                     t_c_j = t_j_c.copy()
                     t_c_j.invert()
