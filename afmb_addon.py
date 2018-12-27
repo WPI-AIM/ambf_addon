@@ -197,11 +197,21 @@ class CreateAFYAML(bpy.types.Operator):
                     afmb_yaml[joint_yaml_name] = joint_data
                     self._joint_names_list.append(joint_yaml_name)
 
+    # Since changing the scale of the bodies directly impacts the rotation matrix, we have
+    # to take that into account while calculating offset of child from parent using
+    # transform manipulation
     def compute_parent_pivot_and_axis(self, parent, child):
+        # Since the rotation matrix is carrying the scale, seperate out just
+        # the rotation component
         # Transform of Parent in World
-        t_p_w = parent.matrix_world.copy()
+        t_p_w = parent.matrix_world.copy().to_euler().to_matrix().to_4x4()
+        t_p_w.translation = parent.matrix_world.copy().translation
+
+        # Since the rotation matrix is carrying the scale, seperate out just
+        # the rotation component
         # Transform of Child in World
-        t_c_w = child.matrix_world.copy()
+        t_c_w = child.matrix_world.copy().to_euler().to_matrix().to_4x4()
+        t_c_w.translation = child.matrix_world.copy().translation
 
         # Copy over the transform to invert it
         t_w_p = t_p_w.copy()
@@ -268,8 +278,12 @@ class SaveAFMeshes(bpy.types.Operator):
         if p_obj.children is None:
             return
         obj_name_mat_list.append([p_obj.name, p_obj.matrix_world.copy()])
-        p_obj.matrix_world.translation = mathutils.Vector([0,0,0])
+        # Since setting the world transform clears the embedded scale
+        # of the object, we need to re-scale the object after putting it to origin
+        scale_mat = mathutils.Matrix()
+        scale_mat = scale_mat.Scale(p_obj.matrix_world.median_scale, 4)
         p_obj.matrix_world.identity()
+        p_obj.matrix_world = scale_mat
         for c_obj in p_obj.children:
             self.set_to_origin(c_obj, obj_name_mat_list)
 
@@ -317,8 +331,6 @@ class SaveAFMeshes(bpy.types.Operator):
             # Mesh Type is .stl
             obj.select = True
             if mesh_type == MeshType.meshSTL.value:
-                # No need to iterate over objects and save them individually for stl file
-                # blender provides batch mode saving for STL
                 obj_name = obj.name + '.STL'
                 filename_high_res = os.path.join(high_res_path, obj_name)
                 filename_low_res = os.path.join(low_res_path, obj_name)
