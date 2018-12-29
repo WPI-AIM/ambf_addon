@@ -681,7 +681,24 @@ class LoadAFMBYAML(bpy.types.Operator):
                     temp_mat1 = mathutils.Matrix()
                     # Rotation matrix representing the above angular offset
                     r_j_p = temp_mat1.Rotation(ax_pj_offset_angle, 4, ax_pj_rotation_axis)
+                    
+                    # Transform of parent it it's previous joint
+                    t_p_j_pre = self._body_t_c_j[joint['parent']]
 
+                    # Transformation of joint in parent frame
+                    t_j_p = mathutils.Matrix()
+                    t_j_p.translation = mathutils.Vector([p_pvt['x'], p_pvt['y'], p_pvt['z']])
+                    t_j_p = t_p_j_pre * t_j_p * r_j_p
+
+                    # Transformation matrix representing parent in world frame
+                    t_p_w = parent_obj_handle.matrix_world.copy()
+
+                    # Transformation of child in parents frame
+                    t_c_p = t_p_w * t_j_p
+
+                    child_obj_handle.matrix_world = t_c_p
+
+                    # Now we need to transform the child since we moved the origin of the mesh to T_j_p
                     # Child's Joint Axis in child's frame
                     ax_cj = mathutils.Vector([c_axis['x'], c_axis['y'], c_axis['z']])
                     # Axis of rotation between child's joints axis and nz
@@ -693,18 +710,6 @@ class LoadAFMBYAML(bpy.types.Operator):
                     temp_mat2 = mathutils.Matrix()
                     # Rotation matrix representing the above angular offset
                     r_j_c = temp_mat2.Rotation(ax_cj_offset_angle, 4, ax_cj_rotation_axis)
-
-                    # Transformation matrix representing parent in world frame
-                    t_p_w = parent_obj_handle.matrix_world.copy()
-                    
-                    # Transform of parent it it's previous joint
-                    t_p_j_pre = self._body_t_c_j[joint['parent']]
-                    #
-                    
-                    # Transformation of joint in parent frame
-                    t_j_p = mathutils.Matrix()
-                    t_j_p.translation = mathutils.Vector([p_pvt['x'], p_pvt['y'], p_pvt['z']])
-                    t_j_p = t_p_j_pre * t_j_p * r_j_p
                     # Transformation of joint in child frame
                     t_j_c = mathutils.Matrix()
                     t_j_c.translation = mathutils.Vector([c_pvt['x'], c_pvt['y'], c_pvt['z']])
@@ -713,10 +718,7 @@ class LoadAFMBYAML(bpy.types.Operator):
                     # Transformation of child in joints frame
                     t_c_j = t_j_c.copy()
                     t_c_j.invert()
-                    # Transformation of child in parents frame
-                    t_c_p = t_p_w * t_j_p
 
-                    child_obj_handle.matrix_world = t_c_p
                     child_obj_handle.data.transform(t_c_j)
                     child_obj_handle.select = True
                     parent_obj_handle.select = True
