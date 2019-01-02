@@ -436,6 +436,22 @@ class CreateAFYAMLPanel(bpy.types.Panel):
             description="The maximum number of vertices the low resolution collision mesh is allowed to have",
         )
 
+    bpy.types.Scene.adjust_joint_pivots = bpy.props.BoolProperty \
+        (
+            name="Adjust Child Pivots",
+            default=True,
+            description="If the child axis is offset from the joint axis, correct for this offset, keep this to "
+                        "default (True) unless you want to debug the model or something advanced",
+        )
+
+    bpy.types.Scene.ignore_afmb_joint_offsets = bpy.props.BoolProperty \
+        (
+            name="Ignore Offsets",
+            default=False,
+            description="Ignore the joint offsets from afmb yaml file, keep this to default (False) "
+                        "unless you want to debug the model or something advanced",
+        )
+
     bpy.types.Scene.external_afmb_yaml_filepath = bpy.props.StringProperty \
         (
             name="AFMB Config",
@@ -506,6 +522,17 @@ class CreateAFYAMLPanel(bpy.types.Panel):
 
         # Load AFMB File Into Blender
         layout.label(text="LOAD AFMB FILE :")
+
+        # Load
+        col = layout.column()
+        col.alignment = 'CENTER'
+        col.prop(context.scene, 'adjust_joint_pivots')
+
+        # Load
+        col = layout.column()
+        col.alignment = 'CENTER'
+        col.prop(context.scene, 'ignore_afmb_joint_offsets')
+
         # Load
         col = layout.column()
         col.alignment = 'CENTER'
@@ -664,6 +691,14 @@ class LoadAFMBYAML(bpy.types.Operator):
                     c_pvt = joint['child pivot']
                     c_axis = joint['child axis']
 
+                    # To fully define a child body's connection and pose in a parent body, just the joint pivots
+                    # and joint axes are not sufficient. We also need the joint offset which correctly defines
+                    # the initial pose of the child body in the parent body.
+                    offset_angle = 0.0
+                    if not context.scene.ignore_afmb_joint_offsets:
+                        if 'offset' in joint:
+                            offset_angle = joint['offset']
+
                     # Latest release of blender (2.79) only supports joints along child's z axis
                     # which requires a workaround for this limitation. We rotate the joint frame by the
                     # angular offset of parent's joint axis, w.r.t to parent's z axis.
@@ -681,22 +716,9 @@ class LoadAFMBYAML(bpy.types.Operator):
                     temp_mat1 = mathutils.Matrix()
                     # Rotation matrix representing the above angular offset
                     r_j_p = temp_mat1.Rotation(ax_pj_offset_angle, 4, ax_pj_rotation_axis)
-                    
-                    # Transform of parent it it's previous joint
-                    t_p_j_pre = self._body_t_c_j[joint['parent']]
-
-                    # Transformation of joint in parent frame
-                    t_j_p = mathutils.Matrix()
-                    t_j_p.translation = mathutils.Vector([p_pvt['x'], p_pvt['y'], p_pvt['z']])
-                    t_j_p = t_p_j_pre * t_j_p * r_j_p
 
                     # Transformation matrix representing parent in world frame
                     t_p_w = parent_obj_handle.matrix_world.copy()
-
-                    # Transformation of child in parents frame
-                    t_c_p = t_p_w * t_j_p
-
-                    child_obj_handle.matrix_world = t_c_p
 
                     # Now we need to transform the child since we moved the origin of the mesh to T_j_p
                     # Child's Joint Axis in child's frame
@@ -719,7 +741,29 @@ class LoadAFMBYAML(bpy.types.Operator):
                     t_c_j = t_j_c.copy()
                     t_c_j.invert()
 
-                    child_obj_handle.data.transform(t_c_j)
+                    # If check is enabled, always correct for joint pivot offsets to child
+                    if context.scene.adjust_joint_pivots is True:
+                        # Transform of parent it it's previous joint
+                        t_p_j_pre = self._body_t_c_j[joint['parent']]
+                        t_c_offset_rot = mathutils.Matrix().Rotation(offset_angle, 4, ax_cj)
+                        # Transformation of joint in parent frame
+                        t_j_p = mathutils.Matrix()
+                        t_j_p.translation = mathutils.Vector([p_pvt['x'], p_pvt['y'], p_pvt['z']])
+                        t_j_p = t_p_j_pre * t_j_p * r_j_p
+                        # Transformation of child in parents frame
+                        t_c_p = t_p_w * t_j_p * t_c_offset_rot
+                        child_obj_handle.data.transform(t_c_j)
+                    else:
+                        # Transformation of joint in parent frame
+                        t_c_offset_rot = mathutils.Matrix().Rotation(offset_angle, 4, ax_cj)
+                        # Transformation of joint in parent frame
+                        t_j_p = mathutils.Matrix()
+                        t_j_p.translation = mathutils.Vector([p_pvt['x'], p_pvt['y'], p_pvt['z']])
+                        t_j_p = t_j_p * r_j_p
+                        t_c_p = t_p_w * t_j_p * t_c_offset_rot * t_c_j
+
+                    child_obj_handle.matrix_world = t_c_p
+
                     child_obj_handle.select = True
                     parent_obj_handle.select = True
                     context.scene.objects.active = parent_obj_handle
@@ -732,8 +776,8 @@ class LoadAFMBYAML(bpy.types.Operator):
             child_obj_handle.rigid_body_constraint.object2 = bpy.data.objects[self._blender_remapped_body_names[child_body_name]]
 
             if 'joint limits' in joint:
-                child_obj_handle.rigid_body_constraint.limit_ang_z_upper = joint['joint limits']['high']
-                child_obj_handle.rigid_body_constraint.limit_ang_z_lower = joint['joint limits']['low']
+                child_obj_handle.rigid_body_constraint.limit_ang_z_upper = joint['joint limits']['high'] + offset_angle
+                child_obj_handle.rigid_body_constraint.limit_ang_z_lower = joint['joint limits']['low'] + offset_angle
 
         print('Printing Blender Remapped Body Names')
         print(self._blender_remapped_body_names)    
