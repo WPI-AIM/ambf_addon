@@ -554,7 +554,13 @@ class LoadAFMBYAML(bpy.types.Operator):
     def __init__(self):
         self._afmb = None
         # A dict of T_c_j frames for each body
-        self._body_t_c_j = {}
+        self._body_t_j_c = {}
+        self._joint_additional_offset = {}
+        # This spf (small person frame) can be thought of as a small person holding a frame axis
+        # aligned with the mesh axis sitting on the mesh. The frame rotates with the mesh, i.e.,
+        # offsetting the mesh's orientation also rotates this small person frame, additionally
+        # rotating the frame of the body also rotates the small person frame
+        self._body_spf = {}
         # A dict for body name as defined in YAML File and the Name Blender gives
         # the body
         self._blender_remapped_body_names = {}
@@ -580,7 +586,8 @@ class LoadAFMBYAML(bpy.types.Operator):
             af_name = body['name']
             body_mesh_name = body['mesh']
             body_mass = body['mass']
-            self._body_t_c_j[body_name] = mathutils.Matrix()
+            self._body_t_j_c[body_name] = mathutils.Matrix()
+            self._body_spf[body_name] = mathutils.Matrix()
 
             body_location_xyz = {'x': 0, 'y': 0, 'z': 0}
             body_location_rpy = {'r': 0, 'p': 0, 'y': 0}
@@ -634,174 +641,266 @@ class LoadAFMBYAML(bpy.types.Operator):
 
         print('Remapped Body Names: ', self._blender_remapped_body_names)
 
-        # First fill all T_c_j transforms
-        for joint_name in joints_list:
-            joint = self._afmb[joint_name]
-            if 'child pivot' in joint:
-                c_pvt = joint['child pivot']
-                c_axis = joint['child axis']
-
-                joint_type = 'hinge'
-                if 'type' in joint:
-                    joint_type = joint['type']
-
-                # Universal Constraint axis
-                if joint_type in ['hinge', 'revolute', 'continuous']:
-                    constraint_axis = mathutils.Vector([0, 0, 1])
-                elif joint_type in ['prismatic', 'slider']:
-                    constraint_axis = mathutils.Vector([1, 0, 0])
-
-                # Child's Joint Axis in child's frame
-                ax_child = mathutils.Vector([c_axis['x'], c_axis['y'], c_axis['z']])
-
-                r_c_j, d_angle = get_rot_mat_from_vecs(constraint_axis, ax_child)
-
-                # Transformation of joint in child frame
-                t_c_j = mathutils.Matrix()
-                t_c_j.translation = mathutils.Vector([c_pvt['x'], c_pvt['y'], c_pvt['z']])
-                # Now apply the rotation based on the axes deflection from constraint_axis
-                t_c_j *= r_c_j
-                t_j_c = t_c_j.copy()
-                t_j_c.invert()
-                self._body_t_c_j[joint['child']] = t_j_c
-        print('Body Names and T_j_c', self._body_t_c_j)
-
-        # Finally assign joints and set correct positions
-        for joint_name in joints_list:
-            joint = self._afmb[joint_name]
-            select_all_objects(False)
-            context.scene.objects.active = None
-            parent_body_name = joint['parent']
-            child_body_name = joint['child']
-            parent_body = self._afmb[parent_body_name]
-            child_body = self._afmb[child_body_name]
-            # If there is any joint with the world. Ignore and continue
-            if parent_body['name'] in ['world', 'World']:
-                continue
-            if 'type' in joint:
-                joint_type = joint['type']
-            else:
-                joint_type = 'HINGE'
-            parent_obj_handle = bpy.data.objects[self._blender_remapped_body_names[parent_body_name]]
-            child_obj_handle = bpy.data.objects[self._blender_remapped_body_names[child_body_name]]
-            # print('JOINT:', joint_name)
-            # print('\tParent: ', parent_obj_handle.name)
-            # print('\tChild: ', child_obj_handle.name)
-            if 'parent pivot' in joint:
-                p_pvt = joint['parent pivot']
-                p_axis = joint['parent axis']
+        if context.scene.adjust_joint_pivots is True:
+            # First fill all T_c_j transforms
+            for joint_name in joints_list:
+                joint = self._afmb[joint_name]
                 if 'child pivot' in joint:
+                    child_body_name = joint['child']
                     c_pvt = joint['child pivot']
                     c_axis = joint['child axis']
+                    p_axis = joint['parent axis']
 
-                    # To fully define a child body's connection and pose in a parent body, just the joint pivots
-                    # and joint axes are not sufficient. We also need the joint offset which correctly defines
-                    # the initial pose of the child body in the parent body.
-                    offset_angle = 0.0
-                    if not context.scene.ignore_afmb_joint_offsets:
-                        if 'offset' in joint:
-                            offset_angle = joint['offset']
-                    # Latest release of blender (2.79) only supports joints along child's z axis
-                    # which requires a workaround for this limitation. We rotate the joint frame by the
-                    # angular offset of parent's joint axis, w.r.t to parent's z axis.
+                    child_obj_handle = bpy.data.objects[self._blender_remapped_body_names[child_body_name]]
 
-                    # Set joint type to blender appropriate name
+                    joint_type = 'HINGE'
                     if 'type' in joint:
                         if joint['type'] in ['hinge', 'revolute', 'continuous']:
                             joint_type = 'HINGE'
                         elif joint['type'] in ['prismatic', 'slider']:
                             joint_type = 'SLIDER'
 
-                    # Transformation matrix representing parent in world frame
-                    t_p_w = parent_obj_handle.matrix_world.copy()
+                    # Universal Constraint Axis
+                    constraint_axis = mathutils.Vector([0, 0, 1])
+                    # If check is enabled, set the appropriate constraint axis
+                    if joint_type == 'HINGE':
+                        constraint_axis = mathutils.Vector([0, 0, 1])
+                    elif joint_type == 'SLIDER':
+                        constraint_axis = mathutils.Vector([1, 0, 0])
 
-                    # Z unit vector
-                    nz = mathutils.Vector([0, 0, 1])
+                    # Child's Joint Axis in child's frame
+                    ax_child = mathutils.Vector([c_axis['x'], c_axis['y'], c_axis['z']])
+                    
+                    self._joint_additional_offset[joint_name] = 0.0
+                    # if any(ax_child[i] < 0.0 for i in range(0, 3)):
+                        # constraint_axis = -constraint_axis
+                        # If the joint axis has any component in the negative direction
+                        # set the additional offset to 3.14 to account for discrepancy
+                        # between AF Sim and Blender Sim
+                        # if joint_type == 'SLIDER':
+                        #     self._joint_additional_offset[joint_name] = 3.14
+
+                    r_j_c, d_angle = get_rot_mat_from_vecs(constraint_axis, ax_child)
+
+                    # Transformation of joint in child frame
+                    p_j_c = mathutils.Matrix()
+                    p_j_c.translation = mathutils.Vector([c_pvt['x'], c_pvt['y'], c_pvt['z']])
+                    # Now apply the rotation based on the axes deflection from constraint_axis
+                    t_j_c = r_j_c * p_j_c
+                    t_c_j = t_j_c.copy()
+                    t_c_j.invert()
+                    c_axis['x'] = constraint_axis[0]
+                    c_axis['y'] = constraint_axis[1]
+                    c_axis['z'] = constraint_axis[2]
+
+                    child_obj_handle.data.transform(t_c_j)
+                    self._body_t_j_c[joint['child']] = t_c_j
+                    # Implementing the Alignment Offset Algorithm (AO)
+                    t_origin = mathutils.Matrix()
+                    self._body_spf[joint['child']] = t_origin * t_c_j
 
                     # Parent's Joint Axis in parent's frame
                     ax_parent = mathutils.Vector([p_axis['x'], p_axis['y'], p_axis['z']])
 
-                    # Rotation matrix representing joints axis in parents frame
-                    r_j_p, d_angle = get_rot_mat_from_vecs(nz, ax_parent)
-                    print ('R_j_p')
-                    print(r_j_p)
+                    r_caxis_p, r_cnew_p_angle = get_rot_mat_from_vecs(constraint_axis, ax_parent)
+                    r_cnew_p = r_caxis_p * t_c_j
+                    r_c_p, r_c_p_angle = get_rot_mat_from_vecs(ax_child, ax_parent)
+                    r_p_c = r_c_p.copy()
+                    r_p_c.invert()
+                    delta_r = r_p_c * r_cnew_p
+                    print('Joint Name: ', joint_name)
+                    print('Delta R: ')
+                    d_axis_angle = delta_r.to_quaternion().to_axis_angle()
+                    print(d_axis_angle)
+                    if abs(d_axis_angle[1] > 0.1):
+                        r_ao = mathutils.Matrix().Rotation(-d_axis_angle[1], 4, constraint_axis)
+                        child_obj_handle.data.transform(r_ao)
+                        self._body_t_j_c[joint['child']] = t_c_j * r_ao
 
-                    # Transformation of joint in parent frame
-                    t_j_p = mathutils.Matrix()
-                    t_j_p = t_j_p * r_j_p
-                    t_j_p.translation = mathutils.Vector([p_pvt['x'], p_pvt['y'], p_pvt['z']])
+                    # end of AO algorithm
 
-                    # Universal Constraint Axis
-                    constraint_axis = mathutils.Vector([0, 0, 1])
-                    # If check is enabled, set the appropriate constraint axis
-                    if context.scene.adjust_joint_pivots is True:
-                        if joint_type == 'HINGE':
-                            constraint_axis = mathutils.Vector([0, 0, 1])
-                        elif joint_type == 'SLIDER':
-                            constraint_axis = mathutils.Vector([1, 0, 0])
 
-                    # Now we need to transform the child since we could have potentially moved
-                    # the origin of the mesh in there loop iterations
+            # Finally assign joints and set correct positions
+            for joint_name in joints_list:
+                joint = self._afmb[joint_name]
+                select_all_objects(False)
+                context.scene.objects.active = None
+                parent_body_name = joint['parent']
+                child_body_name = joint['child']
+                parent_body = self._afmb[parent_body_name]
+                child_body = self._afmb[child_body_name]
+                # If there is any joint with the world. Ignore and continue
+                if parent_body['name'] in ['world', 'World']:
+                    continue
+                    # Set joint type to blender appropriate name
+                if 'type' in joint:
+                    if joint['type'] in ['hinge', 'revolute', 'continuous']:
+                        joint_type = 'HINGE'
+                    elif joint['type'] in ['prismatic', 'slider']:
+                        joint_type = 'SLIDER'
+                parent_obj_handle = bpy.data.objects[self._blender_remapped_body_names[parent_body_name]]
+                child_obj_handle = bpy.data.objects[self._blender_remapped_body_names[child_body_name]]
+                # print('JOINT:', joint_name)
+                # print('\tParent: ', parent_obj_handle.name)
+                # print('\tChild: ', child_obj_handle.name)
+                if 'parent pivot' in joint:
+                    p_pvt = joint['parent pivot']
+                    p_axis = joint['parent axis']
+                    if 'child pivot' in joint:
+                        c_pvt = joint['child pivot']
+                        c_axis = joint['child axis']
+                        # To fully define a child body's connection and pose in a parent body, just the joint pivots
+                        # and joint axes are not sufficient. We also need the joint offset which correctly defines
+                        # the initial pose of the child body in the parent body.
+                        offset_angle = 0.0
+                        if not context.scene.ignore_afmb_joint_offsets:
+                            if 'offset' in joint:
+                                offset_angle = joint['offset']
+                        # Latest release of blender (2.79) only supports joints along child's z axis
+                        # which requires a workaround for this limitation. We rotate the joint frame by the
+                        # angular offset of parent's joint axis, w.r.t to parent's z axis.
+                        # Transformation matrix representing parent in world frame
+                        t_p_w = parent_obj_handle.matrix_world.copy()
 
-                    # Child's Joint Axis in child's frame
-                    ax_child = mathutils.Vector([c_axis['x'], c_axis['y'], c_axis['z']])
-                    # Rotation matrix representing child frame in joint frame
-                    r_c_j, r_c_j_angle = get_rot_mat_from_vecs(constraint_axis, ax_child)
-                    print ('R_c_j')
-                    print(r_c_j)
+                        # Parent's Joint Axis in parent's frame
+                        ax_parent = mathutils.Vector([p_axis['x'], p_axis['y'], p_axis['z']])
 
-                    # Transformation of joint in child frame
-                    t_c_j = mathutils.Matrix()
-                    t_c_j *= r_c_j
-                    t_c_j.translation = mathutils.Vector([c_pvt['x'], c_pvt['y'], c_pvt['z']])
-                    # print(t_c_j)
-                    # Transformation of child in joints frame
-                    t_j_c = t_c_j.copy()
-                    t_j_c.invert()
+                        # Child's Joint Axis in Child's frame
+                        ax_child = mathutils.Vector([c_axis['x'], c_axis['y'], c_axis['z']])
 
-                    # Offset along constraint axis
-                    t_c_offset_rot = mathutils.Matrix().Rotation(offset_angle, 4, ax_child)
+                        # Transformation of joint in parent frame
+                        p_j_p = mathutils.Matrix()
+                        # P_j_p = P_j_p * r_j_p
+                        p_j_p.translation = mathutils.Vector([p_pvt['x'], p_pvt['y'], p_pvt['z']])
+                        # Now we need to transform the child since we could have potentially moved
+                        # the origin of the mesh in last loop's iterations
+                        # Child's Joint Axis in child's frame
 
-                    # If check is enabled, always correct for joint pivot offsets to child
-                    if context.scene.adjust_joint_pivots is True:
-                        # Transform of parent in it's previous joint since we have enabled moving
-                        # the meshes to align pivots to work around blender's limitations
-                        t_p_j_pre = self._body_t_c_j[joint['parent']]
-                        t_j_p = t_p_j_pre * t_j_p
-                        # If the child is rotated by 0 or full 180 degrees, we don't need to adjuts offsets
-                        print('r_c_j Angle: ', r_c_j_angle)
-                        if 0.1 < abs(r_c_j_angle) < 3.13:
-                            child_obj_handle.data.transform(t_j_c)
+                        # Rotation matrix representing child frame in parent frame
+                        r_c_p, r_c_p_angle = get_rot_mat_from_vecs(ax_child, ax_parent)
+                        print ('r_c_p')
+                        print(r_c_p)
 
-                    # Transformation of child in parents frame
-                    t_c_p = t_p_w * t_j_p * t_c_offset_rot * t_c_j
-                    # Set the child body the pose calculated above
-                    child_obj_handle.matrix_world = t_c_p
+                        # Offset along constraint axis
+                        t_c_offset_rot = mathutils.Matrix().Rotation(offset_angle, 4, ax_parent)
 
-                    child_obj_handle.select = True
-                    parent_obj_handle.select = True
-                    context.scene.objects.active = parent_obj_handle
-                    bpy.ops.object.parent_set(keep_transform=True)
+                        t_p_w_off = self._body_t_j_c[joint['parent']]
 
-                    context.scene.objects.active = child_obj_handle
-                    child_obj_handle.select = True
-                    bpy.ops.rigidbody.constraint_add(type=joint_type)
-                    child_obj_handle.rigid_body_constraint.object1 \
-                        = bpy.data.objects[self._blender_remapped_body_names[parent_body_name]]
-                    child_obj_handle.rigid_body_constraint.object2 \
-                        = bpy.data.objects[self._blender_remapped_body_names[child_body_name]]
+                        # Transformation of child in parents frame
+                        t_c_p = t_p_w * t_p_w_off * p_j_p * t_c_offset_rot * r_c_p
+                        # Set the child body the pose calculated above
+                        child_obj_handle.matrix_world = t_c_p
+                        child_obj_handle.select = True
+                        parent_obj_handle.select = True
+                        context.scene.objects.active = parent_obj_handle
+                        bpy.ops.object.parent_set(keep_transform=True)
+                        context.scene.objects.active = child_obj_handle
+                        child_obj_handle.select = True
+                        bpy.ops.rigidbody.constraint_add(type=joint_type)
+                        child_obj_handle.rigid_body_constraint.object1 \
+                            = bpy.data.objects[self._blender_remapped_body_names[parent_body_name]]
+                        child_obj_handle.rigid_body_constraint.object2 \
+                            = bpy.data.objects[self._blender_remapped_body_names[child_body_name]]
+                        if 'joint limits' in joint:
+                            if joint_type == 'HINGE':
+                                child_obj_handle.rigid_body_constraint.limit_ang_z_upper \
+                                    = joint['joint limits']['high'] + offset_angle
+                                child_obj_handle.rigid_body_constraint.limit_ang_z_lower \
+                                    = joint['joint limits']['low'] + offset_angle
+                                child_obj_handle.rigid_body_constraint.use_limit_ang_z = True
+                            elif joint_type == 'SLIDER':
+                                child_obj_handle.rigid_body_constraint.limit_lin_x_upper = \
+                                joint['joint limits']['high']
+                                child_obj_handle.rigid_body_constraint.limit_lin_x_lower = \
+                                joint['joint limits']['low']
+                                child_obj_handle.rigid_body_constraint.use_limit_lin_x = True
 
-                    if 'joint limits' in joint:
-                        if joint_type == 'HINGE':
-                            child_obj_handle.rigid_body_constraint.limit_ang_z_upper \
-                                = joint['joint limits']['high'] + offset_angle
-                            child_obj_handle.rigid_body_constraint.limit_ang_z_lower \
-                                = joint['joint limits']['low'] + offset_angle
-                            child_obj_handle.rigid_body_constraint.use_limit_ang_z = True
-                        elif joint_type == 'SLIDER':
-                            child_obj_handle.rigid_body_constraint.limit_lin_x_upper = joint['joint limits']['high']
-                            child_obj_handle.rigid_body_constraint.limit_lin_x_lower = joint['joint limits']['low']
-                            child_obj_handle.rigid_body_constraint.use_limit_lin_x = True
+        ####################################################################################################
+
+            print('Body Names and T_j_c', self._body_t_j_c)
+        else:
+            # Finally assign joints and set correct positions
+            for joint_name in joints_list:
+                joint = self._afmb[joint_name]
+                select_all_objects(False)
+                context.scene.objects.active = None
+                parent_body_name = joint['parent']
+                child_body_name = joint['child']
+                parent_body = self._afmb[parent_body_name]
+                child_body = self._afmb[child_body_name]
+                # If there is any joint with the world. Ignore and continue
+                if parent_body['name'] in ['world', 'World']:
+                    continue
+                    # Set joint type to blender appropriate name
+                if 'type' in joint:
+                    if joint['type'] in ['hinge', 'revolute', 'continuous']:
+                        joint_type = 'HINGE'
+                    elif joint['type'] in ['prismatic', 'slider']:
+                        joint_type = 'SLIDER'
+                parent_obj_handle = bpy.data.objects[self._blender_remapped_body_names[parent_body_name]]
+                child_obj_handle = bpy.data.objects[self._blender_remapped_body_names[child_body_name]]
+                if 'parent pivot' in joint:
+                    p_pvt = joint['parent pivot']
+                    p_axis = joint['parent axis']
+                    if 'child pivot' in joint:
+                        c_pvt = joint['child pivot']
+                        c_axis = joint['child axis']
+                        # To fully define a child body's connection and pose in a parent body, just the joint pivots
+                        # and joint axes are not sufficient. We also need the joint offset which correctly defines
+                        # the initial pose of the child body in the parent body.
+                        offset_angle = 0.0
+                        if not context.scene.ignore_afmb_joint_offsets:
+                            if 'offset' in joint:
+                                offset_angle = joint['offset']
+                        # Transformation matrix representing parent in world frame
+                        t_p_w = parent_obj_handle.matrix_world.copy()
+                        # Parent's Joint Axis in parent's frame
+                        ax_parent = mathutils.Vector([p_axis['x'], p_axis['y'], p_axis['z']])
+                        # Transformation of joint in parent frame
+                        P_j_p = mathutils.Matrix()
+                        # P_j_p = P_j_p * r_j_p
+                        P_j_p.translation = mathutils.Vector([p_pvt['x'], p_pvt['y'], p_pvt['z']])
+                        ax_child = mathutils.Vector([c_axis['x'], c_axis['y'], c_axis['z']])
+                        # Rotation matrix representing child frame in parent frame
+                        r_c_p, r_c_p_angle = get_rot_mat_from_vecs(ax_child, ax_parent)
+                        print ('r_c_p')
+                        print(r_c_p)
+                        # Transformation of joint in child frame
+                        p_j_c = mathutils.Matrix()
+                        # p_j_c *= r_j_c
+                        p_j_c.translation = mathutils.Vector([c_pvt['x'], c_pvt['y'], c_pvt['z']])
+                        # print(p_j_c)
+                        # Transformation of child in joints frame
+                        P_c_j = p_j_c.copy()
+                        P_c_j.invert()
+                        # Offset along constraint axis
+                        t_c_offset_rot = mathutils.Matrix().Rotation(offset_angle, 4, ax_parent)
+                        # Transformation of child in parents frame
+                        t_c_p = t_p_w * P_j_p * t_c_offset_rot * r_c_p * P_c_j
+                        # Set the child body the pose calculated above
+                        child_obj_handle.matrix_world = t_c_p
+                        child_obj_handle.select = True
+                        parent_obj_handle.select = True
+                        context.scene.objects.active = parent_obj_handle
+                        bpy.ops.object.parent_set(keep_transform=True)
+                        context.scene.objects.active = child_obj_handle
+                        child_obj_handle.select = True
+                        bpy.ops.rigidbody.constraint_add(type=joint_type)
+                        child_obj_handle.rigid_body_constraint.object1 \
+                            = bpy.data.objects[self._blender_remapped_body_names[parent_body_name]]
+                        child_obj_handle.rigid_body_constraint.object2 \
+                            = bpy.data.objects[self._blender_remapped_body_names[child_body_name]]
+                        if 'joint limits' in joint:
+                            if joint_type == 'HINGE':
+                                child_obj_handle.rigid_body_constraint.limit_ang_z_upper \
+                                    = joint['joint limits']['high'] + offset_angle
+                                child_obj_handle.rigid_body_constraint.limit_ang_z_lower \
+                                    = joint['joint limits']['low'] + offset_angle
+                                child_obj_handle.rigid_body_constraint.use_limit_ang_z = True
+                            elif joint_type == 'SLIDER':
+                                child_obj_handle.rigid_body_constraint.limit_lin_x_upper = joint['joint limits']['high']
+                                child_obj_handle.rigid_body_constraint.limit_lin_x_lower = joint['joint limits']['low']
+                                child_obj_handle.rigid_body_constraint.use_limit_lin_x = True
 
         print('Printing Blender Remapped Body Names')
         print(self._blender_remapped_body_names)
