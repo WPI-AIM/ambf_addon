@@ -717,7 +717,7 @@ class LoadAFMBYAML(bpy.types.Operator):
                     if any(d_axis[i] < 0.0 for i in range(0, 3)):
                         d_angle = - d_angle
 
-                    if abs(d_angle > 0.1):
+                    if abs(d_angle) > 0.1:
                         r_ao = mathutils.Matrix().Rotation(d_angle, 4, constraint_axis)
                         child_obj_handle.data.transform(r_ao)
                         self._body_t_j_c[joint['child']] = r_ao * t_c_j
