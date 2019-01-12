@@ -758,7 +758,8 @@ class LoadAFMBYAML(bpy.types.Operator):
                 p_j_c.translation = mathutils.Vector(
                     [child_pivot_data['x'], child_pivot_data['y'], child_pivot_data['z']])
                 # Now apply the rotation based on the axes deflection from constraint_axis
-                t_j_c = r_j_c * p_j_c
+                t_j_c = r_j_c
+                t_j_c.translation = p_j_c.translation
                 t_c_j = t_j_c.copy()
                 t_c_j.invert()
                 child_axis_data['x'] = constraint_axis[0]
