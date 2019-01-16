@@ -828,6 +828,7 @@ class LoadAFMBYAML(bpy.types.Operator):
         if parent_body_data['name'] in ['world', 'World']:
             return
             # Set joint type to blender appropriate name
+        joint_type = 'HINGE'
         if 'type' in joint:
             if joint['type'] in ['hinge', 'revolute', 'continuous']:
                 joint_type = 'HINGE'
