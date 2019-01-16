@@ -88,14 +88,14 @@ def rot_matrix_from_vecs(v1, v2):
         return out
     elif 1.0 + vdot < 0.1:
         # This is a more involved case, find out the orthogonal vector to vecA
-        ny = mathutils.Vector([0, 1, 0])
-        temp_ang = v1.angle(ny)
+        nx = mathutils.Vector([1, 0, 0])
+        temp_ang = v1.angle(nx)
         if 0.1 < abs(temp_ang) < 3.13:
-            axis = v1.cross(ny)
+            axis = v1.cross(nx)
             out.Rotation(rot_angle, 3, axis)
         else:
-            nz = mathutils.Vector([0, 0, 1])
-            axis = v1.cross(nz)
+            ny = mathutils.Vector([0, 1, 0])
+            axis = v1.cross(ny)
             out.Rotation(rot_angle, 3, axis)
     else:
         skew_v = skew_mat(vcross)
@@ -115,13 +115,13 @@ def get_rot_mat_from_vecs(vecA, vecB):
         axis = mathutils.Vector([0, 1, 0])
     elif abs(angle) >= 3.13:
         # This is a more involved case, find out the orthogonal vector to vecA
-        ny = mathutils.Vector([0, 1, 0])
-        temp_ang = vecA.angle(ny)
+        nx = mathutils.Vector([1, 0, 0])
+        temp_ang = vecA.angle(nx)
         if 0.1 < abs(temp_ang) < 3.13:
-            axis = vecA.cross(ny)
+            axis = vecA.cross(nx)
         else:
-            nz = mathutils.Vector([0, 0, 1])
-            axis = vecA.cross(nz)
+            ny = mathutils.Vector([0, 1, 0])
+            axis = vecA.cross(ny)
     else:
         axis = vecA.cross(vecB)
 
