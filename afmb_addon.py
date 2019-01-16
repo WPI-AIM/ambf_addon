@@ -373,8 +373,12 @@ class CreateAFYAML(bpy.types.Operator):
         self._afmb_yaml = OrderedDict()
         self._afmb_yaml['bodies'] = []
         self._afmb_yaml['joints'] = []
-        self._afmb_yaml['high resolution path'] = os.path.join(bpy.path.abspath(context.scene.afmb_yaml_mesh_path), 'high_res/')
-        self._afmb_yaml['low resolution path'] = os.path.join(bpy.path.abspath(context.scene.afmb_yaml_mesh_path), 'low_res/')
+        print('SAVE PATH', bpy.path.abspath(save_path))
+        print('AFMB CONFIG PATH', bpy.path.abspath(context.scene.afmb_yaml_mesh_path))
+        rel_mesh_path = os.path.relpath(bpy.path.abspath(context.scene.afmb_yaml_mesh_path), bpy.path.abspath(save_path))
+
+        self._afmb_yaml['high resolution path'] = rel_mesh_path + '/high_res/'
+        self._afmb_yaml['low resolution path'] = rel_mesh_path + '/low_res/'
 
         for obj in bpy.data.objects:
             self.load_body_data(self._afmb_yaml, obj)
@@ -569,11 +573,21 @@ class LoadAFMBYAML(bpy.types.Operator):
         self._low_res_path = ''
         self._context = None
 
+    def get_qualified_path(self, path):
+        filepath = Path(path)
+
+        if filepath.is_absolute():
+            return path
+        else:
+            afmb_filepath = Path(self._yaml_filepath)
+            path = str(afmb_filepath.parent.joinpath(filepath))
+            return path
+
     def load_body(self, body_name):
         body = self._afmb[body_name]
         # print(body['name'])
         if 'high resolution path' in body:
-            body_high_res_path = body['high resolution path']
+            body_high_res_path = self.get_qualified_path(body['high resolution path'])
         else:
             body_high_res_path = self._high_res_path
         af_name = body['name']
@@ -899,7 +913,9 @@ class LoadAFMBYAML(bpy.types.Operator):
 
     def execute(self, context):
         print('HOWDY PARTNER')
-        yaml_file = open(bpy.path.abspath(context.scene['external_afmb_yaml_filepath']))
+        self._yaml_filepath = str(bpy.path.abspath(context.scene['external_afmb_yaml_filepath']))
+        print(self._yaml_filepath)
+        yaml_file = open(self._yaml_filepath)
         self._afmb = yaml.load(yaml_file)
         self._context = context
 
@@ -908,7 +924,8 @@ class LoadAFMBYAML(bpy.types.Operator):
 
         num_bodies = len(bodies_list)
         # print('Number of Bodies Specified = ', num_bodies)
-        self._high_res_path = self._afmb['high resolution path']
+        self._high_res_path = self.get_qualified_path(self._afmb['high resolution path'])
+        print(self._high_res_path)
         for body_name in bodies_list:
             self.load_body(body_name)
 
