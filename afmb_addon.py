@@ -250,21 +250,28 @@ class CreateAFYAML(bpy.types.Operator):
                         afmb_yaml[self.get_body_prefixed_name(fixed_constraint.object2.name)]['mass'] = 0.0
 
             if obj.rigid_body_constraint.type in ['HINGE', 'SLIDER']:
-                hinge = obj.rigid_body_constraint
-                joint = JointTemplate()
-                joint_data = joint._afmb_data
-                if hinge.object1:
-                    parent = hinge.object1
-                    child = hinge.object2
-                    joint_data['name'] = parent.name + "-" + child.name
-                    joint_data['parent'] = self.get_body_prefixed_name(parent.name)
-                    joint_data['child'] = self.get_body_prefixed_name(child.name)
-                    parent_pivot, parent_axis = self.compute_parent_pivot_and_axis(parent, child)
+                constraint = obj.rigid_body_constraint
+                joint_template = JointTemplate()
+                joint_data = joint_template._afmb_data
+                if constraint.object1:
+                    parent_obj_handle = constraint.object1
+                    child_obj_handle = constraint.object2
+                    joint_data['name'] = parent_obj_handle.name + "-" + child_obj_handle.name
+                    joint_data['parent'] = self.get_body_prefixed_name(parent_obj_handle.name)
+                    joint_data['child'] = self.get_body_prefixed_name(child_obj_handle.name)
+                    parent_pivot, parent_axis = self.compute_parent_pivot_and_axis(
+                        parent_obj_handle, child_obj_handle, obj.rigid_body_constraint.type)
                     child_pivot = mathutils.Vector([0, 0, 0])
                     if obj.rigid_body_constraint.type == 'HINGE':
+                        joint_data['type'] = 'revolute'
                         child_axis = mathutils.Vector([0, 0, 1])
+                        higher_limit = constraint.limit_ang_z_upper
+                        lower_limit = constraint.limit_ang_z_lower
                     elif obj.rigid_body_constraint.type == 'SLIDER':
-                        child_axis = mathutils.Vector([0, 0, 1])
+                        joint_data['type'] = 'prismatic'
+                        child_axis = mathutils.Vector([1, 0, 0])
+                        higher_limit = constraint.limit_lin_x_upper
+                        lower_limit = constraint.limit_lin_x_lower
                     parent_pivot_data = joint_data["parent pivot"]
                     parent_axis_data = joint_data["parent axis"]
                     parent_pivot_data['x'] = round(parent_pivot.x, 3)
@@ -282,28 +289,29 @@ class CreateAFYAML(bpy.types.Operator):
                     child_axis_data['y'] = child_axis.y
                     child_axis_data['z'] = child_axis.z
                     joint_limit_data = joint_data["joint limits"]
-                    joint_limit_data['low'] = round(hinge.limit_ang_z_lower, 3)
-                    joint_limit_data['high'] = round(hinge.limit_ang_z_upper, 3)
+
+                    joint_limit_data['low'] = round(lower_limit, 3)
+                    joint_limit_data['high'] = round(higher_limit, 3)
 
                     # The use of pivot and axis does not fully define the connection and relative
                     # transform between two bodies it is very likely that we need an additional offset
                     # of the child body as in most of the cases of URDF's For this purpose, we calculate
                     # the offset as follows
                     r_c_p_afmb = rot_matrix_from_vecs(child_axis, parent_axis)
-                    t_p_w = parent.matrix_world.copy()
-                    t_w_p = t_p_w.to_3x3()
-                    t_w_p.invert()
-                    t_c_w = child.matrix_world.copy().to_3x3()
-                    r_c_p_urdf = t_w_p * t_c_w
-
-                    r_p_c_afmb = r_c_p_afmb.to_3x3()
+                    r_p_c_afmb = r_c_p_afmb.to_3x3().copy()
                     r_p_c_afmb.invert()
 
-                    r_angular_offset = r_p_c_afmb * r_c_p_urdf
+                    t_p_w = parent_obj_handle.matrix_world.copy()
+                    r_w_p = t_p_w.to_3x3().copy()
+                    r_w_p.invert()
+                    r_c_w = child_obj_handle.matrix_world.to_3x3().copy()
+                    r_c_p_blender = r_w_p * r_c_w
+
+                    r_angular_offset = r_p_c_afmb * r_c_p_blender
 
                     offset_axis_angle = r_angular_offset.to_quaternion().to_axis_angle()
 
-                    if abs(offset_axis_angle[1]) > 0.001:
+                    if abs(offset_axis_angle[1]) > 0.01:
                         # print '*****************************'
                         # print joint_data['name']
                         # print 'Joint Axis, '
@@ -334,14 +342,14 @@ class CreateAFYAML(bpy.types.Operator):
     # Since changing the scale of the bodies directly impacts the rotation matrix, we have
     # to take that into account while calculating offset of child from parent using
     # transform manipulation
-    def compute_parent_pivot_and_axis(self, parent, child):
-        # Since the rotation matrix is carrying the scale, seperate out just
+    def compute_parent_pivot_and_axis(self, parent, child, joint_type='HINGE'):
+        # Since the rotation matrix is carrying the scale, separate out just
         # the rotation component
         # Transform of Parent in World
         t_p_w = parent.matrix_world.copy().to_euler().to_matrix().to_4x4()
         t_p_w.translation = parent.matrix_world.copy().translation
 
-        # Since the rotation matrix is carrying the scale, seperate out just
+        # Since the rotation matrix is carrying the scale, separate out just
         # the rotation component
         # Transform of Child in World
         t_c_w = child.matrix_world.copy().to_euler().to_matrix().to_4x4()
@@ -354,8 +362,12 @@ class CreateAFYAML(bpy.types.Operator):
         # t_c_p = t_w_p * t_c_w
         t_c_p = t_w_p * t_c_w
         parent_pivot = t_c_p.translation
+        if joint_type == 'HINGE':
+            col_num = 2
+        elif joint_type == 'SLIDER':
+            col_num = 0
         # The third col of rotation matrix is the z axes of child in parent
-        parent_axis = mathutils.Vector(t_c_p.col[2][0:3])
+        parent_axis = mathutils.Vector(t_c_p.col[col_num][0:3])
         return parent_pivot, parent_axis
 
     def generate_afmb_yaml(self, context):
@@ -659,6 +671,7 @@ class LoadAFMBYAML(bpy.types.Operator):
         if parent_body_data['name'] in ['world', 'World']:
             return
             # Set joint type to blender appropriate name
+        joint_type = 'HINGE'
         if 'type' in joint:
             if joint['type'] in ['hinge', 'revolute', 'continuous']:
                 joint_type = 'HINGE'
