@@ -392,6 +392,8 @@ class CreateAFYAML(bpy.types.Operator):
         self._afmb_yaml['high resolution path'] = rel_mesh_path + '/high_res/'
         self._afmb_yaml['low resolution path'] = rel_mesh_path + '/low_res/'
 
+        self._afmb_yaml['ignore inter-collision'] = str(context.scene.ignore_inter_collision)
+
         for obj in bpy.data.objects:
             self.load_body_data(self._afmb_yaml, obj)
 
@@ -1020,6 +1022,13 @@ class CreateAFYAMLPanel(bpy.types.Panel):
             subtype='FILE_PATH'
         )
 
+    bpy.types.Scene.ignore_inter_collision = bpy.props.BoolProperty \
+            (
+            name="Ignore Inter-Collision",
+            default=True,
+            description="Ignore collision between all the bodies in the scene (default = True)",
+        )
+
     setup_yaml()
 
     def draw(self, context):
@@ -1049,9 +1058,14 @@ class CreateAFYAMLPanel(bpy.types.Panel):
         layout.column().prop(context.scene, 'afmb_yaml_mesh_path')
 
         # Select the Mesh-Type for saving the meshes
-        col= layout.column()
+        col = layout.column()
         col.alignment = 'CENTER'
         col.prop(context.scene, 'mesh_output_type')
+
+        # Ignore Inter Collision Button
+        col = layout.column()
+        col.alignment = 'CENTER'
+        col.prop(context.scene, "ignore_inter_collision")
 
         # Meshes Save Button
         col = layout.column()
