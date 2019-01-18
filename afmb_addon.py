@@ -633,7 +633,15 @@ class LoadAFMBYAML(bpy.types.Operator):
         elif mesh_filepath.suffix in ['.dae', '.DAE']:
             bpy.ops.wm.collada_import(filepath=str(mesh_filepath.resolve()))
 
-        obj_handle = self._context.selected_objects[0]
+        # If we are importing .dae meshes, they can import stuff other than meshes, such as cameras etc.
+        # We should remove these extra things and only keep the meshes
+        for temp_obj in self._context.selected_objects:
+            if temp_obj.type == 'MESH':
+                obj_handle = temp_obj
+                obj_handle.name = af_name
+                self._context.scene.objects.active = obj_handle
+            else:
+                bpy.data.objects.remove(temp_obj)
         self._blender_remapped_body_names[body_name] = obj_handle.name
 
         if 'color rgba' in body:
