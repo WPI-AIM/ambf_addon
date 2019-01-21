@@ -193,6 +193,8 @@ class CreateAFYAML(bpy.types.Operator):
         find_center = lambda l: ( max(l) + min(l)) / 2
         x, y, z = [[v[i] for v in vcos] for i in range(3)]
         center = [find_center(axis) for axis in [x, y, z]]
+        for i in range(0, 3):
+            center[i] = center[i] * obj.scale[i]
         return center
 
     def load_body_data(self, afmb_yaml, obj):
@@ -539,13 +541,14 @@ class GenerateLowResMeshModifiers(bpy.types.Operator):
         vertices_max = context.scene.mesh_max_vertices
         # Select each object iteratively and generate its low-res mesh
         for obj in bpy.data.objects:
-            decimate_mod = obj.modifiers.new('decimate_mod', 'DECIMATE')
-            if len(obj.data.vertices) > vertices_max:
-                reduction_ratio = vertices_max / len(obj.data.vertices)
-                decimate_mod.use_symmetry = False
-                decimate_mod.use_collapse_triangulate = True
-                decimate_mod.ratio = reduction_ratio
-                decimate_mod.show_viewport = True
+            if obj.type == 'MESH' and obj.hide is False:
+                decimate_mod = obj.modifiers.new('decimate_mod', 'DECIMATE')
+                if len(obj.data.vertices) > vertices_max:
+                    reduction_ratio = vertices_max / len(obj.data.vertices)
+                    decimate_mod.use_symmetry = False
+                    decimate_mod.use_collapse_triangulate = True
+                    decimate_mod.ratio = reduction_ratio
+                    decimate_mod.show_viewport = True
         return {'FINISHED'}
 
 
