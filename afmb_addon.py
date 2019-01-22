@@ -622,10 +622,7 @@ class LoadAFMBYAML(bpy.types.Operator):
                 body_location_rpy = body['location']['orientation']
 
         mesh_filepath = Path(os.path.join(body_high_res_path, body_mesh_name))
-
-        # Skip if the mesh is empty
-        if mesh_filepath.suffix == '':
-            return
+        _is_empty_object = False
 
         if mesh_filepath.suffix in ['.stl', '.STL']:
             bpy.ops.import_mesh.stl(filepath=str(mesh_filepath.resolve()))
@@ -635,34 +632,37 @@ class LoadAFMBYAML(bpy.types.Operator):
 
         elif mesh_filepath.suffix in ['.dae', '.DAE']:
             bpy.ops.wm.collada_import(filepath=str(mesh_filepath.resolve()))
+            # If we are importing .dae meshes, they can import stuff other than meshes, such as cameras etc.
+            # We should remove these extra things and only keep the meshes
+            for temp_obj in self._context.selected_objects:
+                if temp_obj.type == 'MESH':
+                    obj_handle = temp_obj
+                    self._context.scene.objects.active = obj_handle
+                else:
+                    bpy.data.objects.remove(temp_obj)
 
-        # If we are importing .dae meshes, they can import stuff other than meshes, such as cameras etc.
-        # We should remove these extra things and only keep the meshes
-        for temp_obj in self._context.selected_objects:
-            if temp_obj.type == 'MESH':
-                obj_handle = temp_obj
-                obj_handle.name = af_name
-                self._context.scene.objects.active = obj_handle
-            else:
-                bpy.data.objects.remove(temp_obj)
+        elif mesh_filepath.suffix == '':
+            bpy.ops.object.empty_add(type='PLAIN_AXES')
+            _is_empty_object = True
+
+        obj_handle = self._context.active_object
+        obj_handle.name = af_name
         self._blender_remapped_body_names[body_name] = obj_handle.name
 
-        if 'color rgba' in body:
-            mat = bpy.data.materials.new(name=body_name + 'mat')
-            mat.diffuse_color[0] = body['color rgba']['r']
-            mat.diffuse_color[1] = body['color rgba']['g']
-            mat.diffuse_color[2] = body['color rgba']['b']
-            mat.use_transparency = True
-            mat.transparency_method = 'Z_TRANSPARENCY'
-            mat.alpha = body['color rgba']['a']
-            obj_handle.data.materials.append(mat)
+        if not _is_empty_object:
+            if 'color rgba' in body:
+                mat = bpy.data.materials.new(name=body_name + 'mat')
+                mat.diffuse_color[0] = body['color rgba']['r']
+                mat.diffuse_color[1] = body['color rgba']['g']
+                mat.diffuse_color[2] = body['color rgba']['b']
+                mat.use_transparency = True
+                mat.transparency_method = 'Z_TRANSPARENCY'
+                mat.alpha = body['color rgba']['a']
+                obj_handle.data.materials.append(mat)
 
-        bpy.ops.rigidbody.object_add()
-        if body_mass == 0.0:
-            self._context.scene.objects.active = obj_handle
-            bpy.ops.rigidbody.constraint_add(type='FIXED')
-            obj_handle.rigid_body_constraint.object2 = obj_handle
-        obj_handle.rigid_body.mass = body_mass
+            bpy.ops.rigidbody.object_add()
+            obj_handle.rigid_body.mass = body_mass
+
         obj_handle.matrix_world.translation[0] = body_location_xyz['x']
         obj_handle.matrix_world.translation[1] = body_location_xyz['y']
         obj_handle.matrix_world.translation[2] = body_location_xyz['z']
@@ -680,16 +680,15 @@ class LoadAFMBYAML(bpy.types.Operator):
         child_body_name = joint['child']
         parent_body_data = self._afmb[parent_body_name]
         child_body_data = self._afmb[child_body_name]
-        # If there is any joint with the world. Ignore and continue
-        if parent_body_data['name'] in ['world', 'World']:
-            return
-            # Set joint type to blender appropriate name
+        # Set joint type to blender appropriate name
         joint_type = 'HINGE'
         if 'type' in joint:
             if joint['type'] in ['hinge', 'revolute', 'continuous']:
                 joint_type = 'HINGE'
             elif joint['type'] in ['prismatic', 'slider']:
                 joint_type = 'SLIDER'
+            elif joint['type'] in ['fixed', 'FIXED']:
+                joint_type = 'FIXED'
         parent_obj_handle = bpy.data.objects[self._blender_remapped_body_names[parent_body_name]]
         child_obj_handle = bpy.data.objects[self._blender_remapped_body_names[child_body_name]]
         if 'parent pivot' in joint:
@@ -774,6 +773,8 @@ class LoadAFMBYAML(bpy.types.Operator):
                         joint_type = 'HINGE'
                     elif joint['type'] in ['prismatic', 'slider']:
                         joint_type = 'SLIDER'
+                    elif joint['type'] in ['fixed', 'FIXED']:
+                        joint_type = 'FIXED'
 
                 # Universal Constraint Axis
                 constraint_axis = mathutils.Vector([0, 0, 1])
@@ -782,6 +783,8 @@ class LoadAFMBYAML(bpy.types.Operator):
                     constraint_axis = mathutils.Vector([0, 0, 1])
                 elif joint_type == 'SLIDER':
                     constraint_axis = mathutils.Vector([1, 0, 0])
+                elif joint_type == 'FIXED':
+                    constraint_axis = mathutils.Vector([0, 0, 1])
 
                 # Child's Joint Axis in child's frame
                 child_axis = mathutils.Vector([child_axis_data['x'], child_axis_data['y'], child_axis_data['z']])
@@ -806,7 +809,8 @@ class LoadAFMBYAML(bpy.types.Operator):
                 child_axis_data['y'] = constraint_axis[1]
                 child_axis_data['z'] = constraint_axis[2]
 
-                child_obj_handle.data.transform(t_c_j)
+                if child_obj_handle.type != 'EMPTY':
+                    child_obj_handle.data.transform(t_c_j)
                 self._body_t_j_c[joint['child']] = t_c_j
 
                 # Implementing the Alignment Offset Correction Algorithm (AO)
@@ -850,16 +854,15 @@ class LoadAFMBYAML(bpy.types.Operator):
         child_body_name = joint['child']
         parent_body_data = self._afmb[parent_body_name]
         child_body_data = self._afmb[child_body_name]
-        # If there is any joint with the world. Ignore and continue
-        if parent_body_data['name'] in ['world', 'World']:
-            return
-            # Set joint type to blender appropriate name
+         # Set joint type to blender appropriate name
         joint_type = 'HINGE'
         if 'type' in joint:
             if joint['type'] in ['hinge', 'revolute', 'continuous']:
                 joint_type = 'HINGE'
             elif joint['type'] in ['prismatic', 'slider']:
                 joint_type = 'SLIDER'
+            elif joint['type'] in ['fixed', 'FIXED']:
+                joint_type = 'FIXED'
         parent_obj_handle = bpy.data.objects[self._blender_remapped_body_names[parent_body_name]]
         child_obj_handle = bpy.data.objects[self._blender_remapped_body_names[child_body_name]]
         # print('JOINT:', joint_name)
