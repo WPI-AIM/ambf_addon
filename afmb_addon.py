@@ -138,6 +138,7 @@ class BodyTemplate:
         self._afmb_data['name'] = ""
         self._afmb_data['mesh'] = ""
         self._afmb_data['mass'] = 0.0
+        self._afmb_data['inertia'] = {'ix': 0.0, 'iy': 0.0, 'iz': 0.0}
         self._afmb_data['scale'] = 1.0
         self._afmb_data['location'] = {'position': {'x': 0, 'y': 0, 'z': 0},
                                        'orientation': {'r': 0, 'p': 0, 'y': 0}}
@@ -197,18 +198,16 @@ class CreateAFYAML(bpy.types.Operator):
             center[i] = center[i] * obj.scale[i]
         return center
 
-    def load_body_data(self, afmb_yaml, obj):
-        if obj.hide is True:
+    def load_body_data(self, afmb_yaml, obj_handle):
+        if obj_handle.hide is True:
             return
         body = BodyTemplate()
         body_data = body._afmb_data
-        body_yaml_name = self.get_body_prefixed_name(obj.name)
+        body_yaml_name = self.get_body_prefixed_name(obj_handle.name)
         output_mesh = bpy.context.scene['mesh_output_type']
-        extension = get_extension(output_mesh)
-        body_data['name'] = obj.name
-        body_data['mesh'] = obj.name + extension
-        world_pos = obj.matrix_world.translation
-        world_rot = obj.matrix_world.to_euler()
+        body_data['name'] = obj_handle.name
+        world_pos = obj_handle.matrix_world.translation
+        world_rot = obj_handle.matrix_world.to_euler()
         body_pos = body_data['location']['position']
         body_rot = body_data['location']['orientation']
         body_pos['x'] = round(world_pos.x, 3)
@@ -217,42 +216,53 @@ class CreateAFYAML(bpy.types.Operator):
         body_rot['r'] = round(world_rot[0], 3)
         body_rot['p'] = round(world_rot[1], 3)
         body_rot['y'] = round(world_rot[2], 3)
-        if obj.rigid_body:
-            body_data['mass'] = round(obj.rigid_body.mass, 3)
-        body_com = self.compute_local_com(obj)
-        body_d_pos = body_data['inertial offset']['position']
-        body_d_pos['x'] = round(body_com[0], 3)
-        body_d_pos['y'] = round(body_com[1], 3)
-        body_d_pos['z'] = round(body_com[2], 3)
-        if obj.data.materials:
-            del body_data['color']
-            body_data['color rgba'] = {'r': 1.0, 'g': 1.0, 'b': 1.0, 'a': 1.0}
-            body_data['color rgba']['r'] = round(obj.data.materials[0].diffuse_color[0], 4)
-            body_data['color rgba']['g'] = round(obj.data.materials[0].diffuse_color[1], 4)
-            body_data['color rgba']['b'] = round(obj.data.materials[0].diffuse_color[2], 4)
-            body_data['color rgba']['a'] = round(obj.data.materials[0].alpha, 4)
+        if obj_handle.type == 'EMPTY':
+            body_data['mesh'] = ''
+
+            if obj_handle.name in ['world', 'World', 'WORLD']:
+                body_data['mass'] = 0
+                body_data['inertia'] = {'ix': 0, 'iy': 0, 'iz': 0}
+
+            else:
+                body_data['mass'] = 0.1
+                body_data['inertia'] = {'ix': 0.01, 'iy': 0.01, 'iz': 0.01}
+
+        elif obj_handle.type == 'MESH':
+
+            if obj_handle.rigid_body:
+                body_data['mass'] = round(obj_handle.rigid_body.mass, 3)
+
+            del body_data['inertia']
+            body_data['mesh'] = obj_handle.name + get_extension(output_mesh)
+            body_com = self.compute_local_com(obj_handle)
+            body_d_pos = body_data['inertial offset']['position']
+            body_d_pos['x'] = round(body_com[0], 3)
+            body_d_pos['y'] = round(body_com[1], 3)
+            body_d_pos['z'] = round(body_com[2], 3)
+
+            if obj_handle.data.materials:
+
+                del body_data['color']
+                body_data['color rgba'] = {'r': 1.0, 'g': 1.0, 'b': 1.0, 'a': 1.0}
+                body_data['color rgba']['r'] = round(obj_handle.data.materials[0].diffuse_color[0], 4)
+                body_data['color rgba']['g'] = round(obj_handle.data.materials[0].diffuse_color[1], 4)
+                body_data['color rgba']['b'] = round(obj_handle.data.materials[0].diffuse_color[2], 4)
+                body_data['color rgba']['a'] = round(obj_handle.data.materials[0].alpha, 4)
 
         afmb_yaml[body_yaml_name] = body_data
         self._body_names_list.append(body_yaml_name)
 
-    def load_joint_data(self, afmb_yaml, obj):
-        if obj.rigid_body_constraint:
-            if obj.rigid_body_constraint.object1:
-                if obj.rigid_body_constraint.object1.hide is True:
+    def load_joint_data(self, afmb_yaml, obj_handle):
+        if obj_handle.rigid_body_constraint:
+            if obj_handle.rigid_body_constraint.object1:
+                if obj_handle.rigid_body_constraint.object1.hide is True:
                     return
-            if obj.rigid_body_constraint.object2:
-                if obj.rigid_body_constraint.object2.hide is True:
+            if obj_handle.rigid_body_constraint.object2:
+                if obj_handle.rigid_body_constraint.object2.hide is True:
                     return
-            if obj.rigid_body_constraint.type == 'FIXED':
-                fixed_constraint = obj.rigid_body_constraint
-                if fixed_constraint.object1 is None or fixed_constraint.object2 is None:
-                    if fixed_constraint.object1:
-                        afmb_yaml[self.get_body_prefixed_name(fixed_constraint.object1.name)]['mass'] = 0.0
-                    elif fixed_constraint.object2 is None:
-                        afmb_yaml[self.get_body_prefixed_name(fixed_constraint.object2.name)]['mass'] = 0.0
 
-            if obj.rigid_body_constraint.type in ['HINGE', 'SLIDER']:
-                constraint = obj.rigid_body_constraint
+            if obj_handle.rigid_body_constraint.type in ['FIXED', 'HINGE', 'SLIDER']:
+                constraint = obj_handle.rigid_body_constraint
                 joint_template = JointTemplate()
                 joint_data = joint_template._afmb_data
                 if constraint.object1:
@@ -262,18 +272,23 @@ class CreateAFYAML(bpy.types.Operator):
                     joint_data['parent'] = self.get_body_prefixed_name(parent_obj_handle.name)
                     joint_data['child'] = self.get_body_prefixed_name(child_obj_handle.name)
                     parent_pivot, parent_axis = self.compute_parent_pivot_and_axis(
-                        parent_obj_handle, child_obj_handle, obj.rigid_body_constraint.type)
+                        parent_obj_handle, child_obj_handle, obj_handle.rigid_body_constraint.type)
                     child_pivot = mathutils.Vector([0, 0, 0])
-                    if obj.rigid_body_constraint.type == 'HINGE':
+                    child_axis = mathutils.Vector([0, 0, 0])
+                    if obj_handle.rigid_body_constraint.type == 'HINGE':
                         joint_data['type'] = 'revolute'
                         child_axis = mathutils.Vector([0, 0, 1])
                         higher_limit = constraint.limit_ang_z_upper
                         lower_limit = constraint.limit_ang_z_lower
-                    elif obj.rigid_body_constraint.type == 'SLIDER':
+                    elif obj_handle.rigid_body_constraint.type == 'SLIDER':
                         joint_data['type'] = 'prismatic'
                         child_axis = mathutils.Vector([1, 0, 0])
                         higher_limit = constraint.limit_lin_x_upper
                         lower_limit = constraint.limit_lin_x_lower
+                    elif obj_handle.rigid_body_constraint.type == 'FIXED':
+                        joint_data['type'] = 'fixed'
+                        child_axis = mathutils.Vector([0, 0, 1])
+
                     parent_pivot_data = joint_data["parent pivot"]
                     parent_axis_data = joint_data["parent axis"]
                     parent_pivot_data['x'] = round(parent_pivot.x, 3)
@@ -290,10 +305,14 @@ class CreateAFYAML(bpy.types.Operator):
                     child_axis_data['x'] = child_axis.x
                     child_axis_data['y'] = child_axis.y
                     child_axis_data['z'] = child_axis.z
-                    joint_limit_data = joint_data["joint limits"]
 
-                    joint_limit_data['low'] = round(lower_limit, 3)
-                    joint_limit_data['high'] = round(higher_limit, 3)
+                    if obj_handle.rigid_body_constraint.type == 'FIXED':
+                        del joint_data["joint limits"]
+
+                    else:
+                        joint_limit_data = joint_data["joint limits"]
+                        joint_limit_data['low'] = round(lower_limit, 3)
+                        joint_limit_data['high'] = round(higher_limit, 3)
 
                     # The use of pivot and axis does not fully define the connection and relative
                     # transform between two bodies it is very likely that we need an additional offset
@@ -344,7 +363,7 @@ class CreateAFYAML(bpy.types.Operator):
     # Since changing the scale of the bodies directly impacts the rotation matrix, we have
     # to take that into account while calculating offset of child from parent using
     # transform manipulation
-    def compute_parent_pivot_and_axis(self, parent, child, joint_type='HINGE'):
+    def compute_parent_pivot_and_axis(self, parent, child, joint_type):
         # Since the rotation matrix is carrying the scale, separate out just
         # the rotation component
         # Transform of Parent in World
@@ -368,6 +387,8 @@ class CreateAFYAML(bpy.types.Operator):
             col_num = 2
         elif joint_type == 'SLIDER':
             col_num = 0
+        elif joint_type == 'FIXED':
+            col_num = 2
         # The third col of rotation matrix is the z axes of child in parent
         parent_axis = mathutils.Vector(t_c_p.col[col_num][0:3])
         return parent_pivot, parent_axis
