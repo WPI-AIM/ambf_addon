@@ -165,7 +165,7 @@ class JointTemplate:
         self._afmb_data['max motor impulse'] = 0
 
 
-class CreateAFYAML(bpy.types.Operator):
+class GenerateAFMB(bpy.types.Operator):
     """Tooltip"""
     bl_idname = "myops.add_create_af_yaml"
     bl_label = "Write Multi-Body AF Config"
@@ -198,7 +198,7 @@ class CreateAFYAML(bpy.types.Operator):
             center[i] = center[i] * obj.scale[i]
         return center
 
-    def load_body_data(self, afmb_yaml, obj_handle):
+    def generate_body_data(self, afmb_yaml, obj_handle):
         if obj_handle.hide is True:
             return
         body = BodyTemplate()
@@ -252,7 +252,7 @@ class CreateAFYAML(bpy.types.Operator):
         afmb_yaml[body_yaml_name] = body_data
         self._body_names_list.append(body_yaml_name)
 
-    def load_joint_data(self, afmb_yaml, obj_handle):
+    def generate_joint_data(self, afmb_yaml, obj_handle):
         if obj_handle.rigid_body_constraint:
             if obj_handle.rigid_body_constraint.object1:
                 if obj_handle.rigid_body_constraint.object1.hide is True:
@@ -418,10 +418,10 @@ class CreateAFYAML(bpy.types.Operator):
         self._afmb_yaml['ignore inter-collision'] = str(context.scene.ignore_inter_collision)
 
         for obj in bpy.data.objects:
-            self.load_body_data(self._afmb_yaml, obj)
+            self.generate_body_data(self._afmb_yaml, obj)
 
         for obj in bpy.data.objects:
-            self.load_joint_data(self._afmb_yaml, obj)
+            self.generate_joint_data(self._afmb_yaml, obj)
 
         # Now populate the bodies and joints tag
         self._afmb_yaml['bodies'] = self._body_names_list
@@ -436,7 +436,7 @@ def select_all_objects(select=True):
         obj.select = select
 
 
-class SaveAFMeshes(bpy.types.Operator):
+class SaveMeshes(bpy.types.Operator):
     bl_idname = "myops.add_save_af_meshes"
     bl_label = "Save Meshes"
 
@@ -475,19 +475,19 @@ class SaveAFMeshes(bpy.types.Operator):
     # This recursive function works in similar fashion to the
     # set_to_origin function, but uses the know default transform
     # to set the tree back to default in a hierarchial fashion
-    def reset_back_to_default(self, p_obj, obj_name_mat_list):
-        if p_obj.children is None:
+    def reset_back_to_default(self, p_obj_handle, obj_name_mat_list):
+        if p_obj_handle.children is None:
             return
         for item in obj_name_mat_list:
-            if p_obj.name == item[0]:
-                p_obj.matrix_world = item[1]
-        for c_obj in p_obj.children:
-            self.reset_back_to_default(c_obj, obj_name_mat_list)
+            if p_obj_handle.name == item[0]:
+                p_obj_handle.matrix_world = item[1]
+        for c_obj_handle in p_obj_handle.children:
+            self.reset_back_to_default(c_obj_handle, obj_name_mat_list)
 
     def reset_meshes_to_original_position(self, obj_name_mat_list):
-        for p_obj in bpy.data.objects:
-            if p_obj.parent is None:
-                self.reset_back_to_default(p_obj, obj_name_mat_list)
+        for p_obj_handle in bpy.data.objects:
+            if p_obj_handle.parent is None:
+                self.reset_back_to_default(p_obj_handle, obj_name_mat_list)
 
     def save_meshes(self, context):
         # First deselect all objects
@@ -502,48 +502,49 @@ class SaveAFMeshes(bpy.types.Operator):
 
         mesh_name_mat_list = self.set_all_meshes_to_origin()
 
-        for obj in bpy.data.objects:
+        for obj_handle in bpy.data.objects:
             # Mesh Type is .stl
-            obj.select = True
-            if mesh_type == MeshType.meshSTL.value:
-                obj_name = obj.name + '.STL'
-                filename_high_res = os.path.join(high_res_path, obj_name)
-                filename_low_res = os.path.join(low_res_path, obj_name)
-                bpy.ops.export_mesh.stl(filepath=filename_high_res, use_selection=True, use_mesh_modifiers=False)
-                bpy.ops.export_mesh.stl(filepath=filename_low_res, use_selection=True, use_mesh_modifiers=True)
-            elif mesh_type == MeshType.meshOBJ.value:
-                obj_name = obj.name + '.OBJ'
-                filename_high_res = os.path.join(high_res_path, obj_name)
-                filename_low_res = os.path.join(low_res_path, obj_name)
-                bpy.ops.export_scene.obj(filepath=filename_high_res, use_selection=True, use_mesh_modifiers=False)
-                bpy.ops.export_scene.obj(filepath=filename_low_res, use_selection=True, use_mesh_modifiers=True)
-            elif mesh_type == MeshType.mesh3DS.value:
-                obj_name = obj.name + '.3DS'
-                filename_high_res = os.path.join(high_res_path, obj_name)
-                filename_low_res = os.path.join(low_res_path, obj_name)
-                # 3DS doesn't support supressing modifiers, so we explicitly
-                # toggle them to save as high res and low res meshes
-                # STILL BUGGY
-                for mod in obj.modifiers:
-                    mod.show_viewport = True
-                bpy.ops.export_scene.autodesk_3ds(filepath=filename_low_res, use_selection=True)
-                for mod in obj.modifiers:
-                    mod.show_viewport = True
-                bpy.ops.export_scene.autodesk_3ds(filepath=filename_high_res, use_selection=True)
-            elif mesh_type == MeshType.meshPLY.value:
-                # .PLY export has a bug in which it only saves the mesh that is
-                # active in context of view. Hence we explicitly select this object
-                # as active in the scene on top of being selected
-                obj_name = obj.name + '.PLY'
-                filename_high_res = os.path.join(high_res_path, obj_name)
-                filename_low_res = os.path.join(low_res_path, obj_name)
-                bpy.context.scene.objects.active = obj
-                bpy.ops.export_mesh.ply(filepath=filename_high_res, use_mesh_modifiers=False)
-                bpy.ops.export_mesh.ply(filepath=filename_low_res, use_mesh_modifiers=True)
-                # Make sure to deselect the mesh
-                bpy.context.scene.objects.active = None
+            obj_handle.select = True
+            if obj_handle.type == 'MESH':
+                if mesh_type == MeshType.meshSTL.value:
+                    obj_name = obj_handle.name + '.STL'
+                    filename_high_res = os.path.join(high_res_path, obj_name)
+                    filename_low_res = os.path.join(low_res_path, obj_name)
+                    bpy.ops.export_mesh.stl(filepath=filename_high_res, use_selection=True, use_mesh_modifiers=False)
+                    bpy.ops.export_mesh.stl(filepath=filename_low_res, use_selection=True, use_mesh_modifiers=True)
+                elif mesh_type == MeshType.meshOBJ.value:
+                    obj_name = obj_handle.name + '.OBJ'
+                    filename_high_res = os.path.join(high_res_path, obj_name)
+                    filename_low_res = os.path.join(low_res_path, obj_name)
+                    bpy.ops.export_scene.obj(filepath=filename_high_res, use_selection=True, use_mesh_modifiers=False)
+                    bpy.ops.export_scene.obj(filepath=filename_low_res, use_selection=True, use_mesh_modifiers=True)
+                elif mesh_type == MeshType.mesh3DS.value:
+                    obj_name = obj_handle.name + '.3DS'
+                    filename_high_res = os.path.join(high_res_path, obj_name)
+                    filename_low_res = os.path.join(low_res_path, obj_name)
+                    # 3DS doesn't support supressing modifiers, so we explicitly
+                    # toggle them to save as high res and low res meshes
+                    # STILL BUGGY
+                    for mod in obj_handle.modifiers:
+                        mod.show_viewport = True
+                    bpy.ops.export_scene.autodesk_3ds(filepath=filename_low_res, use_selection=True)
+                    for mod in obj_handle.modifiers:
+                        mod.show_viewport = True
+                    bpy.ops.export_scene.autodesk_3ds(filepath=filename_high_res, use_selection=True)
+                elif mesh_type == MeshType.meshPLY.value:
+                    # .PLY export has a bug in which it only saves the mesh that is
+                    # active in context of view. Hence we explicitly select this object
+                    # as active in the scene on top of being selected
+                    obj_name = obj_handle.name + '.PLY'
+                    filename_high_res = os.path.join(high_res_path, obj_name)
+                    filename_low_res = os.path.join(low_res_path, obj_name)
+                    bpy.context.scene.objects.active = obj_handle
+                    bpy.ops.export_mesh.ply(filepath=filename_high_res, use_mesh_modifiers=False)
+                    bpy.ops.export_mesh.ply(filepath=filename_low_res, use_mesh_modifiers=True)
+                    # Make sure to deselect the mesh
+                    bpy.context.scene.objects.active = None
 
-            obj.select = False
+            obj_handle.select = False
         self.reset_meshes_to_original_position(mesh_name_mat_list)
 
 
@@ -595,7 +596,7 @@ class ToggleModifiersVisibility(bpy.types.Operator):
         return {'FINISHED'}
 
 
-class LoadAFMBYAML(bpy.types.Operator):
+class LoadAFMB(bpy.types.Operator):
     bl_idname = "myops.load_afmb_yaml_config"
     bl_label = "Load AFMB YAML Config"
 
@@ -994,7 +995,7 @@ class LoadAFMBYAML(bpy.types.Operator):
         return {'FINISHED'}
 
 
-class CreateAFYAMLPanel(bpy.types.Panel):
+class CreateAFMBPanel(bpy.types.Panel):
     """Creates a Panel in the Tool Shelf"""
     bl_label = "AF FILE CREATION"
     bl_idname = "OBJECT_PT_afmb_yaml"
@@ -1156,20 +1157,20 @@ def register():
     bpy.utils.register_class(ToggleModifiersVisibility)
     bpy.utils.register_class(RemoveModifiers)
     bpy.utils.register_class(GenerateLowResMeshModifiers)
-    bpy.utils.register_class(CreateAFYAML)
-    bpy.utils.register_class(SaveAFMeshes)
-    bpy.utils.register_class(LoadAFMBYAML)
-    bpy.utils.register_class(CreateAFYAMLPanel)
+    bpy.utils.register_class(GenerateAFMB)
+    bpy.utils.register_class(SaveMeshes)
+    bpy.utils.register_class(LoadAFMB)
+    bpy.utils.register_class(CreateAFMBPanel)
 
 
 def unregister():
     bpy.utils.unregister_class(ToggleModifiersVisibility)
     bpy.utils.unregister_class(RemoveModifiers)
     bpy.utils.unregister_class(GenerateLowResMeshModifiers)
-    bpy.utils.unregister_class(CreateAFYAML)
-    bpy.utils.unregister_class(SaveAFMeshes)
-    bpy.utils.unregister_class(LoadAFMBYAML)
-    bpy.utils.unregister_class(CreateAFYAMLPanel)
+    bpy.utils.unregister_class(GenerateAFMB)
+    bpy.utils.unregister_class(SaveMeshes)
+    bpy.utils.unregister_class(LoadAFMB)
+    bpy.utils.unregister_class(CreateAFMBPanel)
 
 
 if __name__ == "__main__":
