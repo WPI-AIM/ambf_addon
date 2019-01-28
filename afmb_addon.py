@@ -220,7 +220,6 @@ class GenerateAFMB(bpy.types.Operator):
 
             if obj_handle.name in ['world', 'World', 'WORLD']:
                 body_data['mass'] = 0
-                body_data['inertia'] = {'ix': 0, 'iy': 0, 'iz': 0}
 
             else:
                 body_data['mass'] = 0.1
@@ -270,15 +269,20 @@ class GenerateAFMB(bpy.types.Operator):
                     joint_data['name'] = parent_obj_handle.name + "-" + child_obj_handle.name
                     joint_data['parent'] = self.get_body_prefixed_name(parent_obj_handle.name)
                     joint_data['child'] = self.get_body_prefixed_name(child_obj_handle.name)
+                    parent_body_data = self._afmb_yaml[self.get_body_prefixed_name(parent_obj_handle.name)]
+                    child_body_data = self._afmb_yaml[self.get_body_prefixed_name(child_obj_handle.name)]
                     parent_pivot, parent_axis = self.compute_parent_pivot_and_axis(
                         parent_obj_handle, child_obj_handle, obj_handle.rigid_body_constraint.type)
                     child_pivot = mathutils.Vector([0, 0, 0])
                     child_axis = mathutils.Vector([0, 0, 0])
                     if obj_handle.rigid_body_constraint.type == 'HINGE':
-                        joint_data['type'] = 'revolute'
                         child_axis = mathutils.Vector([0, 0, 1])
-                        higher_limit = constraint.limit_ang_z_upper
-                        lower_limit = constraint.limit_ang_z_lower
+                        if constraint.use_limit_ang_z:
+                            joint_data['type'] = 'revolute'
+                            higher_limit = constraint.limit_ang_z_upper
+                            lower_limit = constraint.limit_ang_z_lower
+                        else:
+                            joint_data['type'] = 'continuous'
                     elif obj_handle.rigid_body_constraint.type == 'SLIDER':
                         joint_data['type'] = 'prismatic'
                         child_axis = mathutils.Vector([1, 0, 0])
@@ -305,8 +309,12 @@ class GenerateAFMB(bpy.types.Operator):
                     child_axis_data['y'] = child_axis.y
                     child_axis_data['z'] = child_axis.z
 
-                    if obj_handle.rigid_body_constraint.type == 'FIXED':
+                    if joint_data['type'] == 'fixed':
                         del joint_data["joint limits"]
+
+                    elif joint_data['type'] == 'continuous':
+                        del joint_data["joint limits"]['low']
+                        del joint_data["joint limits"]['high']
 
                     else:
                         joint_limit_data = joint_data["joint limits"]
@@ -629,6 +637,15 @@ class LoadAFMB(bpy.types.Operator):
         else:
             body_high_res_path = self._high_res_path
         af_name = body['name']
+        # If body name is world. Check if a world body has already
+        # been defined, and if it has been, ignore adding another world body
+        if af_name in ['world', 'World', 'WORLD']:
+            for temp_obj_handle in bpy.data.objects:
+                if temp_obj_handle.type in ['MESH', 'EMPTY']:
+                    if temp_obj_handle.name in ['world', 'World', 'WORLD']:
+                        self._blender_remapped_body_names[body_name] = temp_obj_handle.name
+                        self._body_t_j_c[body_name] = mathutils.Matrix()
+                        return
         body_mesh_name = body['mesh']
         body_mass = body['mass']
         self._body_t_j_c[body_name] = mathutils.Matrix()
@@ -655,12 +672,12 @@ class LoadAFMB(bpy.types.Operator):
             bpy.ops.wm.collada_import(filepath=str(mesh_filepath.resolve()))
             # If we are importing .dae meshes, they can import stuff other than meshes, such as cameras etc.
             # We should remove these extra things and only keep the meshes
-            for temp_obj in self._context.selected_objects:
-                if temp_obj.type == 'MESH':
-                    obj_handle = temp_obj
+            for temp_obj_handle in self._context.selected_objects:
+                if temp_obj_handle.type == 'MESH':
+                    obj_handle = temp_obj_handle
                     self._context.scene.objects.active = obj_handle
                 else:
-                    bpy.data.objects.remove(temp_obj)
+                    bpy.data.objects.remove(temp_obj_handle)
 
         elif mesh_filepath.suffix == '':
             bpy.ops.object.empty_add(type='PLAIN_AXES')
@@ -766,17 +783,21 @@ class LoadAFMB(bpy.types.Operator):
                     = bpy.data.objects[self._blender_remapped_body_names[parent_body_name]]
                 child_obj_handle.rigid_body_constraint.object2 \
                     = bpy.data.objects[self._blender_remapped_body_names[child_body_name]]
+
                 if 'joint limits' in joint:
-                    if joint_type == 'HINGE':
+                    if joint['type'] == 'revolute':
                         child_obj_handle.rigid_body_constraint.limit_ang_z_upper \
                             = joint['joint limits']['high'] + offset_angle
                         child_obj_handle.rigid_body_constraint.limit_ang_z_lower \
                             = joint['joint limits']['low'] + offset_angle
                         child_obj_handle.rigid_body_constraint.use_limit_ang_z = True
-                    elif joint_type == 'SLIDER':
+                    elif joint['type'] == 'prismatic':
                         child_obj_handle.rigid_body_constraint.limit_lin_x_upper = joint['joint limits']['high']
                         child_obj_handle.rigid_body_constraint.limit_lin_x_lower = joint['joint limits']['low']
                         child_obj_handle.rigid_body_constraint.use_limit_lin_x = True
+                    elif joint['type'] == 'continuous':
+                        # Do nothing, not enable the limits
+                        pass
 
     def adjust_body_pivots_and_axes(self):
         for joint_name in self._afmb['joints']:
@@ -950,13 +971,13 @@ class LoadAFMB(bpy.types.Operator):
                 child_obj_handle.rigid_body_constraint.object2 \
                     = bpy.data.objects[self._blender_remapped_body_names[child_body_name]]
                 if 'joint limits' in joint:
-                    if joint_type == 'HINGE':
+                    if joint['type'] == 'revolute':
                         child_obj_handle.rigid_body_constraint.limit_ang_z_upper \
                             = joint['joint limits']['high']
                         child_obj_handle.rigid_body_constraint.limit_ang_z_lower \
                             = joint['joint limits']['low']
                         child_obj_handle.rigid_body_constraint.use_limit_ang_z = True
-                    elif joint_type == 'SLIDER':
+                    elif joint['type'] == 'prismatic':
                         child_obj_handle.rigid_body_constraint.limit_lin_x_upper = \
                             joint['joint limits']['high']
                         child_obj_handle.rigid_body_constraint.limit_lin_x_lower = \
