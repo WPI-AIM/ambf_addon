@@ -161,8 +161,7 @@ class JointTemplate:
         self._afmb_data['child axis'] = {'x': 0, 'y': 0.0, 'z': 1.0}
         self._afmb_data['child pivot'] = {'x': 0, 'y': 0.0, 'z': 0}
         self._afmb_data['joint limits'] = {'low': -1.2, 'high': 1.2}
-        self._afmb_data['enable motor'] = 0
-        self._afmb_data['max motor impulse'] = 0
+        self._afmb_data['max motor impulse'] = 0.01
 
 
 class GenerateAFMB(bpy.types.Operator):
@@ -668,6 +667,7 @@ class LoadAFMB(bpy.types.Operator):
             _is_empty_object = True
 
         obj_handle = self._context.active_object
+        bpy.ops.object.transform_apply(scale=True)
         obj_handle.name = af_name
         self._blender_remapped_body_names[body_name] = obj_handle.name
 
