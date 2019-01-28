@@ -92,11 +92,11 @@ def rot_matrix_from_vecs(v1, v2):
         temp_ang = v1.angle(nx)
         if 0.1 < abs(temp_ang) < 3.13:
             axis = v1.cross(nx)
-            out.Rotation(rot_angle, 3, axis)
+            out = out.Rotation(rot_angle, 3, axis)
         else:
             ny = mathutils.Vector([0, 1, 0])
             axis = v1.cross(ny)
-            out.Rotation(rot_angle, 3, axis)
+            out = out.Rotation(rot_angle, 3, axis)
     else:
         skew_v = skew_mat(vcross)
         out = mathutils.Matrix.Identity(3) + skew_v + skew_v * skew_v * ((1 - vdot) / (vec_norm(vcross) ** 2))
