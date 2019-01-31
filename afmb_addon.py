@@ -2,15 +2,15 @@
 # Email: amunawar@wpi.edu
 # Lab: aimlab.wpi.edu
 bl_info = {
-    "name": "AF Multi-Body Config Creator",
+    "name": "Asynchronous Multi-Body Framework (AMBF) Config Creator",
     "author": "Adnan Munawar",
     "version": (0, 1),
     "blender": (2, 79, 0),
-    "location": "View3D > Add > Mesh > AF Multi-Body",
-    "description": "Helps Generate AF Multi-Body Config File and Saves both High and Low Resolution(Collision) Meshes",
+    "location": "View3D > Add > Mesh > AMBF",
+    "description": "Helps Generate AMBF Config File and Saves both High and Low Resolution(Collision) Meshes",
     "warning": "",
     "wiki_url": "https://github.com/adnanmunawar/af_multibody_config",
-    "category": "AF Multi-Body",
+    "category": "AMBF",
     }
 
 import bpy
@@ -138,17 +138,17 @@ def get_rot_mat_from_vecs(vecA, vecB):
 # Body Template for the some commonly used of afBody's data
 class BodyTemplate:
     def __init__(self):
-        self._afmb_data = OrderedDict()
-        self._afmb_data['name'] = ""
-        self._afmb_data['mesh'] = ""
-        self._afmb_data['mass'] = 0.0
-        self._afmb_data['inertia'] = {'ix': 0.0, 'iy': 0.0, 'iz': 0.0}
-        self._afmb_data['scale'] = 1.0
-        self._afmb_data['location'] = {'position': {'x': 0, 'y': 0, 'z': 0},
+        self._ambf_data = OrderedDict()
+        self._ambf_data['name'] = ""
+        self._ambf_data['mesh'] = ""
+        self._ambf_data['mass'] = 0.0
+        self._ambf_data['inertia'] = {'ix': 0.0, 'iy': 0.0, 'iz': 0.0}
+        self._ambf_data['scale'] = 1.0
+        self._ambf_data['location'] = {'position': {'x': 0, 'y': 0, 'z': 0},
                                        'orientation': {'r': 0, 'p': 0, 'y': 0}}
-        self._afmb_data['inertial offset'] = {'position': {'x': 0, 'y': 0, 'z': 0},
+        self._ambf_data['inertial offset'] = {'position': {'x': 0, 'y': 0, 'z': 0},
                                               'orientation': {'r': 0, 'p': 0, 'y': 0}}
-        self._afmb_data['color'] = 'random'
+        self._ambf_data['color'] = 'random'
         # Transform of Child Rel to Joint, which in inverse of t_c_j
         self.t_j_c = mathutils.Matrix()
 
@@ -156,32 +156,32 @@ class BodyTemplate:
 # Joint Template for the some commonly used of afJoint's data
 class JointTemplate:
     def __init__(self):
-        self._afmb_data = OrderedDict()
-        self._afmb_data['name'] = ''
-        self._afmb_data['parent'] = ''
-        self._afmb_data['child'] = ''
-        self._afmb_data['parent axis'] = {'x': 0, 'y': 0.0, 'z': 1.0}
-        self._afmb_data['parent pivot'] = {'x': 0, 'y': 0.0, 'z': 0}
-        self._afmb_data['child axis'] = {'x': 0, 'y': 0.0, 'z': 1.0}
-        self._afmb_data['child pivot'] = {'x': 0, 'y': 0.0, 'z': 0}
-        self._afmb_data['joint limits'] = {'low': -1.2, 'high': 1.2}
-        self._afmb_data['max motor impulse'] = 0.01
+        self._ambf_data = OrderedDict()
+        self._ambf_data['name'] = ''
+        self._ambf_data['parent'] = ''
+        self._ambf_data['child'] = ''
+        self._ambf_data['parent axis'] = {'x': 0, 'y': 0.0, 'z': 1.0}
+        self._ambf_data['parent pivot'] = {'x': 0, 'y': 0.0, 'z': 0}
+        self._ambf_data['child axis'] = {'x': 0, 'y': 0.0, 'z': 1.0}
+        self._ambf_data['child pivot'] = {'x': 0, 'y': 0.0, 'z': 0}
+        self._ambf_data['joint limits'] = {'low': -1.2, 'high': 1.2}
+        self._ambf_data['max motor impulse'] = 0.01
 
 
-class GenerateAFMB(bpy.types.Operator):
+class GenerateAMBF(bpy.types.Operator):
     """Tooltip"""
-    bl_idname = "myops.add_create_af_yaml"
-    bl_label = "Write Multi-Body AF Config"
+    bl_idname = "myops.add_create_ambf_config"
+    bl_label = "Write Multi-Body AMBF Config"
 
     def __init__(self):
         self._body_names_list = []
         self._joint_names_list = []
         self.body_name_prefix = 'BODY '
         self.joint_name_prefix = 'JOINT '
-        self._afmb_yaml = None
+        self._ambf_yaml = None
 
     def execute(self, context):
-        self.generate_afmb_yaml(context)
+        self.generate_ambf_yaml(context)
         return {'FINISHED'}
 
     def get_body_prefixed_name(self, urdf_body_str):
@@ -201,11 +201,11 @@ class GenerateAFMB(bpy.types.Operator):
             center[i] = center[i] * obj.scale[i]
         return center
 
-    def generate_body_data(self, afmb_yaml, obj_handle):
+    def generate_body_data(self, ambf_yaml, obj_handle):
         if obj_handle.hide is True:
             return
         body = BodyTemplate()
-        body_data = body._afmb_data
+        body_data = body._ambf_data
         body_yaml_name = self.get_body_prefixed_name(obj_handle.name)
         output_mesh = bpy.context.scene['mesh_output_type']
         body_data['name'] = obj_handle.name
@@ -251,10 +251,10 @@ class GenerateAFMB(bpy.types.Operator):
                 body_data['color rgba']['b'] = round(obj_handle.data.materials[0].diffuse_color[2], 4)
                 body_data['color rgba']['a'] = round(obj_handle.data.materials[0].alpha, 4)
 
-        afmb_yaml[body_yaml_name] = body_data
+        ambf_yaml[body_yaml_name] = body_data
         self._body_names_list.append(body_yaml_name)
 
-    def generate_joint_data(self, afmb_yaml, obj_handle):
+    def generate_joint_data(self, ambf_yaml, obj_handle):
         if obj_handle.rigid_body_constraint:
             if obj_handle.rigid_body_constraint.object1:
                 if obj_handle.rigid_body_constraint.object1.hide is True:
@@ -266,15 +266,15 @@ class GenerateAFMB(bpy.types.Operator):
             if obj_handle.rigid_body_constraint.type in ['FIXED', 'HINGE', 'SLIDER']:
                 constraint = obj_handle.rigid_body_constraint
                 joint_template = JointTemplate()
-                joint_data = joint_template._afmb_data
+                joint_data = joint_template._ambf_data
                 if constraint.object1:
                     parent_obj_handle = constraint.object1
                     child_obj_handle = constraint.object2
                     joint_data['name'] = parent_obj_handle.name + "-" + child_obj_handle.name
                     joint_data['parent'] = self.get_body_prefixed_name(parent_obj_handle.name)
                     joint_data['child'] = self.get_body_prefixed_name(child_obj_handle.name)
-                    parent_body_data = self._afmb_yaml[self.get_body_prefixed_name(parent_obj_handle.name)]
-                    child_body_data = self._afmb_yaml[self.get_body_prefixed_name(child_obj_handle.name)]
+                    parent_body_data = self._ambf_yaml[self.get_body_prefixed_name(parent_obj_handle.name)]
+                    child_body_data = self._ambf_yaml[self.get_body_prefixed_name(child_obj_handle.name)]
                     parent_pivot, parent_axis = self.compute_parent_pivot_and_axis(
                         parent_obj_handle, child_obj_handle, obj_handle.rigid_body_constraint.type)
                     child_pivot = mathutils.Vector([0, 0, 0])
@@ -329,9 +329,9 @@ class GenerateAFMB(bpy.types.Operator):
                     # transform between two bodies it is very likely that we need an additional offset
                     # of the child body as in most of the cases of URDF's For this purpose, we calculate
                     # the offset as follows
-                    r_c_p_afmb = rot_matrix_from_vecs(child_axis, parent_axis)
-                    r_p_c_afmb = r_c_p_afmb.to_3x3().copy()
-                    r_p_c_afmb.invert()
+                    r_c_p_ambf = rot_matrix_from_vecs(child_axis, parent_axis)
+                    r_p_c_ambf = r_c_p_ambf.to_3x3().copy()
+                    r_p_c_ambf.invert()
 
                     t_p_w = parent_obj_handle.matrix_world.copy()
                     r_w_p = t_p_w.to_3x3().copy()
@@ -339,7 +339,7 @@ class GenerateAFMB(bpy.types.Operator):
                     r_c_w = child_obj_handle.matrix_world.to_3x3().copy()
                     r_c_p_blender = r_w_p * r_c_w
 
-                    r_angular_offset = r_p_c_afmb * r_c_p_blender
+                    r_angular_offset = r_p_c_ambf * r_c_p_blender
 
                     offset_axis_angle = r_angular_offset.to_quaternion().to_axis_angle()
 
@@ -368,7 +368,7 @@ class GenerateAFMB(bpy.types.Operator):
                             print('ERROR: SHOULD\'NT GET HERE')
 
                     joint_yaml_name = self.get_joint_prefixed_name(joint_data['name'])
-                    afmb_yaml[joint_yaml_name] = joint_data
+                    ambf_yaml[joint_yaml_name] = joint_data
                     self._joint_names_list.append(joint_yaml_name)
 
     # Since changing the scale of the bodies directly impacts the rotation matrix, we have
@@ -404,9 +404,9 @@ class GenerateAFMB(bpy.types.Operator):
         parent_axis = mathutils.Vector(t_c_p.col[col_num][0:3])
         return parent_pivot, parent_axis
 
-    def generate_afmb_yaml(self, context):
+    def generate_ambf_yaml(self, context):
         num_objs = len(bpy.data.objects)
-        save_to = bpy.path.abspath(context.scene.afmb_yaml_conf_path)
+        save_to = bpy.path.abspath(context.scene.ambf_yaml_conf_path)
         file_name = os.path.basename(save_to)
         save_path = os.path.dirname(save_to)
         if not file_name:
@@ -416,33 +416,33 @@ class GenerateAFMB(bpy.types.Operator):
         print('Output filename is: ', output_file_name)
 
         # For inorder processing, set the bodies and joints tag at the top of the map
-        self._afmb_yaml = OrderedDict()
+        self._ambf_yaml = OrderedDict()
         
-        self._afmb_yaml['bodies'] = []
-        self._afmb_yaml['joints'] = []
+        self._ambf_yaml['bodies'] = []
+        self._ambf_yaml['joints'] = []
         print('SAVE PATH', bpy.path.abspath(save_path))
-        print('AFMB CONFIG PATH', bpy.path.abspath(context.scene.afmb_yaml_mesh_path))
-        rel_mesh_path = os.path.relpath(bpy.path.abspath(context.scene.afmb_yaml_mesh_path), bpy.path.abspath(save_path))
+        print('AMBF CONFIG PATH', bpy.path.abspath(context.scene.ambf_yaml_mesh_path))
+        rel_mesh_path = os.path.relpath(bpy.path.abspath(context.scene.ambf_yaml_mesh_path), bpy.path.abspath(save_path))
 
-        self._afmb_yaml['high resolution path'] = rel_mesh_path + '/high_res/'
-        self._afmb_yaml['low resolution path'] = rel_mesh_path + '/low_res/'
+        self._ambf_yaml['high resolution path'] = rel_mesh_path + '/high_res/'
+        self._ambf_yaml['low resolution path'] = rel_mesh_path + '/low_res/'
 
-        self._afmb_yaml['ignore inter-collision'] = str(context.scene.ignore_inter_collision)
-
-        for obj in bpy.data.objects:
-            self.generate_body_data(self._afmb_yaml, obj)
+        self._ambf_yaml['ignore inter-collision'] = str(context.scene.ignore_inter_collision)
 
         for obj in bpy.data.objects:
-            self.generate_joint_data(self._afmb_yaml, obj)
+            self.generate_body_data(self._ambf_yaml, obj)
+
+        for obj in bpy.data.objects:
+            self.generate_joint_data(self._ambf_yaml, obj)
 
         # Now populate the bodies and joints tag
-        self._afmb_yaml['bodies'] = self._body_names_list
-        self._afmb_yaml['joints'] = self._joint_names_list
+        self._ambf_yaml['bodies'] = self._body_names_list
+        self._ambf_yaml['joints'] = self._joint_names_list
         
-        yaml.dump(self._afmb_yaml, output_file)
+        yaml.dump(self._ambf_yaml, output_file)
 
-        header_str = "# AFMB Version: %s\n" \
-                     "# Generated By: afmb_addon for Blender %s\n" \
+        header_str = "# AMBF Version: %s\n" \
+                     "# Generated By: ambf_addon for Blender %s\n" \
                      "# Link: %s\n" \
                      "# Generated on: %s\n"\
                      % (str(bl_info['version']).replace(', ', '.'),
@@ -468,7 +468,7 @@ def select_all_objects(select=True):
 
 
 class SaveMeshes(bpy.types.Operator):
-    bl_idname = "myops.add_save_af_meshes"
+    bl_idname = "myops.add_save_meshes"
     bl_label = "Save Meshes"
 
     def execute(self, context):
@@ -524,7 +524,7 @@ class SaveMeshes(bpy.types.Operator):
         # First deselect all objects
         select_all_objects(False)
 
-        save_path = bpy.path.abspath(context.scene.afmb_yaml_mesh_path)
+        save_path = bpy.path.abspath(context.scene.ambf_yaml_mesh_path)
         high_res_path = os.path.join(save_path, 'high_res/')
         low_res_path = os.path.join(save_path, 'low_res/')
         os.makedirs(high_res_path, exist_ok=True)
@@ -627,12 +627,12 @@ class ToggleModifiersVisibility(bpy.types.Operator):
         return {'FINISHED'}
 
 
-class LoadAFMB(bpy.types.Operator):
-    bl_idname = "myops.load_afmb_yaml_config"
-    bl_label = "Load AFMB YAML Config"
+class LoadAMBF(bpy.types.Operator):
+    bl_idname = "myops.load_ambf_yaml_config"
+    bl_label = "Load AMBF YAML Config"
 
     def __init__(self):
-        self._afmb = None
+        self._ambf = None
         # A dict of T_c_j frames for each body
         self._body_t_j_c = {}
         self._joint_additional_offset = {}
@@ -649,12 +649,12 @@ class LoadAFMB(bpy.types.Operator):
         if filepath.is_absolute():
             return path
         else:
-            afmb_filepath = Path(self._yaml_filepath)
-            path = str(afmb_filepath.parent.joinpath(filepath))
+            ambf_filepath = Path(self._yaml_filepath)
+            path = str(ambf_filepath.parent.joinpath(filepath))
             return path
 
     def load_body(self, body_name):
-        body = self._afmb[body_name]
+        body = self._ambf[body_name]
         # print(body['name'])
         if 'high resolution path' in body:
             body_high_res_path = self.get_qualified_path(body['high resolution path'])
@@ -736,13 +736,13 @@ class LoadAFMB(bpy.types.Operator):
     # print('Remapped Body Names: ', self._blender_remapped_body_names)
 
     def load_joint(self, joint_name):
-        joint = self._afmb[joint_name]
+        joint = self._ambf[joint_name]
         select_all_objects(False)
         self._context.scene.objects.active = None
         parent_body_name = joint['parent']
         child_body_name = joint['child']
-        parent_body_data = self._afmb[parent_body_name]
-        child_body_data = self._afmb[child_body_name]
+        parent_body_data = self._ambf[parent_body_name]
+        child_body_data = self._ambf[child_body_name]
         # Set joint type to blender appropriate name
         joint_type = 'HINGE'
         if 'type' in joint:
@@ -764,7 +764,7 @@ class LoadAFMB(bpy.types.Operator):
                 # and joint axes are not sufficient. We also need the joint offset which correctly defines
                 # the initial pose of the child body in the parent body.
                 offset_angle = 0.0
-                if not self._context.scene.ignore_afmb_joint_offsets:
+                if not self._context.scene.ignore_ambf_joint_offsets:
                     if 'offset' in joint:
                         offset_angle = joint['offset']
                 # Transformation matrix representing parent in world frame
@@ -824,8 +824,8 @@ class LoadAFMB(bpy.types.Operator):
                         pass
 
     def adjust_body_pivots_and_axes(self):
-        for joint_name in self._afmb['joints']:
-            joint = self._afmb[joint_name]
+        for joint_name in self._ambf['joints']:
+            joint = self._ambf[joint_name]
             if 'child pivot' in joint:
                 child_body_name = joint['child']
                 child_pivot_data = joint['child pivot']
@@ -914,13 +914,13 @@ class LoadAFMB(bpy.types.Operator):
             # Finally assign joints and set correct positions
 
     def load_joint_with_adjusted_bodies(self, joint_name):
-        joint = self._afmb[joint_name]
+        joint = self._ambf[joint_name]
         select_all_objects(False)
         self._context.scene.objects.active = None
         parent_body_name = joint['parent']
         child_body_name = joint['child']
-        parent_body_data = self._afmb[parent_body_name]
-        child_body_data = self._afmb[child_body_name]
+        parent_body_data = self._ambf[parent_body_name]
+        child_body_data = self._ambf[child_body_name]
          # Set joint type to blender appropriate name
         joint_type = 'HINGE'
         if 'type' in joint:
@@ -945,7 +945,7 @@ class LoadAFMB(bpy.types.Operator):
                 # and joint axes are not sufficient. We also need the joint offset which correctly defines
                 # the initial pose of the child body in the parent body.
                 offset_angle = 0.0
-                if not self._context.scene.ignore_afmb_joint_offsets:
+                if not self._context.scene.ignore_ambf_joint_offsets:
                     if 'offset' in joint:
                         offset_angle = joint['offset']
                 # Latest release of blender (2.79) only supports joints along child's z axis
@@ -1010,18 +1010,18 @@ class LoadAFMB(bpy.types.Operator):
 
     def execute(self, context):
         print('HOWDY PARTNER')
-        self._yaml_filepath = str(bpy.path.abspath(context.scene['external_afmb_yaml_filepath']))
+        self._yaml_filepath = str(bpy.path.abspath(context.scene['external_ambf_yaml_filepath']))
         print(self._yaml_filepath)
         yaml_file = open(self._yaml_filepath)
-        self._afmb = yaml.load(yaml_file)
+        self._ambf = yaml.load(yaml_file)
         self._context = context
 
-        bodies_list = self._afmb['bodies']
-        joints_list = self._afmb['joints']
+        bodies_list = self._ambf['bodies']
+        joints_list = self._ambf['joints']
 
         num_bodies = len(bodies_list)
         # print('Number of Bodies Specified = ', num_bodies)
-        self._high_res_path = self.get_qualified_path(self._afmb['high resolution path'])
+        self._high_res_path = self.get_qualified_path(self._ambf['high resolution path'])
         print(self._high_res_path)
         for body_name in bodies_list:
             self.load_body(body_name)
@@ -1040,15 +1040,15 @@ class LoadAFMB(bpy.types.Operator):
         return {'FINISHED'}
 
 
-class CreateAFMBPanel(bpy.types.Panel):
+class CreateAMBFPanel(bpy.types.Panel):
     """Creates a Panel in the Tool Shelf"""
     bl_label = "AF FILE CREATION"
-    bl_idname = "OBJECT_PT_afmb_yaml"
+    bl_idname = "OBJECT_PT_ambf_yaml"
     bl_space_type = 'VIEW_3D'
     bl_region_type = 'TOOLS'
-    bl_category = "AF Multi-Body"
+    bl_category = "AMBF"
 
-    bpy.types.Scene.afmb_yaml_conf_path = bpy.props.StringProperty \
+    bpy.types.Scene.ambf_yaml_conf_path = bpy.props.StringProperty \
       (
         name="Config (Save To)",
         default="",
@@ -1056,7 +1056,7 @@ class CreateAFMBPanel(bpy.types.Panel):
         subtype='FILE_PATH'
       )
 
-    bpy.types.Scene.afmb_yaml_mesh_path = bpy.props.StringProperty \
+    bpy.types.Scene.ambf_yaml_mesh_path = bpy.props.StringProperty \
       (
         name="Meshes (Save To)",
         default="",
@@ -1087,19 +1087,19 @@ class CreateAFMBPanel(bpy.types.Panel):
                         "default (True) unless you want to debug the model or something advanced",
         )
 
-    bpy.types.Scene.ignore_afmb_joint_offsets = bpy.props.BoolProperty \
+    bpy.types.Scene.ignore_ambf_joint_offsets = bpy.props.BoolProperty \
         (
             name="Ignore Offsets",
             default=False,
-            description="Ignore the joint offsets from afmb yaml file, keep this to default (False) "
+            description="Ignore the joint offsets from ambf yaml file, keep this to default (False) "
                         "unless you want to debug the model or something advanced",
         )
 
-    bpy.types.Scene.external_afmb_yaml_filepath = bpy.props.StringProperty \
+    bpy.types.Scene.external_ambf_yaml_filepath = bpy.props.StringProperty \
         (
-            name="AFMB Config",
+            name="AMBF Config",
             default="",
-            description="Load AFMB YAML FILE",
+            description="Load AMBF YAML FILE",
             subtype='FILE_PATH'
         )
 
@@ -1136,7 +1136,7 @@ class CreateAFMBPanel(bpy.types.Panel):
         layout.label(text="Step 2: SELECT LOCATION AND SAVE MESHES")
 
         # Meshes Save Location
-        layout.column().prop(context.scene, 'afmb_yaml_mesh_path')
+        layout.column().prop(context.scene, 'ambf_yaml_mesh_path')
 
         # Select the Mesh-Type for saving the meshes
         col = layout.column()
@@ -1151,17 +1151,17 @@ class CreateAFMBPanel(bpy.types.Panel):
         # Meshes Save Button
         col = layout.column()
         col.alignment = 'CENTER'
-        col.operator("myops.add_save_af_meshes")
+        col.operator("myops.add_save_meshes")
 
-        layout.label(text="Step 3: GENERATE AF MULTI-BODY CONFIG")
+        layout.label(text="Step 3: GENERATE AMBF CONFIG")
 
         # Config File Save Location
         col = layout.column()
-        col.prop(context.scene, 'afmb_yaml_conf_path')
+        col.prop(context.scene, 'ambf_yaml_conf_path')
         # Config File Save Button
         col = layout.column()
         col.alignment = 'CENTER'
-        col.operator("myops.add_create_af_yaml")
+        col.operator("myops.add_create_ambf_config")
 
         layout.label(text="Optional :")
 
@@ -1175,8 +1175,8 @@ class CreateAFMBPanel(bpy.types.Panel):
         col.alignment = 'CENTER'
         col.operator("myops.toggle_modifiers_visibility")
 
-        # Load AFMB File Into Blender
-        layout.label(text="LOAD AFMB FILE :")
+        # Load AMBF File Into Blender
+        layout.label(text="LOAD AMBF FILE :")
 
         # Load
         col = layout.column()
@@ -1186,36 +1186,36 @@ class CreateAFMBPanel(bpy.types.Panel):
         # Load
         col = layout.column()
         col.alignment = 'CENTER'
-        col.prop(context.scene, 'ignore_afmb_joint_offsets')
+        col.prop(context.scene, 'ignore_ambf_joint_offsets')
 
         # Load
         col = layout.column()
         col.alignment = 'CENTER'
-        col.prop(context.scene, 'external_afmb_yaml_filepath')
+        col.prop(context.scene, 'external_ambf_yaml_filepath')
         
         col = layout.column()
         col.alignment = 'CENTER'
-        col.operator("myops.load_afmb_yaml_config")
+        col.operator("myops.load_ambf_yaml_config")
 
 
 def register():
     bpy.utils.register_class(ToggleModifiersVisibility)
     bpy.utils.register_class(RemoveModifiers)
     bpy.utils.register_class(GenerateLowResMeshModifiers)
-    bpy.utils.register_class(GenerateAFMB)
+    bpy.utils.register_class(GenerateAMBF)
     bpy.utils.register_class(SaveMeshes)
-    bpy.utils.register_class(LoadAFMB)
-    bpy.utils.register_class(CreateAFMBPanel)
+    bpy.utils.register_class(LoadAMBF)
+    bpy.utils.register_class(CreateAMBFPanel)
 
 
 def unregister():
     bpy.utils.unregister_class(ToggleModifiersVisibility)
     bpy.utils.unregister_class(RemoveModifiers)
     bpy.utils.unregister_class(GenerateLowResMeshModifiers)
-    bpy.utils.unregister_class(GenerateAFMB)
+    bpy.utils.unregister_class(GenerateAMBF)
     bpy.utils.unregister_class(SaveMeshes)
-    bpy.utils.unregister_class(LoadAFMB)
-    bpy.utils.unregister_class(CreateAFMBPanel)
+    bpy.utils.unregister_class(LoadAMBF)
+    bpy.utils.unregister_class(CreateAMBFPanel)
 
 
 if __name__ == "__main__":
