@@ -9,7 +9,7 @@ bl_info = {
     "location": "View3D > Add > Mesh > AMBF",
     "description": "Helps Generate AMBF Config File and Saves both High and Low Resolution(Collision) Meshes",
     "warning": "",
-    "wiki_url": "https://github.com/adnanmunawar/af_multibody_config",
+    "wiki_url": "https://github.com/adnanmunawar/ambf_addon",
     "category": "AMBF",
     }
 
