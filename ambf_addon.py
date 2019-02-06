@@ -179,6 +179,10 @@ class GenerateAMBF(bpy.types.Operator):
         self.body_name_prefix = 'BODY '
         self.joint_name_prefix = 'JOINT '
         self._ambf_yaml = None
+        # Since there isn't a convenient way of defining parallel linkages (hence redundant joints) due to the
+        # limit on 1 parent per body. We use kind of a hack. This prefix is what we we search for it we find an
+        # empty body with the mentioned prefix.
+        self._redundant_joint_prefix = ['redundant joint', 'Redundant Joint', 'REDUNDANT JOINT']
 
     def execute(self, context):
         self.generate_ambf_yaml(context)
@@ -220,14 +224,25 @@ class GenerateAMBF(bpy.types.Operator):
         body_rot['p'] = round(world_rot[1], 3)
         body_rot['y'] = round(world_rot[2], 3)
         if obj_handle.type == 'EMPTY':
-            body_data['mesh'] = ''
+            # Check for a special case for defining joints for parallel linkages
+            _is_redundant_joint = False
+            for _parallel_prefix_search_str in self._redundant_joint_prefix:
+                if obj_handle.name.rfind(_parallel_prefix_search_str) == 0:
+                    _is_redundant_joint = True
+                    break
 
-            if obj_handle.name in ['world', 'World', 'WORLD']:
-                body_data['mass'] = 0
-
+            if _is_redundant_joint:
+                print('INFO: JOINT %s FOR PARALLEL LINKAGE FOUND' % obj_handle.name)
+                return
             else:
-                body_data['mass'] = 0.1
-                body_data['inertia'] = {'ix': 0.01, 'iy': 0.01, 'iz': 0.01}
+                body_data['mesh'] = ''
+
+                if obj_handle.name in ['world', 'World', 'WORLD']:
+                    body_data['mass'] = 0
+
+                else:
+                    body_data['mass'] = 0.1
+                    body_data['inertia'] = {'ix': 0.01, 'iy': 0.01, 'iz': 0.01}
 
         elif obj_handle.type == 'MESH':
 
@@ -255,6 +270,10 @@ class GenerateAMBF(bpy.types.Operator):
         self._body_names_list.append(body_yaml_name)
 
     def generate_joint_data(self, ambf_yaml, obj_handle):
+
+        if obj_handle.hide is True:
+            return
+
         if obj_handle.rigid_body_constraint:
             if obj_handle.rigid_body_constraint.object1:
                 if obj_handle.rigid_body_constraint.object1.hide is True:
@@ -275,10 +294,43 @@ class GenerateAMBF(bpy.types.Operator):
                     joint_data['child'] = self.get_body_prefixed_name(child_obj_handle.name)
                     parent_body_data = self._ambf_yaml[self.get_body_prefixed_name(parent_obj_handle.name)]
                     child_body_data = self._ambf_yaml[self.get_body_prefixed_name(child_obj_handle.name)]
-                    parent_pivot, parent_axis = self.compute_parent_pivot_and_axis(
-                        parent_obj_handle, child_obj_handle, obj_handle.rigid_body_constraint.type)
-                    child_pivot = mathutils.Vector([0, 0, 0])
-                    child_axis = mathutils.Vector([0, 0, 0])
+
+                    # Since there isn't a convenient way of defining redundant joints and hence parallel linkages due
+                    # to the limit on 1 parent per body. We use a hack. This is how it works. In Blender
+                    # we start by defining an empty body that has to have specific prefix as the first word
+                    # in its name. Next we set up the rigid_body_constraint of this empty body as follows. For the RBC
+                    # , we set the parent of this empty body to be the link that we want as the parent for
+                    # the redundant joint and the child body as the corresponding child of the redundant joint.
+                    # Remember, this empty body is only a place holder and won't be added to
+                    # AMBF. Next, its recommended to set the parent body of this empty body as it's parent in Blender
+                    # and by that I mean the tree hierarchy parent (having set the the parent in the rigid body
+                    # constraint property is different from parent in tree hierarchy). From there on, make sure to
+                    # rotate this empty body such that the z axis / x axis is in the direction of the joint axis if
+                    # the redundant joint is supposed to be revolute or prismatic respectively.
+                    _is_redundant_joint = False
+                    if obj_handle.type == 'EMPTY':
+                        # Check for a special case for defining joints for parallel linkages
+                        for _parallel_prefix_search_str in self._redundant_joint_prefix:
+                            if obj_handle.name.rfind(_parallel_prefix_search_str) == 0:
+                                _is_redundant_joint = True
+                                break
+
+                    if _is_redundant_joint:
+
+                        print('INFO: FOR BODY \"%s\" ADDING PARALLEL LINKAGE JOINT' % obj_handle.name)
+
+                        parent_pivot, parent_axis = self.compute_parent_pivot_and_axis(
+                            parent_obj_handle, obj_handle, obj_handle.rigid_body_constraint.type)
+
+                        child_pivot, child_axis = self.compute_parent_pivot_and_axis(
+                            child_obj_handle, obj_handle, obj_handle.rigid_body_constraint.type)
+
+                    else:
+
+                        parent_pivot, parent_axis = self.compute_parent_pivot_and_axis(
+                            parent_obj_handle, child_obj_handle, obj_handle.rigid_body_constraint.type)
+                        child_pivot = mathutils.Vector([0, 0, 0])
+                        child_axis = mathutils.Vector([0, 0, 0])
                     if obj_handle.rigid_body_constraint.type == 'HINGE':
                         child_axis = mathutils.Vector([0, 0, 1])
                         if constraint.use_limit_ang_z:
@@ -306,12 +358,12 @@ class GenerateAMBF(bpy.types.Operator):
                     parent_axis_data['z'] = round(parent_axis.z, 3)
                     child_pivot_data = joint_data["child pivot"]
                     child_axis_data = joint_data["child axis"]
-                    child_pivot_data['x'] = child_pivot.x
-                    child_pivot_data['y'] = child_pivot.y
-                    child_pivot_data['z'] = child_pivot.z
-                    child_axis_data['x'] = child_axis.x
-                    child_axis_data['y'] = child_axis.y
-                    child_axis_data['z'] = child_axis.z
+                    child_pivot_data['x'] = round(child_pivot.x, 3)
+                    child_pivot_data['y'] = round(child_pivot.y, 3)
+                    child_pivot_data['z'] = round(child_pivot.z, 3)
+                    child_axis_data['x'] = round(child_axis.x, 3)
+                    child_axis_data['y'] = round(child_axis.y, 3)
+                    child_axis_data['z'] = round(child_axis.z, 3)
 
                     if joint_data['type'] == 'fixed':
                         del joint_data["joint limits"]
@@ -353,10 +405,10 @@ class GenerateAMBF(bpy.types.Operator):
                         offset_angle = round(offset_axis_angle[1], 3)
                         # offset_angle = round(offset_angle, 3)
                         # print 'Offset Angle: \t', offset_angle
-                        print('OFFSET ANGLE', offset_axis_angle[1])
-                        print('CHILD AXIS', child_axis)
-                        print('OFFSET AXIS', offset_axis_angle)
-                        print('DOT PRODUCT', parent_axis.dot(offset_axis_angle[0]))
+                        # print('OFFSET ANGLE', offset_axis_angle[1])
+                        # print('CHILD AXIS', child_axis)
+                        # print('OFFSET AXIS', offset_axis_angle)
+                        # print('DOT PRODUCT', parent_axis.dot(offset_axis_angle[0]))
 
                         if abs(1.0 - child_axis.dot(offset_axis_angle[0])) < 0.1:
                             joint_data['offset'] = offset_angle
@@ -754,6 +806,9 @@ class LoadAMBF(bpy.types.Operator):
                 joint_type = 'FIXED'
         parent_obj_handle = bpy.data.objects[self._blender_remapped_body_names[parent_body_name]]
         child_obj_handle = bpy.data.objects[self._blender_remapped_body_names[child_body_name]]
+        if child_obj_handle.rigid_body_constraint is not None:
+            print("WARNING, JOINT AMBF ADDON DOESNT SUPPORT MULTIPLE JOINTS PER BODY YET")
+            return
         if 'parent pivot' in joint:
             parent_pivot_data = joint['parent pivot']
             parent_axis_data = joint['parent axis']
