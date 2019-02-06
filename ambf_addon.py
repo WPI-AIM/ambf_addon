@@ -182,7 +182,7 @@ class GenerateAMBF(bpy.types.Operator):
         # Since there isn't a convenient way of defining parallel linkages (hence redundant joints) due to the
         # limit on 1 parent per body. We use kind of a hack. This prefix is what we we search for it we find an
         # empty body with the mentioned prefix.
-        self._redundant_joint_prefix = ['redundant joint', 'Redundant Joint', 'REDUNDANT JOINT']
+        self._redundant_joint_prefix = ['redundant', 'Redundant', 'REDUNDANT']
 
     def execute(self, context):
         self.generate_ambf_yaml(context)
@@ -324,6 +324,8 @@ class GenerateAMBF(bpy.types.Operator):
 
                         child_pivot, child_axis = self.compute_parent_pivot_and_axis(
                             child_obj_handle, obj_handle, obj_handle.rigid_body_constraint.type)
+                        # Add this field to the joint data, it will come in handy for blender later
+                        joint_data['redundant'] = True
 
                     else:
 
@@ -694,6 +696,7 @@ class LoadAMBF(bpy.types.Operator):
         self._high_res_path = ''
         self._low_res_path = ''
         self._context = None
+        self._redundant_joint_prefix = ['redundant', 'Redundant', 'REDUNDANT']
 
     def get_qualified_path(self, path):
         filepath = Path(path)
@@ -788,40 +791,72 @@ class LoadAMBF(bpy.types.Operator):
     # print('Remapped Body Names: ', self._blender_remapped_body_names)
 
     def load_joint(self, joint_name):
-        joint = self._ambf[joint_name]
+        joint_data = self._ambf[joint_name]
         select_all_objects(False)
         self._context.scene.objects.active = None
-        parent_body_name = joint['parent']
-        child_body_name = joint['child']
+        parent_body_name = joint_data['parent']
+        child_body_name = joint_data['child']
         parent_body_data = self._ambf[parent_body_name]
         child_body_data = self._ambf[child_body_name]
         # Set joint type to blender appropriate name
         joint_type = 'HINGE'
-        if 'type' in joint:
-            if joint['type'] in ['hinge', 'revolute', 'continuous']:
+        if 'type' in joint_data:
+            if joint_data['type'] in ['hinge', 'revolute', 'continuous']:
                 joint_type = 'HINGE'
-            elif joint['type'] in ['prismatic', 'slider']:
+            elif joint_data['type'] in ['prismatic', 'slider']:
                 joint_type = 'SLIDER'
-            elif joint['type'] in ['fixed', 'FIXED']:
+            elif joint_data['type'] in ['fixed', 'FIXED']:
                 joint_type = 'FIXED'
-        parent_obj_handle = bpy.data.objects[self._blender_remapped_body_names[parent_body_name]]
-        child_obj_handle = bpy.data.objects[self._blender_remapped_body_names[child_body_name]]
-        if child_obj_handle.rigid_body_constraint is not None:
-            print("WARNING, JOINT AMBF ADDON DOESNT SUPPORT MULTIPLE JOINTS PER BODY YET")
-            return
-        if 'parent pivot' in joint:
-            parent_pivot_data = joint['parent pivot']
-            parent_axis_data = joint['parent axis']
-            if 'child pivot' in joint:
-                child_pivot_data = joint['child pivot']
-                child_axis_data = joint['child axis']
+
+        _is_redundant_joint = False
+
+        if 'redundant' in joint_data:
+            if joint_data['redundant'] is True or joint_data['redundant'] == 'True':
+                _is_redundant_joint = True
+
+        if _is_redundant_joint is True:
+            print('INFO, JOINT \"%s\" IS REDUNDANT' % joint_name)
+            parent_obj_handle = bpy.data.objects[self._blender_remapped_body_names[parent_body_name]]
+
+            bpy.ops.object.empty_add(type='PLAIN_AXES')
+            child_obj_handle = bpy.context.active_object
+            joint_name = str(joint_data['name'])
+
+            _has_redundant_prefix = False
+            for _redundant_joint_name_str in self._redundant_joint_prefix:
+                if joint_name.rfind(_redundant_joint_name_str) == 0:
+                    _has_redundant_prefix = True
+
+            if _has_redundant_prefix:
+                child_obj_handle.name = joint_name
+            else:
+                child_obj_handle.name = 'redundant joint ' + joint_name
+
+        else:
+            parent_obj_handle = bpy.data.objects[self._blender_remapped_body_names[parent_body_name]]
+            child_obj_handle = bpy.data.objects[self._blender_remapped_body_names[child_body_name]]
+
+        if 'parent pivot' in joint_data:
+            parent_pivot_data = joint_data['parent pivot']
+            parent_axis_data = joint_data['parent axis']
+            if 'child pivot' in joint_data:
+                child_pivot_data = joint_data['child pivot']
+
+                if _is_redundant_joint:
+                    child_pivot_data = {'x': 0, 'y': 0, 'z': 0}
+                    if joint_data['type'] in ['hinge', 'continuous', 'revolute', 'fixed']:
+                        child_axis_data = {'x': 0, 'y': 0, 'z': 1}
+                    elif joint_data['type'] in ['prismatic', 'slider']:
+                        child_axis_data = {'x': 1, 'y': 0, 'z': 0}
+                else:
+                    child_axis_data = joint_data['child axis']
                 # To fully define a child body's connection and pose in a parent body, just the joint pivots
                 # and joint axes are not sufficient. We also need the joint offset which correctly defines
                 # the initial pose of the child body in the parent body.
                 offset_angle = 0.0
                 if not self._context.scene.ignore_ambf_joint_offsets:
-                    if 'offset' in joint:
-                        offset_angle = joint['offset']
+                    if 'offset' in joint_data:
+                        offset_angle = joint_data['offset']
                 # Transformation matrix representing parent in world frame
                 t_p_w = parent_obj_handle.matrix_world.copy()
                 # Parent's Joint Axis in parent's frame
@@ -863,39 +898,45 @@ class LoadAMBF(bpy.types.Operator):
                 child_obj_handle.rigid_body_constraint.object2 \
                     = bpy.data.objects[self._blender_remapped_body_names[child_body_name]]
 
-                if 'joint limits' in joint:
-                    if joint['type'] == 'revolute':
+                if 'joint limits' in joint_data:
+                    if joint_data['type'] == 'revolute':
                         child_obj_handle.rigid_body_constraint.limit_ang_z_upper \
-                            = joint['joint limits']['high'] + offset_angle
+                            = joint_data['joint limits']['high'] + offset_angle
                         child_obj_handle.rigid_body_constraint.limit_ang_z_lower \
-                            = joint['joint limits']['low'] + offset_angle
+                            = joint_data['joint limits']['low'] + offset_angle
                         child_obj_handle.rigid_body_constraint.use_limit_ang_z = True
-                    elif joint['type'] == 'prismatic':
-                        child_obj_handle.rigid_body_constraint.limit_lin_x_upper = joint['joint limits']['high']
-                        child_obj_handle.rigid_body_constraint.limit_lin_x_lower = joint['joint limits']['low']
+                    elif joint_data['type'] == 'prismatic':
+                        child_obj_handle.rigid_body_constraint.limit_lin_x_upper = joint_data['joint limits']['high']
+                        child_obj_handle.rigid_body_constraint.limit_lin_x_lower = joint_data['joint limits']['low']
                         child_obj_handle.rigid_body_constraint.use_limit_lin_x = True
-                    elif joint['type'] == 'continuous':
+                    elif joint_data['type'] == 'continuous':
                         # Do nothing, not enable the limits
                         pass
 
     def adjust_body_pivots_and_axes(self):
         for joint_name in self._ambf['joints']:
-            joint = self._ambf[joint_name]
-            if 'child pivot' in joint:
-                child_body_name = joint['child']
-                child_pivot_data = joint['child pivot']
-                child_axis_data = joint['child axis']
-                parent_axis_data = joint['parent axis']
+            joint_data = self._ambf[joint_name]
+            if 'child pivot' in joint_data:
+                if 'redundant' in joint_data:
+                    if joint_data['redundant'] is True or joint_data['redundant'] == 'True':
+                        print('INFO, JOINT \"%s\" IS REDUNDANT, NO NEED'
+                              ' TO ADJUST CHILD BODY\'S AXIS AND PIVOTS' % joint_name)
+                        return
+
+                child_body_name = joint_data['child']
+                child_pivot_data = joint_data['child pivot']
+                child_axis_data = joint_data['child axis']
+                parent_axis_data = joint_data['parent axis']
 
                 child_obj_handle = bpy.data.objects[self._blender_remapped_body_names[child_body_name]]
 
                 joint_type = 'HINGE'
-                if 'type' in joint:
-                    if joint['type'] in ['hinge', 'revolute', 'continuous']:
+                if 'type' in joint_data:
+                    if joint_data['type'] in ['hinge', 'revolute', 'continuous']:
                         joint_type = 'HINGE'
-                    elif joint['type'] in ['prismatic', 'slider']:
+                    elif joint_data['type'] in ['prismatic', 'slider']:
                         joint_type = 'SLIDER'
-                    elif joint['type'] in ['fixed', 'FIXED']:
+                    elif joint_data['type'] in ['fixed', 'FIXED']:
                         joint_type = 'FIXED'
 
                 # Universal Constraint Axis
@@ -933,7 +974,7 @@ class LoadAMBF(bpy.types.Operator):
 
                 if child_obj_handle.type != 'EMPTY':
                     child_obj_handle.data.transform(t_c_j)
-                self._body_t_j_c[joint['child']] = t_c_j
+                self._body_t_j_c[joint_data['child']] = t_c_j
 
                 # Implementing the Alignment Offset Correction Algorithm (AO)
 
@@ -946,7 +987,7 @@ class LoadAMBF(bpy.types.Operator):
                 r_p_cnew = r_cnew_p.copy()
                 r_p_cnew.invert()
                 delta_r = r_p_cnew * r_c_p
-                print('Joint Name: ', joint_name)
+                # print('Joint Name: ', joint_name)
                 # print('Delta R: ')
                 d_axis_angle = delta_r.to_quaternion().to_axis_angle()
                 d_axis = round_vec(d_axis_angle[0])
@@ -956,53 +997,77 @@ class LoadAMBF(bpy.types.Operator):
                 v_diff = d_axis.cross(child_axis)
                 if v_diff.length > 0.1 and abs(d_angle) > 0.1:
                     print('*** WARNING: AXIS ALIGNMENT LOGIC ERROR')
-                print(d_axis, ' : ', d_angle)
+                # print(d_axis, ' : ', d_angle)
                 if any(d_axis[i] < 0.0 for i in range(0, 3)):
                     d_angle = - d_angle
 
                 if abs(d_angle) > 0.1:
                     r_ao = mathutils.Matrix().Rotation(d_angle, 4, constraint_axis)
                     child_obj_handle.data.transform(r_ao)
-                    self._body_t_j_c[joint['child']] = r_ao * t_c_j
+                    self._body_t_j_c[joint_data['child']] = r_ao * t_c_j
                 # end of AO algorithm
 
             # Finally assign joints and set correct positions
 
     def load_joint_with_adjusted_bodies(self, joint_name):
-        joint = self._ambf[joint_name]
+        joint_data = self._ambf[joint_name]
         select_all_objects(False)
         self._context.scene.objects.active = None
-        parent_body_name = joint['parent']
-        child_body_name = joint['child']
+        parent_body_name = joint_data['parent']
+        child_body_name = joint_data['child']
         parent_body_data = self._ambf[parent_body_name]
         child_body_data = self._ambf[child_body_name]
          # Set joint type to blender appropriate name
         joint_type = 'HINGE'
-        if 'type' in joint:
-            if joint['type'] in ['hinge', 'revolute', 'continuous']:
+        if 'type' in joint_data:
+            if joint_data['type'] in ['hinge', 'revolute', 'continuous']:
                 joint_type = 'HINGE'
-            elif joint['type'] in ['prismatic', 'slider']:
+            elif joint_data['type'] in ['prismatic', 'slider']:
                 joint_type = 'SLIDER'
-            elif joint['type'] in ['fixed', 'FIXED']:
+            elif joint_data['type'] in ['fixed', 'FIXED']:
                 joint_type = 'FIXED'
-        parent_obj_handle = bpy.data.objects[self._blender_remapped_body_names[parent_body_name]]
-        child_obj_handle = bpy.data.objects[self._blender_remapped_body_names[child_body_name]]
+
+        _is_redundant_joint = False
+        if 'redundant' in joint_data:
+            if joint_data['redundant'] is True or joint_data['redundant'] == 'True':
+                _is_redundant_joint = True
+
+        if _is_redundant_joint is True:
+            print('INFO, JOINT \"%s\" IS REDUNDANT' % joint_name)
+            parent_obj_handle = bpy.data.objects[self._blender_remapped_body_names[parent_body_name]]
+
+            bpy.ops.object.empty_add(type='PLAIN_AXES')
+            child_obj_handle = bpy.context.active_object
+            joint_name = str(joint_data['name'])
+
+            _has_redundant_prefix = False
+            for _redundant_joint_name_str in self._redundant_joint_prefix:
+                if joint_name.rfind(_redundant_joint_name_str) == 0:
+                    _has_redundant_prefix = True
+
+            if _has_redundant_prefix:
+                child_obj_handle.name = joint_name
+            else:
+                child_obj_handle.name = 'redundant joint ' + joint_name
+        else:
+            parent_obj_handle = bpy.data.objects[self._blender_remapped_body_names[parent_body_name]]
+            child_obj_handle = bpy.data.objects[self._blender_remapped_body_names[child_body_name]]
         # print('JOINT:', joint_name)
         # print('\tParent: ', parent_obj_handle.name)
         # print('\tChild: ', child_obj_handle.name)
-        if 'parent pivot' in joint:
-            parent_pivot_data = joint['parent pivot']
-            parent_axis_data = joint['parent axis']
-            if 'child pivot' in joint:
-                child_pivot_data = joint['child pivot']
-                child_axis_data = joint['child axis']
+        if 'parent pivot' in joint_data:
+            parent_pivot_data = joint_data['parent pivot']
+            parent_axis_data = joint_data['parent axis']
+            if 'child pivot' in joint_data:
+                child_pivot_data = joint_data['child pivot']
+                child_axis_data = joint_data['child axis']
                 # To fully define a child body's connection and pose in a parent body, just the joint pivots
                 # and joint axes are not sufficient. We also need the joint offset which correctly defines
                 # the initial pose of the child body in the parent body.
                 offset_angle = 0.0
                 if not self._context.scene.ignore_ambf_joint_offsets:
-                    if 'offset' in joint:
-                        offset_angle = joint['offset']
+                    if 'offset' in joint_data:
+                        offset_angle = joint_data['offset']
                 # Latest release of blender (2.79) only supports joints along child's z axis
                 # which requires a workaround for this limitation. We rotate the joint frame by the
                 # angular offset of parent's joint axis, w.r.t to parent's z axis.
@@ -1032,7 +1097,7 @@ class LoadAMBF(bpy.types.Operator):
                 # Offset along constraint axis
                 t_c_offset_rot = mathutils.Matrix().Rotation(offset_angle, 4, parent_axis)
 
-                t_p_w_off = self._body_t_j_c[joint['parent']]
+                t_p_w_off = self._body_t_j_c[joint_data['parent']]
 
                 # Transformation of child in parents frame
                 t_c_p = t_p_w * t_p_w_off * p_j_p * t_c_offset_rot * r_c_p
@@ -1049,18 +1114,18 @@ class LoadAMBF(bpy.types.Operator):
                     = bpy.data.objects[self._blender_remapped_body_names[parent_body_name]]
                 child_obj_handle.rigid_body_constraint.object2 \
                     = bpy.data.objects[self._blender_remapped_body_names[child_body_name]]
-                if 'joint limits' in joint:
-                    if joint['type'] == 'revolute':
+                if 'joint limits' in joint_data:
+                    if joint_data['type'] == 'revolute':
                         child_obj_handle.rigid_body_constraint.limit_ang_z_upper \
-                            = joint['joint limits']['high']
+                            = joint_data['joint limits']['high']
                         child_obj_handle.rigid_body_constraint.limit_ang_z_lower \
-                            = joint['joint limits']['low']
+                            = joint_data['joint limits']['low']
                         child_obj_handle.rigid_body_constraint.use_limit_ang_z = True
-                    elif joint['type'] == 'prismatic':
+                    elif joint_data['type'] == 'prismatic':
                         child_obj_handle.rigid_body_constraint.limit_lin_x_upper = \
-                            joint['joint limits']['high']
+                            joint_data['joint limits']['high']
                         child_obj_handle.rigid_body_constraint.limit_lin_x_lower = \
-                            joint['joint limits']['low']
+                            joint_data['joint limits']['low']
                         child_obj_handle.rigid_body_constraint.use_limit_lin_x = True
 
     def execute(self, context):
