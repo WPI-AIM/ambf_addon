@@ -1,6 +1,7 @@
 # Author: Adnan Munawar
 # Email: amunawar@wpi.edu
 # Lab: aimlab.wpi.edu
+
 bl_info = {
     "name": "Asynchronous Multi-Body Framework (AMBF) Config Creator",
     "author": "Adnan Munawar",
@@ -20,7 +21,7 @@ import os
 from pathlib import Path
 import mathutils
 from enum import Enum
-from collections import OrderedDict
+from collections import OrderedDict, Counter
 from datetime import datetime
 
 
@@ -135,6 +136,27 @@ def get_rot_mat_from_vecs(vecA, vecB):
     return rot_mat, angle
 
 
+# Global Variables
+class CommonConfig:
+    # Since there isn't a convenient way of defining parallel linkages (hence redundant joints) due to the
+    # limit on 1 parent per body. We use kind of a hack. This prefix is what we we search for it we find an
+    # empty body with the mentioned prefix.
+    redundant_joint_prefix = ['redundant', 'Redundant', 'REDUNDANT']
+    namespace = ''
+
+
+def remove_namespace_prefix(full_name):
+    if CommonConfig.namespace is not "":
+        name = full_name.replace(CommonConfig.namespace, "")
+    else:
+        name = full_name
+    return name
+
+
+def add_namespace_prefix(name):
+    return CommonConfig.namespace + name
+
+
 # Body Template for the some commonly used of afBody's data
 class BodyTemplate:
     def __init__(self):
@@ -179,19 +201,17 @@ class GenerateAMBF(bpy.types.Operator):
         self.body_name_prefix = 'BODY '
         self.joint_name_prefix = 'JOINT '
         self._ambf_yaml = None
-        # Since there isn't a convenient way of defining parallel linkages (hence redundant joints) due to the
-        # limit on 1 parent per body. We use kind of a hack. This prefix is what we we search for it we find an
-        # empty body with the mentioned prefix.
-        self._redundant_joint_prefix = ['redundant', 'Redundant', 'REDUNDANT']
 
     def execute(self, context):
         self.generate_ambf_yaml(context)
         return {'FINISHED'}
 
-    def get_body_prefixed_name(self, urdf_body_str):
+    # This joint adds the body prefix str if set to all the bodies in the AMBF
+    def add_body_prefix_str(self, urdf_body_str):
         return self.body_name_prefix + urdf_body_str
 
-    def get_joint_prefixed_name(self, urdf_joint_str):
+    # This method add the joint prefix if set to all the joints in AMBF
+    def add_joint_prefix_str(self, urdf_joint_str):
         return self.joint_name_prefix + urdf_joint_str
 
     # Courtesy of:
@@ -210,9 +230,12 @@ class GenerateAMBF(bpy.types.Operator):
             return
         body = BodyTemplate()
         body_data = body._ambf_data
-        body_yaml_name = self.get_body_prefixed_name(obj_handle.name)
+
+        obj_handle_name = remove_namespace_prefix(obj_handle.name)
+
+        body_yaml_name = self.add_body_prefix_str(obj_handle_name)
         output_mesh = bpy.context.scene['mesh_output_type']
-        body_data['name'] = obj_handle.name
+        body_data['name'] = obj_handle_name
         world_pos = obj_handle.matrix_world.translation
         world_rot = obj_handle.matrix_world.to_euler()
         body_pos = body_data['location']['position']
@@ -226,18 +249,18 @@ class GenerateAMBF(bpy.types.Operator):
         if obj_handle.type == 'EMPTY':
             # Check for a special case for defining joints for parallel linkages
             _is_redundant_joint = False
-            for _parallel_prefix_search_str in self._redundant_joint_prefix:
-                if obj_handle.name.rfind(_parallel_prefix_search_str) == 0:
+            for _parallel_prefix_search_str in CommonConfig.redundant_joint_prefix:
+                if obj_handle_name.rfind(_parallel_prefix_search_str) == 0:
                     _is_redundant_joint = True
                     break
 
             if _is_redundant_joint:
-                print('INFO: JOINT %s FOR PARALLEL LINKAGE FOUND' % obj_handle.name)
+                print('INFO: JOINT %s FOR PARALLEL LINKAGE FOUND' % obj_handle_name)
                 return
             else:
                 body_data['mesh'] = ''
 
-                if obj_handle.name in ['world', 'World', 'WORLD']:
+                if obj_handle_name in ['world', 'World', 'WORLD']:
                     body_data['mass'] = 0
 
                 else:
@@ -250,7 +273,7 @@ class GenerateAMBF(bpy.types.Operator):
                 body_data['mass'] = round(obj_handle.rigid_body.mass, 3)
 
             del body_data['inertia']
-            body_data['mesh'] = obj_handle.name + get_extension(output_mesh)
+            body_data['mesh'] = obj_handle_name + get_extension(output_mesh)
             body_com = self.compute_local_com(obj_handle)
             body_d_pos = body_data['inertial offset']['position']
             body_d_pos['x'] = round(body_com[0], 3)
@@ -289,11 +312,16 @@ class GenerateAMBF(bpy.types.Operator):
                 if constraint.object1:
                     parent_obj_handle = constraint.object1
                     child_obj_handle = constraint.object2
-                    joint_data['name'] = parent_obj_handle.name + "-" + child_obj_handle.name
-                    joint_data['parent'] = self.get_body_prefixed_name(parent_obj_handle.name)
-                    joint_data['child'] = self.get_body_prefixed_name(child_obj_handle.name)
-                    parent_body_data = self._ambf_yaml[self.get_body_prefixed_name(parent_obj_handle.name)]
-                    child_body_data = self._ambf_yaml[self.get_body_prefixed_name(child_obj_handle.name)]
+
+                    parent_obj_handle_name = remove_namespace_prefix(parent_obj_handle.name)
+                    child_obj_handle_name = remove_namespace_prefix(child_obj_handle.name)
+                    obj_handle_name = remove_namespace_prefix(obj_handle.name)
+
+                    joint_data['name'] = parent_obj_handle_name + "-" + child_obj_handle_name
+                    joint_data['parent'] = self.add_body_prefix_str(parent_obj_handle_name)
+                    joint_data['child'] = self.add_body_prefix_str(child_obj_handle_name)
+                    # parent_body_data = self._ambf_yaml[self.get_body_prefixed_name(parent_obj_handle_name)]
+                    # child_body_data = self._ambf_yaml[self.get_body_prefixed_name(child_obj_handle_name)]
 
                     # Since there isn't a convenient way of defining redundant joints and hence parallel linkages due
                     # to the limit on 1 parent per body. We use a hack. This is how it works. In Blender
@@ -310,14 +338,14 @@ class GenerateAMBF(bpy.types.Operator):
                     _is_redundant_joint = False
                     if obj_handle.type == 'EMPTY':
                         # Check for a special case for defining joints for parallel linkages
-                        for _parallel_prefix_search_str in self._redundant_joint_prefix:
-                            if obj_handle.name.rfind(_parallel_prefix_search_str) == 0:
+                        for _parallel_prefix_search_str in CommonConfig.redundant_joint_prefix:
+                            if obj_handle_name.rfind(_parallel_prefix_search_str) == 0:
                                 _is_redundant_joint = True
                                 break
 
                     if _is_redundant_joint:
 
-                        print('INFO: FOR BODY \"%s\" ADDING PARALLEL LINKAGE JOINT' % obj_handle.name)
+                        print('INFO: FOR BODY \"%s\" ADDING PARALLEL LINKAGE JOINT' % obj_handle_name)
 
                         parent_pivot, parent_axis = self.compute_parent_pivot_and_axis(
                             parent_obj_handle, obj_handle, obj_handle.rigid_body_constraint.type)
@@ -421,7 +449,7 @@ class GenerateAMBF(bpy.types.Operator):
                         else:
                             print('ERROR: SHOULD\'NT GET HERE')
 
-                    joint_yaml_name = self.get_joint_prefixed_name(joint_data['name'])
+                    joint_yaml_name = self.add_joint_prefix_str(joint_data['name'])
                     ambf_yaml[joint_yaml_name] = joint_data
                     self._joint_names_list.append(joint_yaml_name)
 
@@ -482,6 +510,9 @@ class GenerateAMBF(bpy.types.Operator):
         self._ambf_yaml['low resolution path'] = rel_mesh_path + '/low_res/'
 
         self._ambf_yaml['ignore inter-collision'] = str(context.scene.ignore_inter_collision)
+
+        if CommonConfig.namespace is not "":
+            self._ambf_yaml['namespace'] = CommonConfig.namespace
 
         for obj in bpy.data.objects:
             self.generate_body_data(self._ambf_yaml, obj)
@@ -590,21 +621,24 @@ class SaveMeshes(bpy.types.Operator):
         for obj_handle in bpy.data.objects:
             # Mesh Type is .stl
             obj_handle.select = True
+
+            obj_handle_name = remove_namespace_prefix(obj_handle.name)
+
             if obj_handle.type == 'MESH':
                 if mesh_type == MeshType.meshSTL.value:
-                    obj_name = obj_handle.name + '.STL'
+                    obj_name = obj_handle_name + '.STL'
                     filename_high_res = os.path.join(high_res_path, obj_name)
                     filename_low_res = os.path.join(low_res_path, obj_name)
                     bpy.ops.export_mesh.stl(filepath=filename_high_res, use_selection=True, use_mesh_modifiers=False)
                     bpy.ops.export_mesh.stl(filepath=filename_low_res, use_selection=True, use_mesh_modifiers=True)
                 elif mesh_type == MeshType.meshOBJ.value:
-                    obj_name = obj_handle.name + '.OBJ'
+                    obj_name = obj_handle_name + '.OBJ'
                     filename_high_res = os.path.join(high_res_path, obj_name)
                     filename_low_res = os.path.join(low_res_path, obj_name)
                     bpy.ops.export_scene.obj(filepath=filename_high_res, use_selection=True, use_mesh_modifiers=False)
                     bpy.ops.export_scene.obj(filepath=filename_low_res, use_selection=True, use_mesh_modifiers=True)
                 elif mesh_type == MeshType.mesh3DS.value:
-                    obj_name = obj_handle.name + '.3DS'
+                    obj_name = obj_handle_name + '.3DS'
                     filename_high_res = os.path.join(high_res_path, obj_name)
                     filename_low_res = os.path.join(low_res_path, obj_name)
                     # 3DS doesn't support supressing modifiers, so we explicitly
@@ -620,7 +654,7 @@ class SaveMeshes(bpy.types.Operator):
                     # .PLY export has a bug in which it only saves the mesh that is
                     # active in context of view. Hence we explicitly select this object
                     # as active in the scene on top of being selected
-                    obj_name = obj_handle.name + '.PLY'
+                    obj_name = obj_handle_name + '.PLY'
                     filename_high_res = os.path.join(high_res_path, obj_name)
                     filename_low_res = os.path.join(low_res_path, obj_name)
                     bpy.context.scene.objects.active = obj_handle
@@ -696,7 +730,6 @@ class LoadAMBF(bpy.types.Operator):
         self._high_res_path = ''
         self._low_res_path = ''
         self._context = None
-        self._redundant_joint_prefix = ['redundant', 'Redundant', 'REDUNDANT']
 
     def get_qualified_path(self, path):
         filepath = Path(path)
@@ -764,7 +797,7 @@ class LoadAMBF(bpy.types.Operator):
 
         obj_handle = self._context.active_object
         bpy.ops.object.transform_apply(scale=True)
-        obj_handle.name = af_name
+        obj_handle.name = add_namespace_prefix(af_name)
         self._blender_remapped_body_names[body_name] = obj_handle.name
 
         if not _is_empty_object:
@@ -823,7 +856,7 @@ class LoadAMBF(bpy.types.Operator):
             joint_name = str(joint_data['name'])
 
             _has_redundant_prefix = False
-            for _redundant_joint_name_str in self._redundant_joint_prefix:
+            for _redundant_joint_name_str in CommonConfig.redundant_joint_prefix:
                 if joint_name.rfind(_redundant_joint_name_str) == 0:
                     _has_redundant_prefix = True
 
@@ -1041,7 +1074,7 @@ class LoadAMBF(bpy.types.Operator):
             joint_name = str(joint_data['name'])
 
             _has_redundant_prefix = False
-            for _redundant_joint_name_str in self._redundant_joint_prefix:
+            for _redundant_joint_name_str in CommonConfig.redundant_joint_prefix:
                 if joint_name.rfind(_redundant_joint_name_str) == 0:
                     _has_redundant_prefix = True
 
@@ -1138,6 +1171,12 @@ class LoadAMBF(bpy.types.Operator):
 
         bodies_list = self._ambf['bodies']
         joints_list = self._ambf['joints']
+
+        # Clear the global variables:
+        CommonConfig.namespace = ""
+
+        if 'namespace' in self._ambf:
+            CommonConfig.namespace = self._ambf['namespace']
 
         num_bodies = len(bodies_list)
         # print('Number of Bodies Specified = ', num_bodies)
