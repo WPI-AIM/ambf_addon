@@ -165,7 +165,7 @@ class JointTemplate:
         self._ambf_data['child axis'] = {'x': 0, 'y': 0.0, 'z': 1.0}
         self._ambf_data['child pivot'] = {'x': 0, 'y': 0.0, 'z': 0}
         self._ambf_data['joint limits'] = {'low': -1.2, 'high': 1.2}
-        self._ambf_data['max motor impulse'] = 0.01
+        self._ambf_data['controller'] = {'P': 1000, 'I': 0, 'D': 50}
 
 
 class GenerateAMBF(bpy.types.Operator):
