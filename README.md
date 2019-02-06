@@ -13,7 +13,7 @@ Email: amunawar@wpi.edu
 1. The blender plugin is to easy the creation of multi-body config files that are used in AMBF Framework. 
 AMBF stands for (Asynchoronous Framework Multi-Body). AMBF is real-time dynamics engine
 based on Bullet and CHAI-3D with ROS Support on Linux. The source code is located at:
-"https://github.com/WPI-AIM/chai3d"
+"https://github.com/WPI-AIM/ambf"
 This plugin helps in generation of both high and low resolution files (for collision) and subsequently
 generate the ambf config file which is based on YAML.
 
