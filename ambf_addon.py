@@ -1148,13 +1148,13 @@ class LoadAMBF(bpy.types.Operator):
                 child_obj_handle.rigid_body_constraint.object2 \
                     = bpy.data.objects[self._blender_remapped_body_names[child_body_name]]
                 if 'joint limits' in joint_data:
-                    if joint_data['type'] == 'revolute':
+                    if joint_type == 'HINGE':
                         child_obj_handle.rigid_body_constraint.limit_ang_z_upper \
                             = joint_data['joint limits']['high']
                         child_obj_handle.rigid_body_constraint.limit_ang_z_lower \
                             = joint_data['joint limits']['low']
                         child_obj_handle.rigid_body_constraint.use_limit_ang_z = True
-                    elif joint_data['type'] == 'prismatic':
+                    elif joint_type == 'PRISMATIC':
                         child_obj_handle.rigid_body_constraint.limit_lin_x_upper = \
                             joint_data['joint limits']['high']
                         child_obj_handle.rigid_body_constraint.limit_lin_x_lower = \
