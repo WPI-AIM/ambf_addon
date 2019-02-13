@@ -247,6 +247,8 @@ class GenerateAMBF(bpy.types.Operator):
     """Tooltip"""
     bl_idname = "myops.add_create_ambf_config"
     bl_label = "Write Multi-Body AMBF Config"
+    bl_description = "This generated the AMBF Config file in the location and filename specified in the field" \
+                     " above"
 
     def __init__(self):
         self._body_names_list = []
@@ -614,6 +616,9 @@ def select_all_objects(select=True):
 class SaveMeshes(bpy.types.Operator):
     bl_idname = "myops.add_save_meshes"
     bl_label = "Save Meshes"
+    bl_description = "This saves the meshes in base folder specifed in the field above. Two folders" \
+                     " are created in the base folder named, \"high_res\" and \"low_res\" to store the" \
+                     " high-res and low-res meshes separately"
 
     def execute(self, context):
         self.save_meshes(context)
@@ -729,6 +734,9 @@ class SaveMeshes(bpy.types.Operator):
 class GenerateLowResMeshModifiers(bpy.types.Operator):
     bl_idname = "myops.generate_low_res_mesh_modifiers"
     bl_label = "Generate Low-Res Meshes"
+    bl_description = "This creates the low-res modifiers for higher speed collision computation" \
+                     " . For now, the mesh decimation modifiers are being used but they shall be" \
+                     " replaced with other methods"
 
     def execute(self, context):
         # First off, remove any existing Modifiers:
@@ -752,9 +760,24 @@ class GenerateLowResMeshModifiers(bpy.types.Operator):
         return {'FINISHED'}
 
 
+class CreateRedundantJoint(bpy.types.Operator):
+    bl_idname = "myops.create_redundant_joint"
+    bl_label = "Create Redundant Joint"
+    bl_description = "This creates an empty object that can be used to create closed loop mechanisms. Make" \
+                     " sure to set the rigid body constraint (RBC) for this empty mesh and ideally parent this empty" \
+                     " object with the parent body of its RBC"
+
+    def execute(self, context):
+        select_all_objects(False)
+        bpy.ops.object.empty_add(type='PLAIN_AXES')
+        context.active_object.name = CommonConfig.redundant_joint_prefix[0] + ' joint'
+        return {'FINISHED'}
+
+
 class RemoveModifiers(bpy.types.Operator):
     bl_idname = "myops.remove_modifiers"
     bl_label = "Remove All Modifiers"
+    bl_description = "This removes all the mesh modifiers generated for meshes in the current scene"
 
     def execute(self, context):
         for obj in bpy.data.objects:
@@ -766,6 +789,7 @@ class RemoveModifiers(bpy.types.Operator):
 class ToggleModifiersVisibility(bpy.types.Operator):
     bl_idname = "myops.toggle_modifiers_visibility"
     bl_label = "Toggle Modifiers Visibility"
+    bl_description = "This hides all the mesh modifiers generated for meshes in the current scene"
 
     def execute(self, context):
         for obj in bpy.data.objects:
@@ -777,6 +801,7 @@ class ToggleModifiersVisibility(bpy.types.Operator):
 class LoadAMBF(bpy.types.Operator):
     bl_idname = "myops.load_ambf_yaml_config"
     bl_label = "Load AMBF YAML Config"
+    bl_description = "This loads an AMBF from the specified config file"
 
     def __init__(self):
         self._ambf = None
@@ -1385,11 +1410,19 @@ class CreateAMBFPanel(bpy.types.Panel):
 
         layout.label(text="Step 3: GENERATE AMBF CONFIG")
 
+        layout.label(text="Step 3a: CREATE REDUNDANT JOINT")
+        # Column for creating redundant joint
+        col = layout.column()
+        col.alignment = 'CENTER'
+        col.operator("myops.create_redundant_joint")
+
+        layout.label(text="Step 3b: CREATE REDUNDANT JOINT")
         # Config File Save Location
         col = layout.column()
         col.prop(context.scene, 'ambf_yaml_conf_path')
         # AMBF Namespace
         col = layout.column()
+        col.alignment = 'CENTER'
         col.prop(context.scene, 'ambf_namespace')
         # Config File Save Button
         col = layout.column()
@@ -1439,6 +1472,7 @@ def register():
     bpy.utils.register_class(SaveMeshes)
     bpy.utils.register_class(LoadAMBF)
     bpy.utils.register_class(CreateAMBFPanel)
+    bpy.utils.register_class(CreateRedundantJoint)
 
 
 def unregister():
@@ -1449,6 +1483,7 @@ def unregister():
     bpy.utils.unregister_class(SaveMeshes)
     bpy.utils.unregister_class(LoadAMBF)
     bpy.utils.unregister_class(CreateAMBFPanel)
+    bpy.utils.unregister_class(CreateRedundantJoint)
 
 
 if __name__ == "__main__":
