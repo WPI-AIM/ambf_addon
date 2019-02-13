@@ -145,12 +145,65 @@ class CommonConfig:
     namespace = ''
 
 
+def update_global_namespace(context):
+    CommonConfig.namespace = context.scene.ambf_namespace
+    if CommonConfig.namespace[-1] != '/':
+        print('WARNING, MULTI-BODY NAMESPACE SHOULD END WITH \'/\'')
+        CommonConfig.namespace += '/'
+        context.scene.ambf_namespace += CommonConfig.namespace
+
+
+def set_global_namespace(context, namespace):
+    CommonConfig.namespace = namespace
+    if CommonConfig.namespace[-1] != '/':
+        print('WARNING, MULTI-BODY NAMESPACE SHOULD END WITH \'/\'')
+        CommonConfig.namespace += '/'
+    context.scene.ambf_namespace = CommonConfig.namespace
+
+
+def get_body_namespace(fullname):
+    last_occurance = fullname.rfind('/')
+    _body_namespace = ''
+    if last_occurance >= 0:
+        # This means that the name contains a namespace
+        _body_namespace = fullname[0:last_occurance+1]
+    return _body_namespace
+
+
 def remove_namespace_prefix(full_name):
-    if CommonConfig.namespace is not "":
-        name = full_name.replace(CommonConfig.namespace, "")
+    last_occurance = full_name.rfind('/')
+    if last_occurance > 0:
+        # Body name contains a namespace
+        _name = full_name[last_occurance+1:]
     else:
-        name = full_name
-    return name
+        # Body name doesn't have a namespace
+        _name = full_name
+    return _name
+
+
+def compare_body_namespace_with_global(fullname):
+    last_occurance = fullname.rfind('/')
+    _is_namespace_same = False
+    _body_namespace = ''
+    _name = ''
+    if last_occurance >= 0:
+        # This means that the name contains a namespace
+        _body_namespace = fullname[0:last_occurance+1]
+        _name = fullname[last_occurance+1:]
+
+        if CommonConfig.namespace == _body_namespace:
+            # The CommonConfig namespace is the same as the body namespace
+            _is_namespace_same = True
+        else:
+            # The CommonConfig namespace is different form body namespace
+            _is_namespace_same = False
+
+    else:
+        # The body's name does not contain and namespace
+        _is_namespace_same = False
+
+    # print("FULLNAME: %s, BODY: %s, NAMESPACE: %s NAMESPACE_MATCHED: %d" % (fullname, _name, _body_namespace, _is_namespace_same))
+    return _is_namespace_same
 
 
 def add_namespace_prefix(name):
@@ -230,6 +283,10 @@ class GenerateAMBF(bpy.types.Operator):
             return
         body = BodyTemplate()
         body_data = body._ambf_data
+
+        if not compare_body_namespace_with_global(obj_handle.name):
+            if get_body_namespace(obj_handle.name) != '':
+                body_data['namespace'] = get_body_namespace(obj_handle.name)
 
         obj_handle_name = remove_namespace_prefix(obj_handle.name)
 
@@ -511,6 +568,8 @@ class GenerateAMBF(bpy.types.Operator):
 
         self._ambf_yaml['ignore inter-collision'] = str(context.scene.ignore_inter_collision)
 
+        update_global_namespace(context)
+
         if CommonConfig.namespace is not "":
             self._ambf_yaml['namespace'] = CommonConfig.namespace
 
@@ -742,13 +801,13 @@ class LoadAMBF(bpy.types.Operator):
             return path
 
     def load_body(self, body_name):
-        body = self._ambf[body_name]
+        body_data = self._ambf[body_name]
         # print(body['name'])
-        if 'high resolution path' in body:
-            body_high_res_path = self.get_qualified_path(body['high resolution path'])
+        if 'high resolution path' in body_data:
+            body_high_res_path = self.get_qualified_path(body_data['high resolution path'])
         else:
             body_high_res_path = self._high_res_path
-        af_name = body['name']
+        af_name = body_data['name']
         # If body name is world. Check if a world body has already
         # been defined, and if it has been, ignore adding another world body
         if af_name in ['world', 'World', 'WORLD']:
@@ -758,18 +817,18 @@ class LoadAMBF(bpy.types.Operator):
                         self._blender_remapped_body_names[body_name] = temp_obj_handle.name
                         self._body_t_j_c[body_name] = mathutils.Matrix()
                         return
-        body_mesh_name = body['mesh']
-        body_mass = body['mass']
+        body_mesh_name = body_data['mesh']
+        body_mass = body_data['mass']
         self._body_t_j_c[body_name] = mathutils.Matrix()
 
         body_location_xyz = {'x': 0, 'y': 0, 'z': 0}
         body_location_rpy = {'r': 0, 'p': 0, 'y': 0}
 
-        if 'location' in body:
-            if 'position' in body['location']:
-                body_location_xyz = body['location']['position']
-            if 'orientation' in body['location']:
-                body_location_rpy = body['location']['orientation']
+        if 'location' in body_data:
+            if 'position' in body_data['location']:
+                body_location_xyz = body_data['location']['position']
+            if 'orientation' in body_data['location']:
+                body_location_rpy = body_data['location']['orientation']
 
         mesh_filepath = Path(os.path.join(body_high_res_path, body_mesh_name))
         _is_empty_object = False
@@ -797,18 +856,24 @@ class LoadAMBF(bpy.types.Operator):
 
         obj_handle = self._context.active_object
         bpy.ops.object.transform_apply(scale=True)
-        obj_handle.name = add_namespace_prefix(af_name)
+
+        if 'namespace' in body_data:
+            _body_namespace = body_data['namespace']
+            obj_handle.name = _body_namespace + af_name
+        else:
+            obj_handle.name = add_namespace_prefix(af_name)
+
         self._blender_remapped_body_names[body_name] = obj_handle.name
 
         if not _is_empty_object:
-            if 'color rgba' in body:
+            if 'color rgba' in body_data:
                 mat = bpy.data.materials.new(name=body_name + 'mat')
-                mat.diffuse_color[0] = body['color rgba']['r']
-                mat.diffuse_color[1] = body['color rgba']['g']
-                mat.diffuse_color[2] = body['color rgba']['b']
+                mat.diffuse_color[0] = body_data['color rgba']['r']
+                mat.diffuse_color[1] = body_data['color rgba']['g']
+                mat.diffuse_color[2] = body_data['color rgba']['b']
                 mat.use_transparency = True
                 mat.transparency_method = 'Z_TRANSPARENCY'
-                mat.alpha = body['color rgba']['a']
+                mat.alpha = body_data['color rgba']['a']
                 obj_handle.data.materials.append(mat)
 
             bpy.ops.rigidbody.object_add()
@@ -1172,11 +1237,10 @@ class LoadAMBF(bpy.types.Operator):
         bodies_list = self._ambf['bodies']
         joints_list = self._ambf['joints']
 
-        # Clear the global variables:
-        CommonConfig.namespace = ""
-
         if 'namespace' in self._ambf:
-            CommonConfig.namespace = self._ambf['namespace']
+            set_global_namespace(context, self._ambf['namespace'])
+        else:
+            set_global_namespace(context, '/ambf/env/')
 
         num_bodies = len(bodies_list)
         # print('Number of Bodies Specified = ', num_bodies)
@@ -1254,6 +1318,13 @@ class CreateAMBFPanel(bpy.types.Panel):
                         "unless you want to debug the model or something advanced",
         )
 
+    bpy.types.Scene.ignore_inter_collision = bpy.props.BoolProperty \
+            (
+            name="Ignore Inter-Collision",
+            default=True,
+            description="Ignore collision between all the bodies in the scene (default = True)",
+        )
+
     bpy.types.Scene.external_ambf_yaml_filepath = bpy.props.StringProperty \
         (
             name="AMBF Config",
@@ -1262,11 +1333,11 @@ class CreateAMBFPanel(bpy.types.Panel):
             subtype='FILE_PATH'
         )
 
-    bpy.types.Scene.ignore_inter_collision = bpy.props.BoolProperty \
-            (
-            name="Ignore Inter-Collision",
-            default=True,
-            description="Ignore collision between all the bodies in the scene (default = True)",
+    bpy.types.Scene.ambf_namespace = bpy.props.StringProperty \
+        (
+            name="AMBF Namespace",
+            default="/ambf/env/",
+            description="The namespace for all bodies in this scene"
         )
 
     setup_yaml()
@@ -1317,6 +1388,9 @@ class CreateAMBFPanel(bpy.types.Panel):
         # Config File Save Location
         col = layout.column()
         col.prop(context.scene, 'ambf_yaml_conf_path')
+        # AMBF Namespace
+        col = layout.column()
+        col.prop(context.scene, 'ambf_namespace')
         # Config File Save Button
         col = layout.column()
         col.alignment = 'CENTER'
