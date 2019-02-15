@@ -202,12 +202,69 @@ def compare_body_namespace_with_global(fullname):
         # The body's name does not contain and namespace
         _is_namespace_same = False
 
-    # print("FULLNAME: %s, BODY: %s, NAMESPACE: %s NAMESPACE_MATCHED: %d" % (fullname, _name, _body_namespace, _is_namespace_same))
+    # print("FULLNAME: %s, BODY: %s, NAMESPACE: %s NAMESPACE_MATCHED: %d" %
+    # (fullname, _name, _body_namespace, _is_namespace_same))
     return _is_namespace_same
 
 
 def add_namespace_prefix(name):
     return CommonConfig.namespace + name
+
+
+def get_grand_parent(body):
+    grand_parent = body
+    while grand_parent.parent is not None:
+        grand_parent = grand_parent.parent
+    return grand_parent
+
+
+def downward_tree_pass(body, _heirarichal_bodies_list, _added_bodies_list):
+    if body is None or _added_bodies_list[body] is True:
+        return
+
+    else:
+        # print('DOWNWARD TREE PASS: ', body.name)
+        _heirarichal_bodies_list.append(body)
+        _added_bodies_list[body] = True
+
+        for child in body.children:
+            downward_tree_pass(child, _heirarichal_bodies_list, _added_bodies_list)
+
+
+def populate_heirarchial_tree():
+    # Create a dict with {body, added_flag} elements
+    # The added_flag is to check if the body has already
+    # been added
+    _added_bodies_list = {}
+    _heirarchial_bodies_list = []
+
+    for obj in bpy.data.objects:
+        _added_bodies_list[obj] = False
+
+    for obj in bpy.data.objects:
+        grand_parent = get_grand_parent(obj)
+        # print('CALLING DOWNWARD TREE PASS FOR: ', grand_parent.name)
+        downward_tree_pass(grand_parent, _heirarchial_bodies_list, _added_bodies_list)
+
+    for body in _heirarchial_bodies_list:
+        print(body.name, "--->",)
+
+    return _heirarchial_bodies_list
+
+
+# Courtesy: https://stackoverflow.com/questions/5914627/prepend-line-to-beginning-of-a-file
+def prepend_comment_to_file(filename, comment):
+    with open(filename,'r') as f:
+        with open('tempfile.txt', 'w') as f2:
+            f2.write(comment)
+            f2.write(f.read())
+    os.rename('tempfile.txt', filename)
+
+
+def select_all_objects(select=True):
+    # First deselect all objects
+    for obj in bpy.data.objects:
+        obj.select = select
 
 
 # Body Template for the some commonly used of afBody's data
@@ -295,6 +352,13 @@ class GenerateAMBF(bpy.types.Operator):
         body_yaml_name = self.add_body_prefix_str(obj_handle_name)
         output_mesh = bpy.context.scene['mesh_output_type']
         body_data['name'] = obj_handle_name
+        # If the obj is root body of a Multi-Body and has children
+        # then we should enable the publishing of its joint names
+        # and joint positions
+        if obj_handle.parent is None and obj_handle.children:
+            body_data['publish joint names'] = True
+            body_data['publish joint positions'] = True
+            
         world_pos = obj_handle.matrix_world.translation
         world_rot = obj_handle.matrix_world.to_euler()
         body_pos = body_data['location']['position']
@@ -601,62 +665,6 @@ class GenerateAMBF(bpy.types.Operator):
                         bl_info['wiki_url'],
                         datetime.now().strftime('%Y-%m-%d %H:%M:%S'))
         prepend_comment_to_file(output_file_name, header_str)
-
-
-def get_grand_parent(body):
-    grand_parent = body
-    while grand_parent.parent is not None:
-        grand_parent = grand_parent.parent
-    return grand_parent
-
-
-def downward_tree_pass(body, _heirarichal_bodies_list, _added_bodies_list):
-    if body is None or _added_bodies_list[body] is True:
-        return
-
-    else:
-        # print('DOWNWARD TREE PASS: ', body.name)
-        _heirarichal_bodies_list.append(body)
-        _added_bodies_list[body] = True
-
-        for child in body.children:
-            downward_tree_pass(child, _heirarichal_bodies_list, _added_bodies_list)
-
-
-def populate_heirarchial_tree():
-    # Create a dict with {body, added_flag} elements
-    # The added_flag is to check if the body has already
-    # been added
-    _added_bodies_list = {}
-    _heirarchial_bodies_list = []
-
-    for obj in bpy.data.objects:
-        _added_bodies_list[obj] = False
-
-    for obj in bpy.data.objects:
-        grand_parent = get_grand_parent(obj)
-        # print('CALLING DOWNWARD TREE PASS FOR: ', grand_parent.name)
-        downward_tree_pass(grand_parent, _heirarchial_bodies_list, _added_bodies_list)
-
-    for body in _heirarchial_bodies_list:
-        print(body.name, "--->",)
-
-    return _heirarchial_bodies_list
-
-
-# Courtesy: https://stackoverflow.com/questions/5914627/prepend-line-to-beginning-of-a-file
-def prepend_comment_to_file(filename, comment):
-    with open(filename,'r') as f:
-        with open('tempfile.txt', 'w') as f2:
-            f2.write(comment)
-            f2.write(f.read())
-    os.rename('tempfile.txt', filename)
-
-
-def select_all_objects(select=True):
-    # First deselect all objects
-    for obj in bpy.data.objects:
-        obj.select = select
 
 
 class SaveMeshes(bpy.types.Operator):
