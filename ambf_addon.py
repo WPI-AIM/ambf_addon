@@ -575,11 +575,16 @@ class GenerateAMBF(bpy.types.Operator):
         if CommonConfig.namespace is not "":
             self._ambf_yaml['namespace'] = CommonConfig.namespace
 
-        for obj in bpy.data.objects:
-            self.generate_body_data(self._ambf_yaml, obj)
+        # We want in-order processing, so make sure to
+        # add bodies to ambf in a hierarchial fashion.
 
-        for obj in bpy.data.objects:
-            self.generate_joint_data(self._ambf_yaml, obj)
+        _heirarichal_bodies_list = populate_heirarchial_tree()
+
+        for body in _heirarichal_bodies_list:
+            self.generate_body_data(self._ambf_yaml, body)
+
+        for body in _heirarichal_bodies_list:
+            self.generate_joint_data(self._ambf_yaml, body)
 
         # Now populate the bodies and joints tag
         self._ambf_yaml['bodies'] = self._body_names_list
@@ -596,6 +601,47 @@ class GenerateAMBF(bpy.types.Operator):
                         bl_info['wiki_url'],
                         datetime.now().strftime('%Y-%m-%d %H:%M:%S'))
         prepend_comment_to_file(output_file_name, header_str)
+
+
+def get_grand_parent(body):
+    grand_parent = body
+    while grand_parent.parent is not None:
+        grand_parent = grand_parent.parent
+    return grand_parent
+
+
+def downward_tree_pass(body, _heirarichal_bodies_list, _added_bodies_list):
+    if body is None or _added_bodies_list[body] is True:
+        return
+
+    else:
+        # print('DOWNWARD TREE PASS: ', body.name)
+        _heirarichal_bodies_list.append(body)
+        _added_bodies_list[body] = True
+
+        for child in body.children:
+            downward_tree_pass(child, _heirarichal_bodies_list, _added_bodies_list)
+
+
+def populate_heirarchial_tree():
+    # Create a dict with {body, added_flag} elements
+    # The added_flag is to check if the body has already
+    # been added
+    _added_bodies_list = {}
+    _heirarchial_bodies_list = []
+
+    for obj in bpy.data.objects:
+        _added_bodies_list[obj] = False
+
+    for obj in bpy.data.objects:
+        grand_parent = get_grand_parent(obj)
+        # print('CALLING DOWNWARD TREE PASS FOR: ', grand_parent.name)
+        downward_tree_pass(grand_parent, _heirarchial_bodies_list, _added_bodies_list)
+
+    for body in _heirarchial_bodies_list:
+        print(body.name, "--->",)
+
+    return _heirarchial_bodies_list
 
 
 # Courtesy: https://stackoverflow.com/questions/5914627/prepend-line-to-beginning-of-a-file
@@ -1237,14 +1283,15 @@ class LoadAMBF(bpy.types.Operator):
                     = bpy.data.objects[self._blender_remapped_body_names[parent_body_name]]
                 child_obj_handle.rigid_body_constraint.object2 \
                     = bpy.data.objects[self._blender_remapped_body_names[child_body_name]]
+
                 if 'joint limits' in joint_data:
-                    if joint_type == 'HINGE':
+                    if joint_data['type'] in ['revolute', 'hinge']:
                         child_obj_handle.rigid_body_constraint.limit_ang_z_upper \
                             = joint_data['joint limits']['high']
                         child_obj_handle.rigid_body_constraint.limit_ang_z_lower \
                             = joint_data['joint limits']['low']
                         child_obj_handle.rigid_body_constraint.use_limit_ang_z = True
-                    elif joint_type == 'PRISMATIC':
+                    elif joint_data['type'] in ['slider', 'prismatic']:
                         child_obj_handle.rigid_body_constraint.limit_lin_x_upper = \
                             joint_data['joint limits']['high']
                         child_obj_handle.rigid_body_constraint.limit_lin_x_lower = \
