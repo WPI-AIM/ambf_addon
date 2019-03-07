@@ -10,7 +10,7 @@ bl_info = {
     "location": "View3D > Add > Mesh > AMBF",
     "description": "Helps Generate AMBF Config File and Saves both High and Low Resolution(Collision) Meshes",
     "warning": "",
-    "wiki_url": "https://github.com/adnanmunawar/ambf_addon",
+    "wiki_url": "https://github.com/WPI-AIM/ambf_addon",
     "category": "AMBF",
     }
 
@@ -143,6 +143,7 @@ class CommonConfig:
     # empty body with the mentioned prefix.
     redundant_joint_prefix = ['redundant', 'Redundant', 'REDUNDANT']
     namespace = ''
+    num_collision_groups = 20
 
 
 def update_global_namespace(context):
@@ -179,6 +180,11 @@ def remove_namespace_prefix(full_name):
         # Body name doesn't have a namespace
         _name = full_name
     return _name
+
+
+def replace_dot_from_obj_names(char_subs = '_'):
+    for obj in bpy.data.objects:
+        obj.name = obj.name.replace('.', char_subs)
 
 
 def compare_body_namespace_with_global(fullname):
@@ -358,7 +364,7 @@ class GenerateAMBF(bpy.types.Operator):
         if obj_handle.parent is None and obj_handle.children:
             body_data['publish joint names'] = True
             body_data['publish joint positions'] = True
-            
+
         world_pos = obj_handle.matrix_world.translation
         world_rot = obj_handle.matrix_world.to_euler()
         body_pos = body_data['location']['position']
@@ -393,7 +399,20 @@ class GenerateAMBF(bpy.types.Operator):
         elif obj_handle.type == 'MESH':
 
             if obj_handle.rigid_body:
-                body_data['mass'] = round(obj_handle.rigid_body.mass, 3)
+                if obj_handle.rigid_body.type == 'PASSIVE':
+                    body_data['mass'] = 0.0
+                else:
+                    body_data['mass'] = round(obj_handle.rigid_body.mass, 3)
+                body_data['friction'] = {'rolling': 0.1, 'static': 0.5}
+                body_data['damping'] = {'linear': 0.1, 'angular': 0.1}
+                body_data['restitution'] = round(obj_handle.rigid_body.restitution)
+
+                body_data['friction']['static'] = round(obj_handle.rigid_body.friction, 3)
+                body_data['damping']['linear'] = round(obj_handle.rigid_body.linear_damping, 3)
+                body_data['damping']['angular'] = round(obj_handle.rigid_body.angular_damping, 3)
+
+                body_data['collision groups'] = [idx for idx, chk in
+                                                enumerate(obj_handle.rigid_body.collision_groups) if chk == True]
 
             del body_data['inertia']
             body_data['mesh'] = obj_handle_name + get_extension(output_mesh)
@@ -402,6 +421,7 @@ class GenerateAMBF(bpy.types.Operator):
             body_d_pos['x'] = round(body_com[0], 3)
             body_d_pos['y'] = round(body_com[1], 3)
             body_d_pos['z'] = round(body_com[2], 3)
+
 
             if obj_handle.data.materials:
 
@@ -632,7 +652,7 @@ class GenerateAMBF(bpy.types.Operator):
         self._ambf_yaml['high resolution path'] = rel_mesh_path + '/high_res/'
         self._ambf_yaml['low resolution path'] = rel_mesh_path + '/low_res/'
 
-        self._ambf_yaml['ignore inter-collision'] = str(context.scene.ignore_inter_collision)
+        self._ambf_yaml['ignore inter-collision'] = context.scene.ignore_inter_collision
 
         update_global_namespace(context)
 
@@ -675,6 +695,7 @@ class SaveMeshes(bpy.types.Operator):
                      " high-res and low-res meshes separately"
 
     def execute(self, context):
+        replace_dot_from_obj_names()
         self.save_meshes(context)
         return {'FINISHED'}
 
@@ -735,7 +756,6 @@ class SaveMeshes(bpy.types.Operator):
         mesh_type = bpy.context.scene['mesh_output_type']
 
         mesh_name_mat_list = self.set_all_meshes_to_origin()
-
         for obj_handle in bpy.data.objects:
             # Mesh Type is .stl
             obj_handle.select = True
@@ -849,6 +869,17 @@ class ToggleModifiersVisibility(bpy.types.Operator):
         for obj in bpy.data.objects:
             for mod in obj.modifiers:
                 mod.show_viewport = not mod.show_viewport
+        return {'FINISHED'}
+
+
+class RemoveObjectsNamespaces(bpy.types.Operator):
+    bl_idname = "ambf.remove_object_namespaces"
+    bl_label = "Remove Object Namespaces"
+    bl_description = "This removes any current object namespaces"
+
+    def execute(self, context):
+        for obj in bpy.data.objects:
+            obj.name = obj.name.split('/')[-1]
         return {'FINISHED'}
 
 
@@ -1425,11 +1456,13 @@ class CreateAMBFPanel(bpy.types.Panel):
     def draw(self, context):
         layout = self.layout
 
+        box = layout.box()
+        row = box.row()
         # Panel Label
-        layout.label(text="Step 1: GENERATE LOW-RES COLLISION MESH MODIFIERS")
+        row.label(text="Step 1: GENERATE LOW-RES COLLISION MESH MODIFIERS")
 
         # Mesh Reduction Ratio Properties
-        row = layout.row(align=True)
+        row = box.row(align=True)
         row.alignment = 'LEFT'
         split = row.split(percentage=0.7)
         row = split.row()
@@ -1438,83 +1471,99 @@ class CreateAMBFPanel(bpy.types.Panel):
         row.prop(context.scene, 'mesh_max_vertices')
 
         # Low Res Mesh Modifier Button
-        col = layout.column()
+        col = box.column()
         col.alignment = 'CENTER'
         col.operator("ambf.generate_low_res_mesh_modifiers")
 
         # Panel Label
-        layout.label(text="Step 2: SELECT LOCATION AND SAVE MESHES")
+        row = box.row()
+        box.label(text="Step 2: SELECT LOCATION AND SAVE MESHES")
 
         # Meshes Save Location
-        layout.column().prop(context.scene, 'ambf_yaml_mesh_path')
+        col = box.column()
+        col.prop(context.scene, 'ambf_yaml_mesh_path')
 
         # Select the Mesh-Type for saving the meshes
-        col = layout.column()
+        col = box.column()
         col.alignment = 'CENTER'
         col.prop(context.scene, 'mesh_output_type')
 
-        # Ignore Inter Collision Button
-        col = layout.column()
-        col.alignment = 'CENTER'
-        col.prop(context.scene, "ignore_inter_collision")
-
         # Meshes Save Button
-        col = layout.column()
+        col = box.column()
         col.alignment = 'CENTER'
         col.operator("ambf.add_save_meshes")
 
-        layout.label(text="Step 3: GENERATE AMBF CONFIG")
+        row = box.row()
+        row.label(text="Step 3: GENERATE AMBF CONFIG")
 
-        layout.label(text="Step 3a: CREATE REDUNDANT JOINT")
-        # Column for creating redundant joint
-        col = layout.column()
-        col.alignment = 'CENTER'
-        col.operator("ambf.create_redundant_joint")
-
-        layout.label(text="Step 3b: CREATE REDUNDANT JOINT")
+        row = box.row()
+        row.label(text="Step 3a: AMBF CONFIG PATH")
         # Config File Save Location
-        col = layout.column()
+        col = box.column()
         col.prop(context.scene, 'ambf_yaml_conf_path')
         # AMBF Namespace
-        col = layout.column()
+        col = box.column()
         col.alignment = 'CENTER'
         col.prop(context.scene, 'ambf_namespace')
         # Config File Save Button
-        col = layout.column()
+        row = box.row()
+        row.label(text="Step 3a: SAVE AMBF CONFIG")
+
+        # Ignore Inter Collision Button
+        col = box.column()
+        col.alignment = 'CENTER'
+        col.prop(context.scene, "ignore_inter_collision")
+
+        col = box.column()
         col.alignment = 'CENTER'
         col.operator("ambf.add_create_ambf_config")
 
-        layout.label(text="Optional :")
+        box = layout.box()
+        row = box.row()
+        row.label(text="OPTIONAL :")
+
+        row = box.row()
+        # Column for creating redundant joint
+        col = box.column()
+        col.alignment = 'CENTER'
+        col.operator("ambf.remove_object_namespaces")
+
+        # Column for creating redundant joint
+        col = box.column()
+        col.alignment = 'CENTER'
+        col.operator("ambf.create_redundant_joint")
 
         # Add Optional Button to Remove All Modifiers
-        col = layout.column()
+        col = box.column()
         col.alignment = 'CENTER'
         col.operator("ambf.remove_modifiers")
 
         # Add Optional Button to Toggle the Visibility of Low-Res Modifiers
-        col = layout.column()
+        col = box.column()
         col.alignment = 'CENTER'
         col.operator("ambf.toggle_modifiers_visibility")
 
+        box = layout.box()
+        row = box.row()
         # Load AMBF File Into Blender
-        layout.label(text="LOAD AMBF FILE :")
+        row.label(text="LOAD AMBF FILE :")
 
         # Load
-        col = layout.column()
+        col = box.column()
         col.alignment = 'CENTER'
         col.prop(context.scene, 'adjust_joint_pivots')
 
         # Load
-        col = layout.column()
+        col = box.column()
         col.alignment = 'CENTER'
         col.prop(context.scene, 'ignore_ambf_joint_offsets')
 
         # Load
-        col = layout.column()
+        col = box.column()
         col.alignment = 'CENTER'
         col.prop(context.scene, 'external_ambf_yaml_filepath')
         
-        col = layout.column()
+        col = box.column()
         col.alignment = 'CENTER'
         col.operator("ambf.load_ambf_yaml_config")
 
@@ -1528,6 +1577,7 @@ def register():
     bpy.utils.register_class(LoadAMBF)
     bpy.utils.register_class(CreateAMBFPanel)
     bpy.utils.register_class(CreateRedundantJoint)
+    bpy.utils.register_class(RemoveObjectsNamespaces)
 
 
 def unregister():
@@ -1539,6 +1589,7 @@ def unregister():
     bpy.utils.unregister_class(LoadAMBF)
     bpy.utils.unregister_class(CreateAMBFPanel)
     bpy.utils.unregister_class(CreateRedundantJoint)
+    bpy.utils.unregister_class(RemoveObjectsNamespaces)
 
 
 if __name__ == "__main__":
