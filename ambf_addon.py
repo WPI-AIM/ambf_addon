@@ -273,6 +273,48 @@ def select_all_objects(select=True):
         obj.select = select
 
 
+# For shapes such as Cylinder, Cone and Ellipse, this function returns
+# the major axis by comparing the dimensions of the bounding box
+def get_major_axis(dims):
+    d = dims
+    axes = {0: 'x', 1: 'y', 2: 'z'}
+    sum_diff = [abs(d[0] - d[1]) + abs(d[0] - d[2]),
+                abs(d[1] - d[0]) + abs(d[1] - d[2]),
+                abs(d[2] - d[0]) + abs(d[2] - d[1])]
+    axis_idx = sum_diff.index(max(sum_diff))
+    return axes[axis_idx], axis_idx
+
+
+# For shapes such as Cylinder, Cone and Ellipse, this function returns
+# the median axis (not-major and non-minor or the middle axis) by comparing
+# the dimensions of the bounding box
+def get_median_axis(dims):
+    d = dims
+    axes = {0: 'X', 1: 'Y', 2: 'Z'}
+    sum_diff = [abs(d[0] - d[1]) + abs(d[0] - d[2]),
+                abs(d[1] - d[0]) + abs(d[1] - d[2]),
+                abs(d[2] - d[0]) + abs(d[2] - d[1])]
+    axis_idx = sum_diff.index(min(sum_diff))
+    return axes[axis_idx], axis_idx
+
+
+# For shapes such as Cylinder, Cone and Ellipse, this function returns
+# the minor axis by comparing the dimensions of the bounding box
+def get_minor_axis(dims):
+    d = dims
+    axes = {0: 'X', 1: 'Y', 2: 'Z'}
+    sum_diff = [abs(d[0] - d[1]) + abs(d[0] - d[2]),
+                abs(d[1] - d[0]) + abs(d[1] - d[2]),
+                abs(d[2] - d[0]) + abs(d[2] - d[1])]
+    max_idx = sum_diff.index(max(sum_diff))
+    min_idx = sum_diff.index(min(sum_diff))
+    sort_idx = [1, 1, 1]
+    sort_idx[max_idx] = 0
+    sort_idx[min_idx] = 0
+    median_idx = sort_idx.index(max(sort_idx))
+    return axes[median_idx], median_idx
+
+
 # Body Template for the some commonly used of afBody's data
 class BodyTemplate:
     def __init__(self):
@@ -412,7 +454,33 @@ class GenerateAMBF(bpy.types.Operator):
                 body_data['damping']['angular'] = round(obj_handle.rigid_body.angular_damping, 3)
 
                 body_data['collision groups'] = [idx for idx, chk in
-                                                enumerate(obj_handle.rigid_body.collision_groups) if chk == True]
+                                                 enumerate(obj_handle.rigid_body.collision_groups) if chk == True]
+
+                if obj_handle.rigid_body.collision_shape not in ['CONVEX_HULL', 'MESH']:
+                    body_data['collision shape'] = obj_handle.rigid_body.collision_shape
+                    bcg = OrderedDict()
+                    ocs = obj_handle.rigid_body.collision_shape
+                    dims = obj_handle.dimensions.copy()
+                    od = [round(dims[0], 3), round(dims[1], 3), round(dims[2], 3)]
+                    # Now we need to find out the geometry of the shape
+                    if ocs == 'BOX':
+                        bcg = {'x': od[0], 'y': od[1], 'z': od[2]}
+                    elif ocs == 'SPHERE':
+                        bcg = {'radius': max(od)}
+                    elif ocs == 'CYLINDER':
+                        major_ax_char, major_ax_idx = get_major_axis(od)
+                        median_ax_char, median_ax_idx = get_median_axis(od)
+                        bcg = {'radius': od[median_ax_idx]/2.0, 'height': od[major_ax_idx], 'axis': major_ax_char}
+                    elif ocs == 'CAPSULE':
+                        major_ax_char, major_ax_idx = get_major_axis(od)
+                        median_ax_char, median_ax_idx = get_median_axis(od)
+                        bcg = {'radius': od[median_ax_idx]/2.0, 'height': od[major_ax_idx], 'axis': major_ax_char}
+                    elif ocs == 'CONE':
+                        major_ax_char, major_ax_idx = get_major_axis(od)
+                        median_ax_char, median_ax_idx = get_median_axis(od)
+                        bcg = {'radius': od[median_ax_idx]/2.0, 'height': od[major_ax_idx], 'axis': major_ax_char}
+
+                    body_data['collision geometry'] = bcg
 
             del body_data['inertia']
             body_data['mesh'] = obj_handle_name + get_extension(output_mesh)
@@ -422,9 +490,7 @@ class GenerateAMBF(bpy.types.Operator):
             body_d_pos['y'] = round(body_com[1], 3)
             body_d_pos['z'] = round(body_com[2], 3)
 
-
             if obj_handle.data.materials:
-
                 del body_data['color']
                 body_data['color rgba'] = {'r': 1.0, 'g': 1.0, 'b': 1.0, 'a': 1.0}
                 body_data['color rgba']['r'] = round(obj_handle.data.materials[0].diffuse_color[0], 4)
@@ -987,7 +1053,34 @@ class LoadAMBF(bpy.types.Operator):
                 obj_handle.data.materials.append(mat)
 
             bpy.ops.rigidbody.object_add()
-            obj_handle.rigid_body.mass = body_mass
+            if body_mass is 0.0:
+                obj_handle.rigid_body.type = 'PASSIVE'
+            else:
+                obj_handle.rigid_body.mass = body_mass
+
+            # Finall add the rigid body data if defined
+            if 'friction' in body_data:
+                if 'static' in body_data['friction']:
+                    obj_handle.rigid_body.friction = body_data['friction']['static']
+
+            if 'damping' in body_data:
+                if 'linear' in body_data['damping']:
+                    obj_handle.rigid_body.linear_damping = body_data['damping']['linear']
+                if 'angular' in body_data['damping']:
+                    obj_handle.rigid_body.angular_damping = body_data['damping']['angular']
+
+            if 'restitution' in body_data:
+                obj_handle.rigid_body.restitution = body_data['restitution']
+
+            if 'collision groups' in body_data:
+                col_groups = body_data['collision groups']
+                # First clear existing collisoin group of 0
+                obj_handle.rigid_body.collision_groups[0] = False
+                for group in col_groups:
+                    if 0 <= group < 20:
+                        obj_handle.rigid_body.collision_groups[group] = True
+                    else:
+                        print('WARNING, Collision Group Outside [0-20]')
 
         obj_handle.matrix_world.translation[0] = body_location_xyz['x']
         obj_handle.matrix_world.translation[1] = body_location_xyz['y']
@@ -995,6 +1088,9 @@ class LoadAMBF(bpy.types.Operator):
         obj_handle.rotation_euler = (body_location_rpy['r'],
                                      body_location_rpy['p'],
                                      body_location_rpy['y'])
+
+
+
 
     # print('Remapped Body Names: ', self._blender_remapped_body_names)
 
