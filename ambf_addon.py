@@ -281,7 +281,12 @@ def get_major_axis(dims):
     sum_diff = [abs(d[0] - d[1]) + abs(d[0] - d[2]),
                 abs(d[1] - d[0]) + abs(d[1] - d[2]),
                 abs(d[2] - d[0]) + abs(d[2] - d[1])]
-    axis_idx = sum_diff.index(max(sum_diff))
+    # If the bounds are equal, choose the z axis
+    if sum_diff[0] == sum_diff[1] and sum_diff[1] == sum_diff[2]:
+        axis_idx = 2
+    else:
+        axis_idx = sum_diff.index(max(sum_diff))
+
     return axes[axis_idx], axis_idx
 
 
@@ -294,7 +299,12 @@ def get_median_axis(dims):
     sum_diff = [abs(d[0] - d[1]) + abs(d[0] - d[2]),
                 abs(d[1] - d[0]) + abs(d[1] - d[2]),
                 abs(d[2] - d[0]) + abs(d[2] - d[1])]
-    axis_idx = sum_diff.index(min(sum_diff))
+    # If the bounds are equal, choose the x axis
+    if sum_diff[0] == sum_diff[1] and sum_diff[1] == sum_diff[2]:
+        axis_idx = 0
+    else:
+        axis_idx = sum_diff.index(max(sum_diff))
+
     return axes[axis_idx], axis_idx
 
 
@@ -466,7 +476,7 @@ class GenerateAMBF(bpy.types.Operator):
                     if ocs == 'BOX':
                         bcg = {'x': od[0], 'y': od[1], 'z': od[2]}
                     elif ocs == 'SPHERE':
-                        bcg = {'radius': max(od)}
+                        bcg = {'radius': max(od)/2.0}
                     elif ocs == 'CYLINDER':
                         major_ax_char, major_ax_idx = get_major_axis(od)
                         median_ax_char, median_ax_idx = get_median_axis(od)
