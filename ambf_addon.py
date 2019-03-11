@@ -294,16 +294,13 @@ def get_major_axis(dims):
 # the median axis (not-major and non-minor or the middle axis) by comparing
 # the dimensions of the bounding box
 def get_median_axis(dims):
-    d = dims
-    axes = {0: 'X', 1: 'Y', 2: 'Z'}
-    sum_diff = [abs(d[0] - d[1]) + abs(d[0] - d[2]),
-                abs(d[1] - d[0]) + abs(d[1] - d[2]),
-                abs(d[2] - d[0]) + abs(d[2] - d[1])]
-    # If the bounds are equal, choose the x axis
-    if sum_diff[0] == sum_diff[1] and sum_diff[1] == sum_diff[2]:
-        axis_idx = 0
-    else:
-        axis_idx = sum_diff.index(max(sum_diff))
+    axes = {0: 'x', 1: 'y', 2: 'z'}
+    maj_ax, maj_ax_idx = get_major_axis(dims)
+    min_ax, min_ax_idx = get_minor_axis(dims)
+    med_axes_idx = [1, 1, 1]
+    med_axes_idx[maj_ax_idx] = 0
+    med_axes_idx[min_ax_idx] = 0
+    axis_idx = med_axes_idx.index(max(med_axes_idx))
 
     return axes[axis_idx], axis_idx
 
@@ -312,7 +309,7 @@ def get_median_axis(dims):
 # the minor axis by comparing the dimensions of the bounding box
 def get_minor_axis(dims):
     d = dims
-    axes = {0: 'X', 1: 'Y', 2: 'Z'}
+    axes = {0: 'x', 1: 'y', 2: 'z'}
     sum_diff = [abs(d[0] - d[1]) + abs(d[0] - d[2]),
                 abs(d[1] - d[0]) + abs(d[1] - d[2]),
                 abs(d[2] - d[0]) + abs(d[2] - d[1])]
@@ -467,7 +464,8 @@ class GenerateAMBF(bpy.types.Operator):
                 body_data['collision groups'] = [idx for idx, chk in
                                                  enumerate(obj_handle.rigid_body.collision_groups) if chk == True]
 
-                body_data['collision margin'] = round(obj_handle.rigid_body.collision_margin, 3)
+                if obj_handle.rigid_body.use_margin is True:
+                    body_data['collision margin'] = round(obj_handle.rigid_body.collision_margin, 3)
 
                 if obj_handle.rigid_body.collision_shape not in ['CONVEX_HULL', 'MESH']:
                     body_data['collision shape'] = obj_handle.rigid_body.collision_shape
