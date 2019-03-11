@@ -333,6 +333,7 @@ class BodyTemplate:
         self._ambf_data['mesh'] = ""
         self._ambf_data['mass'] = 0.0
         self._ambf_data['inertia'] = {'ix': 0.0, 'iy': 0.0, 'iz': 0.0}
+        self._ambf_data['collision margin'] = 0.001
         self._ambf_data['scale'] = 1.0
         self._ambf_data['location'] = {'position': {'x': 0, 'y': 0, 'z': 0},
                                        'orientation': {'r': 0, 'p': 0, 'y': 0}}
@@ -465,6 +466,8 @@ class GenerateAMBF(bpy.types.Operator):
 
                 body_data['collision groups'] = [idx for idx, chk in
                                                  enumerate(obj_handle.rigid_body.collision_groups) if chk == True]
+
+                body_data['collision margin'] = round(obj_handle.rigid_body.collision_margin, 3)
 
                 if obj_handle.rigid_body.collision_shape not in ['CONVEX_HULL', 'MESH']:
                     body_data['collision shape'] = obj_handle.rigid_body.collision_shape
@@ -1081,6 +1084,9 @@ class LoadAMBF(bpy.types.Operator):
 
             if 'restitution' in body_data:
                 obj_handle.rigid_body.restitution = body_data['restitution']
+
+            if 'collision margin' in body_data:
+                obj_handle.rigid_body.collision_margin = body_data['collision margin']
 
             if 'collision groups' in body_data:
                 col_groups = body_data['collision groups']
