@@ -353,7 +353,7 @@ class JointTemplate:
         self._ambf_data['child axis'] = {'x': 0, 'y': 0.0, 'z': 1.0}
         self._ambf_data['child pivot'] = {'x': 0, 'y': 0.0, 'z': 0}
         self._ambf_data['joint limits'] = {'low': -1.2, 'high': 1.2}
-        self._ambf_data['controller'] = {'P': 1000, 'I': 0, 'D': 50}
+        self._ambf_data['controller'] = {'P': 1000, 'I': 0, 'D': 1}
 
 
 class GenerateAMBF(bpy.types.Operator):
@@ -673,6 +673,17 @@ class GenerateAMBF(bpy.types.Operator):
                     joint_yaml_name = self.add_joint_prefix_str(joint_data['name'])
                     ambf_yaml[joint_yaml_name] = joint_data
                     self._joint_names_list.append(joint_yaml_name)
+
+                    # Finally get some rough values for the controller gains
+                    p_mass = 0.01
+                    c_mass = 0.01
+                    if parent_obj_handle.rigid_body:
+                        p_mass = parent_obj_handle.rigid_body.mass
+                    if child_obj_handle.rigid_body:
+                        c_mass = child_obj_handle.rigid_body.mass
+
+                    joint_data["controller"]["P"] = round((p_mass + c_mass) * 1000.0, 3)
+                    joint_data["controller"]["D"] = round((p_mass + c_mass) / 10.0, 3)
 
     # Since changing the scale of the bodies directly impacts the rotation matrix, we have
     # to take that into account while calculating offset of child from parent using
