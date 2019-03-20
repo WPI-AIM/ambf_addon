@@ -1087,6 +1087,9 @@ class LoadAMBF(bpy.types.Operator):
             if 'collision margin' in body_data:
                 obj_handle.rigid_body.collision_margin = body_data['collision margin']
 
+            if 'collision shape' in body_data:
+                obj_handle.rigid_body.collision_shape = body_data['collision shape']
+
             if 'collision groups' in body_data:
                 col_groups = body_data['collision groups']
                 # First clear existing collisoin group of 0
