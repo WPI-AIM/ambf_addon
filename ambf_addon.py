@@ -1034,9 +1034,32 @@ class LoadAMBF(bpy.types.Operator):
             for temp_obj_handle in self._context.selected_objects:
                 if temp_obj_handle.type == 'MESH':
                     obj_handle = temp_obj_handle
-                    self._context.scene.objects.active = obj_handle
+                    # self._context.scene.objects.active = obj_handle
                 else:
                     bpy.data.objects.remove(temp_obj_handle)
+
+            so = bpy.context.selected_objects
+            if len(so) > 1:
+                self._context.scene.objects.active = so[0]
+                bpy.ops.object.join()
+                self._context.active_object.name = body_data['name']
+                obj_handle = self._context.active_object
+
+                # The lines below are essential in joint the multiple meshes
+                # defined in the .dae into one mesh, secondly, making sure that
+                # the origin of the mesh is what it is supposed to be as
+                # using the join() function call alters the mesh origin
+                trans_o = obj_handle.matrix_world.copy()
+                obj_handle.matrix_world.identity()
+                obj_handle.data.transform(trans_o)
+
+                # Kind of a hack, blender is spawning the collada file
+                # a 90 deg offset along the axis axes, this is to correct that
+                # Maybe this will not be needed in future versions of blender
+                r_x = mathutils.Matrix.Rotation(-1.57, 4, 'X')
+                obj_handle.data.transform(r_x)
+            else:
+                self._context.scene.objects.active = so[0]
 
         elif mesh_filepath.suffix == '':
             bpy.ops.object.empty_add(type='PLAIN_AXES')
