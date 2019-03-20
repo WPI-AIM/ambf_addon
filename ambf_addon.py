@@ -458,6 +458,7 @@ class GenerateAMBF(bpy.types.Operator):
                 body_data['restitution'] = round(obj_handle.rigid_body.restitution)
 
                 body_data['friction']['static'] = round(obj_handle.rigid_body.friction, 3)
+                body_data['friction']['rolling'] = round(obj_handle.rigid_body.friction, 3)
                 body_data['damping']['linear'] = round(obj_handle.rigid_body.linear_damping, 3)
                 body_data['damping']['angular'] = round(obj_handle.rigid_body.angular_damping, 3)
 
