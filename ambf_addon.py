@@ -453,12 +453,11 @@ class GenerateAMBF(bpy.types.Operator):
                     body_data['mass'] = 0.0
                 else:
                     body_data['mass'] = round(obj_handle.rigid_body.mass, 3)
-                body_data['friction'] = {'rolling': 0.1, 'static': 0.5}
+                body_data['friction'] = {'rolling': 0.01, 'static': 0.5}
                 body_data['damping'] = {'linear': 0.1, 'angular': 0.1}
                 body_data['restitution'] = round(obj_handle.rigid_body.restitution)
 
                 body_data['friction']['static'] = round(obj_handle.rigid_body.friction, 3)
-                body_data['friction']['rolling'] = round(obj_handle.rigid_body.friction, 3)
                 body_data['damping']['linear'] = round(obj_handle.rigid_body.linear_damping, 3)
                 body_data['damping']['angular'] = round(obj_handle.rigid_body.angular_damping, 3)
 
@@ -508,7 +507,8 @@ class GenerateAMBF(bpy.types.Operator):
                 body_data['color rgba']['r'] = round(obj_handle.data.materials[0].diffuse_color[0], 4)
                 body_data['color rgba']['g'] = round(obj_handle.data.materials[0].diffuse_color[1], 4)
                 body_data['color rgba']['b'] = round(obj_handle.data.materials[0].diffuse_color[2], 4)
-                body_data['color rgba']['a'] = round(obj_handle.data.materials[0].alpha, 4)
+                # Setting alpha as one gives weird artifacts in ambf, so setting the value slightly lower
+                body_data['color rgba']['a'] = round(obj_handle.data.materials[0].alpha, 4) - 0.01
 
         ambf_yaml[body_yaml_name] = body_data
         self._body_names_list.append(body_yaml_name)
