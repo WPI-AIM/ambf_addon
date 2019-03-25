@@ -503,12 +503,23 @@ class GenerateAMBF(bpy.types.Operator):
 
             if obj_handle.data.materials:
                 del body_data['color']
-                body_data['color rgba'] = {'r': 1.0, 'g': 1.0, 'b': 1.0, 'a': 1.0}
-                body_data['color rgba']['r'] = round(obj_handle.data.materials[0].diffuse_color[0], 4)
-                body_data['color rgba']['g'] = round(obj_handle.data.materials[0].diffuse_color[1], 4)
-                body_data['color rgba']['b'] = round(obj_handle.data.materials[0].diffuse_color[2], 4)
-                # Setting alpha as one gives weird artifacts in ambf, so setting the value slightly lower
-                body_data['color rgba']['a'] = round(obj_handle.data.materials[0].alpha, 4) - 0.01
+                body_data['color components'] = OrderedDict()
+                body_data['color components'] = {'diffuse': {'r': 1.0, 'g': 1.0, 'b': 1.0},
+                                                 'specular': {'r': 1.0, 'g': 1.0, 'b': 1.0},
+                                                 'ambient': {'level': 0.5},
+                                                 'transparency': 1.0}
+
+                body_data['color components']['diffuse']['r'] = round(obj_handle.data.materials[0].diffuse_color[0], 4)
+                body_data['color components']['diffuse']['g'] = round(obj_handle.data.materials[0].diffuse_color[1], 4)
+                body_data['color components']['diffuse']['b'] = round(obj_handle.data.materials[0].diffuse_color[2], 4)
+
+                body_data['color components']['specular']['r'] = round(obj_handle.data.materials[0].specular_color[0], 4)
+                body_data['color components']['specular']['g'] = round(obj_handle.data.materials[0].specular_color[1], 4)
+                body_data['color components']['specular']['b'] = round(obj_handle.data.materials[0].specular_color[2], 4)
+
+                body_data['color components']['ambient']['level'] = round(obj_handle.data.materials[0].ambient, 4)
+
+                body_data['color components']['transparency'] = round(obj_handle.data.materials[0].alpha, 4)
 
         ambf_yaml[body_yaml_name] = body_data
         self._body_names_list.append(body_yaml_name)
@@ -1096,6 +1107,22 @@ class LoadAMBF(bpy.types.Operator):
                 mat.use_transparency = True
                 mat.transparency_method = 'Z_TRANSPARENCY'
                 mat.alpha = body_data['color rgba']['a']
+                obj_handle.data.materials.append(mat)
+
+            elif 'color components' in body_data:
+                mat = bpy.data.materials.new(name=body_name + 'mat')
+                mat.diffuse_color[0] = body_data['color components']['diffuse']['r']
+                mat.diffuse_color[1] = body_data['color components']['diffuse']['g']
+                mat.diffuse_color[2] = body_data['color components']['diffuse']['b']
+
+                mat.specular_color[0] = body_data['color components']['specular']['r']
+                mat.specular_color[1] = body_data['color components']['specular']['g']
+                mat.specular_color[2] = body_data['color components']['specular']['b']
+
+                mat.ambient = body_data['color components']['ambient']['level']
+                mat.use_transparency = True
+                mat.transparency_method = 'Z_TRANSPARENCY'
+                mat.alpha = body_data['color components']['transparency']
                 obj_handle.data.materials.append(mat)
 
             bpy.ops.rigidbody.object_add()
