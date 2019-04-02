@@ -260,11 +260,12 @@ def populate_heirarchial_tree():
 
 # Courtesy: https://stackoverflow.com/questions/5914627/prepend-line-to-beginning-of-a-file
 def prepend_comment_to_file(filename, comment):
+    temp_filename = filename + '.tmp'
     with open(filename,'r') as f:
-        with open('tempfile.txt', 'w') as f2:
+        with open(temp_filename, 'w') as f2:
             f2.write(comment)
             f2.write(f.read())
-    os.rename('tempfile.txt', filename)
+    os.rename(temp_filename, filename)
 
 
 def select_all_objects(select=True):
