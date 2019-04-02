@@ -537,7 +537,7 @@ class GenerateAMBF(bpy.types.Operator):
                 if obj_handle.rigid_body_constraint.object2.hide is True:
                     return
 
-            if obj_handle.rigid_body_constraint.type in ['FIXED', 'HINGE', 'SLIDER']:
+            if obj_handle.rigid_body_constraint.type in ['FIXED', 'HINGE', 'SLIDER', 'POINT']:
                 constraint = obj_handle.rigid_body_constraint
                 joint_template = JointTemplate()
                 joint_data = joint_template._ambf_data
@@ -606,6 +606,9 @@ class GenerateAMBF(bpy.types.Operator):
                         child_axis = mathutils.Vector([1, 0, 0])
                         higher_limit = constraint.limit_lin_x_upper
                         lower_limit = constraint.limit_lin_x_lower
+                    elif obj_handle.rigid_body_constraint.type == 'POINT':
+                        joint_data['type'] = 'p2p'
+                        child_axis = mathutils.Vector([0, 0, 1])
                     elif obj_handle.rigid_body_constraint.type == 'FIXED':
                         joint_data['type'] = 'fixed'
                         child_axis = mathutils.Vector([0, 0, 1])
@@ -627,7 +630,7 @@ class GenerateAMBF(bpy.types.Operator):
                     child_axis_data['y'] = round(child_axis.y, 3)
                     child_axis_data['z'] = round(child_axis.z, 3)
 
-                    if joint_data['type'] == 'fixed':
+                    if joint_data['type'] in ['fixed', 'p2p']:
                         del joint_data["joint limits"]
 
                     elif joint_data['type'] == 'continuous':
@@ -694,7 +697,7 @@ class GenerateAMBF(bpy.types.Operator):
                         c_mass = child_obj_handle.rigid_body.mass
 
                     joint_data["controller"]["P"] = round((p_mass + c_mass) * 1000.0, 3)
-                    joint_data["controller"]["D"] = round((p_mass + c_mass) / 10.0, 3)
+                    joint_data["controller"]["D"] = round((p_mass + c_mass) * 2.0, 3)
 
     # Since changing the scale of the bodies directly impacts the rotation matrix, we have
     # to take that into account while calculating offset of child from parent using
@@ -723,6 +726,8 @@ class GenerateAMBF(bpy.types.Operator):
             col_num = 2
         elif joint_type == 'SLIDER':
             col_num = 0
+        elif joint_type == 'POINT':
+            col_num = 2
         elif joint_type == 'FIXED':
             col_num = 2
         # The third col of rotation matrix is the z axes of child in parent
@@ -1188,6 +1193,8 @@ class LoadAMBF(bpy.types.Operator):
                 joint_type = 'HINGE'
             elif joint_data['type'] in ['prismatic', 'slider']:
                 joint_type = 'SLIDER'
+            elif joint_data['type'] in ['p2p', 'point2point']:
+                joint_type = 'POINT'
             elif joint_data['type'] in ['fixed', 'FIXED']:
                 joint_type = 'FIXED'
 
@@ -1231,6 +1238,8 @@ class LoadAMBF(bpy.types.Operator):
                         child_axis_data = {'x': 0, 'y': 0, 'z': 1}
                     elif joint_data['type'] in ['prismatic', 'slider']:
                         child_axis_data = {'x': 1, 'y': 0, 'z': 0}
+                    elif joint_data['type'] in ['p2p', 'point2point']:
+                        child_axis_data = {'x': 0, 'y': 0, 'z': 1}
                 else:
                     child_axis_data = joint_data['child axis']
                 # To fully define a child body's connection and pose in a parent body, just the joint pivots
@@ -1319,6 +1328,8 @@ class LoadAMBF(bpy.types.Operator):
                         joint_type = 'HINGE'
                     elif joint_data['type'] in ['prismatic', 'slider']:
                         joint_type = 'SLIDER'
+                    elif joint_data['type'] in ['p2p', 'point2point']:
+                        joint_type = 'POINT'
                     elif joint_data['type'] in ['fixed', 'FIXED']:
                         joint_type = 'FIXED'
 
@@ -1329,6 +1340,8 @@ class LoadAMBF(bpy.types.Operator):
                     constraint_axis = mathutils.Vector([0, 0, 1])
                 elif joint_type == 'SLIDER':
                     constraint_axis = mathutils.Vector([1, 0, 0])
+                elif joint_type == 'POINT':
+                    constraint_axis = mathutils.Vector([0, 0, 1])
                 elif joint_type == 'FIXED':
                     constraint_axis = mathutils.Vector([0, 0, 1])
 
@@ -1407,6 +1420,8 @@ class LoadAMBF(bpy.types.Operator):
                 joint_type = 'HINGE'
             elif joint_data['type'] in ['prismatic', 'slider']:
                 joint_type = 'SLIDER'
+            elif joint_data['type'] in ['p2p', 'point2point']:
+                joint_type = 'POINT'
             elif joint_data['type'] in ['fixed', 'FIXED']:
                 joint_type = 'FIXED'
 
