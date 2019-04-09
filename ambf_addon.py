@@ -538,7 +538,7 @@ class GenerateAMBF(bpy.types.Operator):
                 if obj_handle.rigid_body_constraint.object2.hide is True:
                     return
 
-            if obj_handle.rigid_body_constraint.type in ['FIXED', 'HINGE', 'SLIDER', 'POINT']:
+            if obj_handle.rigid_body_constraint.type in ['FIXED', 'HINGE', 'SLIDER', 'POINT', 'GENERIC_SPRING']:
                 constraint = obj_handle.rigid_body_constraint
                 joint_template = JointTemplate()
                 joint_data = joint_template._ambf_data
@@ -602,17 +602,71 @@ class GenerateAMBF(bpy.types.Operator):
                             lower_limit = constraint.limit_ang_z_lower
                         else:
                             joint_data['type'] = 'continuous'
+
                     elif obj_handle.rigid_body_constraint.type == 'SLIDER':
                         joint_data['type'] = 'prismatic'
                         child_axis = mathutils.Vector([1, 0, 0])
                         higher_limit = constraint.limit_lin_x_upper
                         lower_limit = constraint.limit_lin_x_lower
-                    elif obj_handle.rigid_body_constraint.type == 'POINT':
-                        joint_data['type'] = 'p2p'
+
+                    elif obj_handle.rigid_body_constraint.type == 'GENERIC_SPRING':
                         child_axis = mathutils.Vector([0, 0, 1])
-                    elif obj_handle.rigid_body_constraint.type == 'FIXED':
-                        joint_data['type'] = 'fixed'
-                        child_axis = mathutils.Vector([0, 0, 1])
+
+                        if constraint.use_limit_lin_x:
+                            joint_data['type'] = 'linear spring'
+                            higher_limit = constraint.limit_lin_x_upper
+                            lower_limit = constraint.limit_lin_x_lower
+                            if constraint.use_spring_x:
+                                joint_data['damping'] = constraint.spring_damping_x
+                                joint_data['stiffness'] = constraint.spring_stiffness_x
+
+                        elif constraint.use_limit_lin_y:
+                            joint_data['type'] = 'linear spring'
+                            higher_limit = constraint.limit_lin_y_upper
+                            lower_limit = constraint.limit_lin_y_lower
+                            if constraint.use_spring_y:
+                                joint_data['damping'] = constraint.spring_damping_y
+                                joint_data['stiffness'] = constraint.spring_stiffness_y
+
+                        elif constraint.use_limit_lin_z:
+                            joint_data['type'] = 'linear spring'
+                            higher_limit = constraint.limit_lin_z_upper
+                            lower_limit = constraint.limit_lin_z_lower
+                            if constraint.use_spring_z:
+                                joint_data['damping'] = constraint.spring_damping_z
+                                joint_data['stiffness'] = constraint.spring_stiffness_z
+
+                        elif constraint.use_limit_ang_x:
+                            joint_data['type'] = 'torsion spring'
+                            higher_limit = constraint.limit_ang_x_upper
+                            lower_limit = constraint.limit_ang_x_lower
+                            if constraint.use_spring_ang_x:
+                                joint_data['damping'] = constraint.spring_damping_ang_x
+                                joint_data['stiffness'] = constraint.spring_stiffness_ang_x
+
+                        elif constraint.use_limit_ang_y:
+                            joint_data['type'] = 'torsion spring'
+                            higher_limit = constraint.limit_ang_y_upper
+                            lower_limit = constraint.limit_ang_y_lower
+                            if constraint.use_spring_ang_y:
+                                joint_data['damping'] = constraint.spring_damping_ang_y
+                                joint_data['stiffness'] = constraint.spring_stiffness_ang_y
+
+                        elif constraint.use_limit_ang_z:
+                            joint_data['type'] = 'torsion spring'
+                            higher_limit = constraint.limit_ang_z_upper
+                            lower_limit = constraint.limit_ang_z_lower
+                            if constraint.use_spring_ang_z:
+                                joint_data['damping'] = constraint.spring_damping_ang_z
+                                joint_data['stiffness'] = constraint.spring_stiffness_ang_z
+
+                            elif obj_handle.rigid_body_constraint.type == 'POINT':
+                                joint_data['type'] = 'p2p'
+                                child_axis = mathutils.Vector([0, 0, 1])
+
+                            elif obj_handle.rigid_body_constraint.type == 'FIXED':
+                                joint_data['type'] = 'fixed'
+                                child_axis = mathutils.Vector([0, 0, 1])
 
                     parent_pivot_data = joint_data["parent pivot"]
                     parent_axis_data = joint_data["parent axis"]
@@ -727,6 +781,15 @@ class GenerateAMBF(bpy.types.Operator):
             col_num = 2
         elif joint_type == 'SLIDER':
             col_num = 0
+        elif joint_type == 'GENERIC_SPRING':
+            _joint = child.rigid_body_constraint
+            col_num = 2
+            if _joint.use_limit_lin_x or _joint.use_limit_ang_x:
+                col_num = 0
+            elif _joint.use_limit_lin_y or _joint.use_limit_ang_y:
+                col_num = 1
+            elif _joint.use_limit_lin_z or _joint.use_limit_ang_z:
+                col_num = 2
         elif joint_type == 'POINT':
             col_num = 2
         elif joint_type == 'FIXED':
@@ -1174,9 +1237,6 @@ class LoadAMBF(bpy.types.Operator):
                                      body_location_rpy['p'],
                                      body_location_rpy['y'])
 
-
-
-
     # print('Remapped Body Names: ', self._blender_remapped_body_names)
 
     def load_joint(self, joint_name):
@@ -1194,6 +1254,8 @@ class LoadAMBF(bpy.types.Operator):
                 joint_type = 'HINGE'
             elif joint_data['type'] in ['prismatic', 'slider']:
                 joint_type = 'SLIDER'
+            elif joint_data['type'] in ['spring', 'linear spring', 'angular spring', 'torsional spring', 'torsion spring']:
+                joint_type = 'GENERIC_SPRING'
             elif joint_data['type'] in ['p2p', 'point2point']:
                 joint_type = 'POINT'
             elif joint_data['type'] in ['fixed', 'FIXED']:
@@ -1239,6 +1301,10 @@ class LoadAMBF(bpy.types.Operator):
                         child_axis_data = {'x': 0, 'y': 0, 'z': 1}
                     elif joint_data['type'] in ['prismatic', 'slider']:
                         child_axis_data = {'x': 1, 'y': 0, 'z': 0}
+                    elif joint_data['type'] in ['spring', 'linear spring']:
+                        child_axis_data = {'x': 1, 'y': 0, 'z': 0}
+                    elif joint_data['type'] in ['angular spring', 'torsional spring', 'torsion spring']:
+                        child_axis_data = {'x': 0, 'y': 0, 'z': 1}
                     elif joint_data['type'] in ['p2p', 'point2point']:
                         child_axis_data = {'x': 0, 'y': 0, 'z': 1}
                 else:
@@ -1302,6 +1368,34 @@ class LoadAMBF(bpy.types.Operator):
                         child_obj_handle.rigid_body_constraint.limit_lin_x_upper = joint_data['joint limits']['high']
                         child_obj_handle.rigid_body_constraint.limit_lin_x_lower = joint_data['joint limits']['low']
                         child_obj_handle.rigid_body_constraint.use_limit_lin_x = True
+                    if joint_data['type'] in ['spring', 'linear spring']:
+                        child_obj_handle.rigid_body_constraint.limit_lin_x_upper \
+                            = joint_data['joint limits']['high'] + offset_angle
+                        child_obj_handle.rigid_body_constraint.limit_lin_x_lower \
+                            = joint_data['joint limits']['low'] + offset_angle
+                        child_obj_handle.rigid_body_constraint.use_limit_lin_x = True
+                        if 'damping' in joint_data:
+                            _damping = joint_data['damping']
+                            child_obj_handle.rigid_body_constraint.spring_damping_x = _damping
+                            child_obj_handle.rigid_body_constraint.use_spring_x = True
+                        if 'stiffness' in joint_data:
+                            _stiffness = joint_data['stiffness']
+                            child_obj_handle.rigid_body_constraint.spring_stiffness_x = _stiffness
+                            child_obj_handle.rigid_body_constraint.use_spring_x = True
+                    if joint_data['type'] in ['angular spring', 'torsional spring', 'torsion spring']:
+                        child_obj_handle.rigid_body_constraint.limit_ang_z_upper \
+                            = joint_data['joint limits']['high'] + offset_angle
+                        child_obj_handle.rigid_body_constraint.limit_ang_z_lower \
+                            = joint_data['joint limits']['low'] + offset_angle
+                        child_obj_handle.rigid_body_constraint.use_limit_ang_z = True
+                        if 'damping' in joint_data:
+                            _damping = joint_data['damping']
+                            child_obj_handle.rigid_body_constraint.spring_damping_ang_z = _damping
+                            child_obj_handle.rigid_body_constraint.use_spring_ang_z = True
+                        if 'stiffness' in joint_data:
+                            _stiffness = joint_data['stiffness']
+                            child_obj_handle.rigid_body_constraint.spring_stiffness_ang_z = _stiffness
+                            child_obj_handle.rigid_body_constraint.use_spring_ang_z = True
                     elif joint_data['type'] == 'continuous':
                         # Do nothing, not enable the limits
                         pass
@@ -1329,6 +1423,8 @@ class LoadAMBF(bpy.types.Operator):
                         joint_type = 'HINGE'
                     elif joint_data['type'] in ['prismatic', 'slider']:
                         joint_type = 'SLIDER'
+                    elif joint_data['type'] in ['spring', 'linear spring', 'angular spring', 'torsional spring', 'torsion spring']:
+                        joint_type = 'GENERIC_SPRING'
                     elif joint_data['type'] in ['p2p', 'point2point']:
                         joint_type = 'POINT'
                     elif joint_data['type'] in ['fixed', 'FIXED']:
@@ -1341,6 +1437,10 @@ class LoadAMBF(bpy.types.Operator):
                     constraint_axis = mathutils.Vector([0, 0, 1])
                 elif joint_type == 'SLIDER':
                     constraint_axis = mathutils.Vector([1, 0, 0])
+                elif joint_data['type'] in ['spring', 'linear spring']:
+                    constraint_axis = mathutils.Vector([1, 0, 0])
+                elif joint_data['type'] in ['angular spring', 'torsional spring', 'torsion spring']:
+                    constraint_axis = mathutils.Vector([0, 0, 1])
                 elif joint_type == 'POINT':
                     constraint_axis = mathutils.Vector([0, 0, 1])
                 elif joint_type == 'FIXED':
@@ -1419,6 +1519,8 @@ class LoadAMBF(bpy.types.Operator):
         if 'type' in joint_data:
             if joint_data['type'] in ['hinge', 'revolute', 'continuous']:
                 joint_type = 'HINGE'
+            elif joint_data['type'] in ['spring', 'linear spring', 'angular spring', 'torsional spring', 'torsion spring']:
+                joint_type = 'GENERIC_SPRING'
             elif joint_data['type'] in ['prismatic', 'slider']:
                 joint_type = 'SLIDER'
             elif joint_data['type'] in ['p2p', 'point2point']:
@@ -1527,6 +1629,34 @@ class LoadAMBF(bpy.types.Operator):
                         child_obj_handle.rigid_body_constraint.limit_lin_x_lower = \
                             joint_data['joint limits']['low']
                         child_obj_handle.rigid_body_constraint.use_limit_lin_x = True
+                    elif joint_data['type'] in ['spring', 'linear spring']:
+                        child_obj_handle.rigid_body_constraint.limit_lin_x_upper = \
+                            joint_data['joint limits']['high']
+                        child_obj_handle.rigid_body_constraint.limit_lin_x_lower = \
+                            joint_data['joint limits']['low']
+                        child_obj_handle.rigid_body_constraint.use_limit_lin_x = True
+                        if 'damping' in joint_data:
+                            _damping = joint_data['damping']
+                            child_obj_handle.rigid_body_constraint.spring_damping_x = _damping
+                            child_obj_handle.rigid_body_constraint.use_spring_x = True
+                        if 'stiffness' in joint_data:
+                            _stiffness = joint_data['stiffness']
+                            child_obj_handle.rigid_body_constraint.spring_stiffness_x = _stiffness
+                            child_obj_handle.rigid_body_constraint.use_spring_x = True
+                    elif joint_data['type'] in ['angular spring', 'torsional spring', 'torsion spring']:
+                        child_obj_handle.rigid_body_constraint.limit_ang_z_upper = \
+                            joint_data['joint limits']['high']
+                        child_obj_handle.rigid_body_constraint.limit_ang_z_lower = \
+                            joint_data['joint limits']['low']
+                        child_obj_handle.rigid_body_constraint.use_limit_ang_z = True
+                        if 'damping' in joint_data:
+                            _damping = joint_data['damping']
+                            child_obj_handle.rigid_body_constraint.spring_damping_ang_z = _damping
+                            child_obj_handle.rigid_body_constraint.use_spring_ang_z = True
+                        if 'stiffness' in joint_data:
+                            _stiffness = joint_data['stiffness']
+                            child_obj_handle.rigid_body_constraint.spring_stiffness_ang_z = _stiffness
+                            child_obj_handle.rigid_body_constraint.use_spring_ang_z = True
 
     def execute(self, context):
         print('HOWDY PARTNER')
