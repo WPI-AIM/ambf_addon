@@ -616,6 +616,7 @@ class GenerateAMBF(bpy.types.Operator):
                             joint_data['type'] = 'linear spring'
                             higher_limit = constraint.limit_lin_x_upper
                             lower_limit = constraint.limit_lin_x_lower
+                            child_axis = mathutils.Vector([1, 0, 0])
                             if constraint.use_spring_x:
                                 joint_data['damping'] = constraint.spring_damping_x
                                 joint_data['stiffness'] = constraint.spring_stiffness_x
@@ -624,6 +625,7 @@ class GenerateAMBF(bpy.types.Operator):
                             joint_data['type'] = 'linear spring'
                             higher_limit = constraint.limit_lin_y_upper
                             lower_limit = constraint.limit_lin_y_lower
+                            child_axis = mathutils.Vector([0, 1, 0])
                             if constraint.use_spring_y:
                                 joint_data['damping'] = constraint.spring_damping_y
                                 joint_data['stiffness'] = constraint.spring_stiffness_y
@@ -632,6 +634,7 @@ class GenerateAMBF(bpy.types.Operator):
                             joint_data['type'] = 'linear spring'
                             higher_limit = constraint.limit_lin_z_upper
                             lower_limit = constraint.limit_lin_z_lower
+                            child_axis = mathutils.Vector([0, 0, 1])
                             if constraint.use_spring_z:
                                 joint_data['damping'] = constraint.spring_damping_z
                                 joint_data['stiffness'] = constraint.spring_stiffness_z
@@ -640,6 +643,7 @@ class GenerateAMBF(bpy.types.Operator):
                             joint_data['type'] = 'torsion spring'
                             higher_limit = constraint.limit_ang_x_upper
                             lower_limit = constraint.limit_ang_x_lower
+                            child_axis = mathutils.Vector([1, 0, 0])
                             if constraint.use_spring_ang_x:
                                 joint_data['damping'] = constraint.spring_damping_ang_x
                                 joint_data['stiffness'] = constraint.spring_stiffness_ang_x
@@ -648,6 +652,7 @@ class GenerateAMBF(bpy.types.Operator):
                             joint_data['type'] = 'torsion spring'
                             higher_limit = constraint.limit_ang_y_upper
                             lower_limit = constraint.limit_ang_y_lower
+                            child_axis = mathutils.Vector([0, 1, 0])
                             if constraint.use_spring_ang_y:
                                 joint_data['damping'] = constraint.spring_damping_ang_y
                                 joint_data['stiffness'] = constraint.spring_stiffness_ang_y
@@ -656,6 +661,7 @@ class GenerateAMBF(bpy.types.Operator):
                             joint_data['type'] = 'torsion spring'
                             higher_limit = constraint.limit_ang_z_upper
                             lower_limit = constraint.limit_ang_z_lower
+                            child_axis = mathutils.Vector([0, 0, 1])
                             if constraint.use_spring_ang_z:
                                 joint_data['damping'] = constraint.spring_damping_ang_z
                                 joint_data['stiffness'] = constraint.spring_stiffness_ang_z
