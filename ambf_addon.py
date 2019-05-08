@@ -948,7 +948,8 @@ class SaveMeshes(bpy.types.Operator):
                     obj_name = obj_handle_name + '.OBJ'
                     filename_high_res = os.path.join(high_res_path, obj_name)
                     filename_low_res = os.path.join(low_res_path, obj_name)
-                    bpy.ops.export_scene.obj(filepath=filename_high_res, use_selection=True, use_mesh_modifiers=False)
+                    bpy.ops.export_scene.obj(filepath=filename_high_res, axis_up='Z', axis_forward='Y',
+                                             use_selection=True, use_mesh_modifiers=False)
                     bpy.ops.export_scene.obj(filepath=filename_low_res, use_selection=True, use_mesh_modifiers=True)
                 elif mesh_type == MeshType.mesh3DS.value:
                     obj_name = obj_handle_name + '.3DS'
@@ -1122,7 +1123,11 @@ class LoadAMBF(bpy.types.Operator):
             bpy.ops.import_mesh.stl(filepath=str(mesh_filepath.resolve()))
 
         elif mesh_filepath.suffix in ['.obj', '.OBJ']:
-            bpy.ops.import_scene.obj(filepath=str(mesh_filepath.resolve()))
+            _manually_select_obj = True
+            bpy.ops.import_scene.obj(filepath=str(mesh_filepath.resolve()), axis_up='Z', axis_forward='Y')
+            # Hack, .3ds and .obj imports do not make the imported object active. A hack is
+            # to capture the selected objects in this case.
+            self._context.scene.objects.active = self._context.selected_objects[0]
 
         elif mesh_filepath.suffix in ['.dae', '.DAE']:
             bpy.ops.wm.collada_import(filepath=str(mesh_filepath.resolve()))
@@ -1158,11 +1163,19 @@ class LoadAMBF(bpy.types.Operator):
             else:
                 self._context.scene.objects.active = so[0]
 
+        elif mesh_filepath.suffix in ['.3ds', '.3DS']:
+            _manually_select_obj = True
+            bpy.ops.import_scene.autodesk_3ds(filepath=str(mesh_filepath.resolve()))
+            # Hack, .3ds and .obj imports do not make the imported object active. A hack is
+            # to capture the selected objects in this case.
+            self._context.scene.objects.active = self._context.selected_objects[0]
+
         elif mesh_filepath.suffix == '':
             bpy.ops.object.empty_add(type='PLAIN_AXES')
             _is_empty_object = True
 
         obj_handle = self._context.active_object
+
         bpy.ops.object.transform_apply(scale=True)
 
         if 'namespace' in body_data:
