@@ -666,13 +666,13 @@ class GenerateAMBF(bpy.types.Operator):
                                 joint_data['damping'] = constraint.spring_damping_ang_z
                                 joint_data['stiffness'] = constraint.spring_stiffness_ang_z
 
-                            elif obj_handle.rigid_body_constraint.type == 'POINT':
-                                joint_data['type'] = 'p2p'
-                                child_axis = mathutils.Vector([0, 0, 1])
+                    elif obj_handle.rigid_body_constraint.type == 'POINT':
+                        joint_data['type'] = 'p2p'
+                        child_axis = mathutils.Vector([0, 0, 1])
 
-                            elif obj_handle.rigid_body_constraint.type == 'FIXED':
-                                joint_data['type'] = 'fixed'
-                                child_axis = mathutils.Vector([0, 0, 1])
+                    elif obj_handle.rigid_body_constraint.type == 'FIXED':
+                        joint_data['type'] = 'fixed'
+                        child_axis = mathutils.Vector([0, 0, 1])
 
                     parent_pivot_data = joint_data["parent pivot"]
                     parent_axis_data = joint_data["parent axis"]
