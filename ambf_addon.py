@@ -938,6 +938,25 @@ class SaveMeshes(bpy.types.Operator):
             obj_handle_name = remove_namespace_prefix(obj_handle.name)
 
             if obj_handle.type == 'MESH':
+                # First save the texture(s) if any
+                # Store current render settings
+                _settings = context.scene.render.image_settings
+
+                # Change render settings to our target format
+                _settings.file_format = 'PNG'
+
+                for mat in obj_handle.data.materials:
+                    for tex_slot in mat.texture_slots:
+                        if tex_slot:
+                            im = tex_slot.texture.image
+                            _existing_path = im.filepath_raw
+                            _dir = os.path.dirname(_existing_path)
+                            _filename = os.path.basename(_existing_path)
+                            _filename_wo_ext = _filename.split('.')[0]
+                            _save_as = os.path.join(high_res_path, _filename_wo_ext + '.png')
+                            im.filepath_raw = _save_as
+                            im.save_render(_save_as)
+
                 if mesh_type == MeshType.meshSTL.value:
                     obj_name = obj_handle_name + '.STL'
                     filename_high_res = os.path.join(high_res_path, obj_name)
