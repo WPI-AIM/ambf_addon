@@ -538,7 +538,7 @@ class GenerateAMBF(bpy.types.Operator):
                 if obj_handle.rigid_body_constraint.object2.hide is True:
                     return
 
-            if obj_handle.rigid_body_constraint.type in ['FIXED', 'HINGE', 'SLIDER', 'POINT', 'GENERIC_SPRING']:
+            if obj_handle.rigid_body_constraint.type in ['FIXED', 'HINGE', 'SLIDER', 'POINT', 'GENERIC', 'GENERIC_SPRING']:
                 constraint = obj_handle.rigid_body_constraint
                 joint_template = JointTemplate()
                 joint_data = joint_template._ambf_data
@@ -608,6 +608,45 @@ class GenerateAMBF(bpy.types.Operator):
                         child_axis = mathutils.Vector([1, 0, 0])
                         higher_limit = constraint.limit_lin_x_upper
                         lower_limit = constraint.limit_lin_x_lower
+
+                    elif obj_handle.rigid_body_constraint.type == 'GENERIC':
+                        child_axis = mathutils.Vector([0, 0, 1])
+
+                        if constraint.use_limit_lin_x:
+                            joint_data['type'] = 'prismatic'
+                            higher_limit = constraint.limit_lin_x_upper
+                            lower_limit = constraint.limit_lin_x_lower
+                            child_axis = mathutils.Vector([1, 0, 0])
+
+                        elif constraint.use_limit_lin_y:
+                            joint_data['type'] = 'prismatic'
+                            higher_limit = constraint.limit_lin_y_upper
+                            lower_limit = constraint.limit_lin_y_lower
+                            child_axis = mathutils.Vector([0, 1, 0])
+
+                        elif constraint.use_limit_lin_z:
+                            joint_data['type'] = 'prismatic'
+                            higher_limit = constraint.limit_lin_z_upper
+                            lower_limit = constraint.limit_lin_z_lower
+                            child_axis = mathutils.Vector([0, 0, 1])
+
+                        elif constraint.use_limit_ang_x:
+                            joint_data['type'] = 'revolute'
+                            higher_limit = constraint.limit_ang_x_upper
+                            lower_limit = constraint.limit_ang_x_lower
+                            child_axis = mathutils.Vector([1, 0, 0])
+
+                        elif constraint.use_limit_ang_y:
+                            joint_data['type'] = 'revolute'
+                            higher_limit = constraint.limit_ang_y_upper
+                            lower_limit = constraint.limit_ang_y_lower
+                            child_axis = mathutils.Vector([0, 1, 0])
+
+                        elif constraint.use_limit_ang_z:
+                            joint_data['type'] = 'revolute'
+                            higher_limit = constraint.limit_ang_z_upper
+                            lower_limit = constraint.limit_ang_z_lower
+                            child_axis = mathutils.Vector([0, 0, 1])
 
                     elif obj_handle.rigid_body_constraint.type == 'GENERIC_SPRING':
                         child_axis = mathutils.Vector([0, 0, 1])
@@ -787,6 +826,15 @@ class GenerateAMBF(bpy.types.Operator):
             col_num = 2
         elif joint_type == 'SLIDER':
             col_num = 0
+        elif joint_type == 'GENERIC':
+            _joint = child.rigid_body_constraint
+            col_num = 2
+            if _joint.use_limit_lin_x or _joint.use_limit_ang_x:
+                col_num = 0
+            elif _joint.use_limit_lin_y or _joint.use_limit_ang_y:
+                col_num = 1
+            elif _joint.use_limit_lin_z or _joint.use_limit_ang_z:
+                col_num = 2
         elif joint_type == 'GENERIC_SPRING':
             _joint = child.rigid_body_constraint
             col_num = 2
@@ -969,7 +1017,8 @@ class SaveMeshes(bpy.types.Operator):
                     filename_low_res = os.path.join(low_res_path, obj_name)
                     bpy.ops.export_scene.obj(filepath=filename_high_res, axis_up='Z', axis_forward='Y',
                                              use_selection=True, use_mesh_modifiers=False)
-                    bpy.ops.export_scene.obj(filepath=filename_low_res, use_selection=True, use_mesh_modifiers=True)
+                    bpy.ops.export_scene.obj(filepath=filename_low_res, axis_up='Z', axis_forward='Y',
+                                             use_selection=True, use_mesh_modifiers=True)
                 elif mesh_type == MeshType.mesh3DS.value:
                     obj_name = obj_handle_name + '.3DS'
                     filename_high_res = os.path.join(high_res_path, obj_name)
