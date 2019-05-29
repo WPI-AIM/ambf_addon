@@ -144,6 +144,7 @@ class CommonConfig:
     redundant_joint_prefix = ['redundant', 'Redundant', 'REDUNDANT']
     namespace = ''
     num_collision_groups = 20
+    global_body_map = {}
 
 
 def update_global_namespace(context):
@@ -855,22 +856,25 @@ class GenerateAMBF(bpy.types.Operator):
     def generate_ambf_yaml(self, context):
         num_objs = len(bpy.data.objects)
         save_to = bpy.path.abspath(context.scene.ambf_yaml_conf_path)
-        file_name = os.path.basename(save_to)
-        save_path = os.path.dirname(save_to)
-        if not file_name:
-            file_name = 'default.yaml'
-        output_file_name = os.path.join(save_path, file_name)
-        output_file = open(output_file_name, 'w')
-        print('Output filename is: ', output_file_name)
+        filename = os.path.basename(save_to)
+        save_dir = os.path.dirname(save_to)
+        if not filename:
+            filename = 'default.yaml'
+        output_filename = os.path.join(save_dir, filename)
+        # if a file exists by that name, save a backup
+        if os.path.isfile(output_filename):
+            os.rename(output_filename, output_filename + '.old')
+        output_file = open(output_filename, 'w')
+        print('Output filename is: ', output_filename)
 
         # For inorder processing, set the bodies and joints tag at the top of the map
         self._ambf_yaml = OrderedDict()
         
         self._ambf_yaml['bodies'] = []
         self._ambf_yaml['joints'] = []
-        print('SAVE PATH', bpy.path.abspath(save_path))
+        print('SAVE PATH', bpy.path.abspath(save_dir))
         print('AMBF CONFIG PATH', bpy.path.abspath(context.scene.ambf_yaml_mesh_path))
-        rel_mesh_path = os.path.relpath(bpy.path.abspath(context.scene.ambf_yaml_mesh_path), bpy.path.abspath(save_path))
+        rel_mesh_path = os.path.relpath(bpy.path.abspath(context.scene.ambf_yaml_mesh_path), bpy.path.abspath(save_dir))
 
         self._ambf_yaml['high resolution path'] = rel_mesh_path + '/high_res/'
         self._ambf_yaml['low resolution path'] = rel_mesh_path + '/low_res/'
@@ -907,7 +911,7 @@ class GenerateAMBF(bpy.types.Operator):
                         str(bl_info['blender']).replace(', ', '.'),
                         bl_info['wiki_url'],
                         datetime.now().strftime('%Y-%m-%d %H:%M:%S'))
-        prepend_comment_to_file(output_file_name, header_str)
+        prepend_comment_to_file(output_filename, header_str)
 
 
 class SaveMeshes(bpy.types.Operator):
