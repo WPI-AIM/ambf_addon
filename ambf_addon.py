@@ -144,7 +144,11 @@ class CommonConfig:
     redundant_joint_prefix = ['redundant', 'Redundant', 'REDUNDANT']
     namespace = ''
     num_collision_groups = 20
-    global_body_map = {}
+    # Some properties don't exist in Blender are supported in AMBF. If an AMBF file is loaded
+    # and then resaved, we can capture the extra properties of bodies and joints and take
+    # them into consideration before re saving the AMBF File so we don't reset those values
+    loaded_body_map = {}
+    loaded_joint_map = {}
 
 
 def update_global_namespace(context):
@@ -338,6 +342,9 @@ class BodyTemplate:
                                        'orientation': {'r': 0, 'p': 0, 'y': 0}}
         self._ambf_data['inertial offset'] = {'position': {'x': 0, 'y': 0, 'z': 0},
                                               'orientation': {'r': 0, 'p': 0, 'y': 0}}
+
+        # self._ambf_data['controller'] = {'linear': {'P': 1000, 'I': 0, 'D': 1},
+        #                                  'angular': {'P': 1000, 'I': 0, 'D': 1}}
         self._ambf_data['color'] = 'random'
         # Transform of Child Rel to Joint, which in inverse of t_c_j
         self.t_j_c = mathutils.Matrix()
@@ -469,31 +476,46 @@ class GenerateAMBF(bpy.types.Operator):
                 if obj_handle.rigid_body.use_margin is True:
                     body_data['collision margin'] = round(obj_handle.rigid_body.collision_margin, 3)
 
-                if obj_handle.rigid_body.collision_shape not in ['CONVEX_HULL', 'MESH']:
-                    body_data['collision shape'] = obj_handle.rigid_body.collision_shape
-                    bcg = OrderedDict()
-                    ocs = obj_handle.rigid_body.collision_shape
-                    dims = obj_handle.dimensions.copy()
-                    od = [round(dims[0], 3), round(dims[1], 3), round(dims[2], 3)]
-                    # Now we need to find out the geometry of the shape
-                    if ocs == 'BOX':
-                        bcg = {'x': od[0], 'y': od[1], 'z': od[2]}
-                    elif ocs == 'SPHERE':
-                        bcg = {'radius': max(od)/2.0}
-                    elif ocs == 'CYLINDER':
-                        major_ax_char, major_ax_idx = get_major_axis(od)
-                        median_ax_char, median_ax_idx = get_median_axis(od)
-                        bcg = {'radius': od[median_ax_idx]/2.0, 'height': od[major_ax_idx], 'axis': major_ax_char}
-                    elif ocs == 'CAPSULE':
-                        major_ax_char, major_ax_idx = get_major_axis(od)
-                        median_ax_char, median_ax_idx = get_median_axis(od)
-                        bcg = {'radius': od[median_ax_idx]/2.0, 'height': od[major_ax_idx], 'axis': major_ax_char}
-                    elif ocs == 'CONE':
-                        major_ax_char, major_ax_idx = get_major_axis(od)
-                        median_ax_char, median_ax_idx = get_median_axis(od)
-                        bcg = {'radius': od[median_ax_idx]/2.0, 'height': od[major_ax_idx], 'axis': major_ax_char}
+                # Now lets load the loaded data if any from loaded AMBF File
+                _body_col_geo_already_defined = False
+                if CommonConfig.loaded_body_map[obj_handle]:
+                    if 'controller' in CommonConfig.loaded_body_map[obj_handle]:
+                        body_data['controller'] = CommonConfig.loaded_body_map[obj_handle]['controller']
+                    if 'collision shape' in CommonConfig.loaded_body_map[obj_handle]:
+                        _body_col_geo_already_defined = True
 
-                    body_data['collision geometry'] = bcg
+                if obj_handle.rigid_body.collision_shape not in ['CONVEX_HULL', 'MESH']:
+                    ocs = obj_handle.rigid_body.collision_shape
+                    # There isn't a mechanism to change the collision shapes much in Blender. For this reason
+                    # if a collision shape has already been defined in the loaded AMBF and it matches the shape
+                    # for the Blender body, just use the shape and geometry from the loaded AMBF Config Body
+                    if _body_col_geo_already_defined and ocs == CommonConfig.loaded_body_map[obj_handle]['collision shape']:
+                        body_data['collision shape'] = CommonConfig.loaded_body_map[obj_handle]['collision shape']
+                        body_data['collision geometry'] = CommonConfig.loaded_body_map[obj_handle]['collision geometry']
+                    else:
+                        body_data['collision shape'] = ocs
+                        bcg = OrderedDict()
+                        dims = obj_handle.dimensions.copy()
+                        od = [round(dims[0], 3), round(dims[1], 3), round(dims[2], 3)]
+                        # Now we need to find out the geometry of the shape
+                        if ocs == 'BOX':
+                            bcg = {'x': od[0], 'y': od[1], 'z': od[2]}
+                        elif ocs == 'SPHERE':
+                            bcg = {'radius': max(od)/2.0}
+                        elif ocs == 'CYLINDER':
+                            major_ax_char, major_ax_idx = get_major_axis(od)
+                            median_ax_char, median_ax_idx = get_median_axis(od)
+                            bcg = {'radius': od[median_ax_idx]/2.0, 'height': od[major_ax_idx], 'axis': major_ax_char}
+                        elif ocs == 'CAPSULE':
+                            major_ax_char, major_ax_idx = get_major_axis(od)
+                            median_ax_char, median_ax_idx = get_median_axis(od)
+                            bcg = {'radius': od[median_ax_idx]/2.0, 'height': od[major_ax_idx], 'axis': major_ax_char}
+                        elif ocs == 'CONE':
+                            major_ax_char, major_ax_idx = get_major_axis(od)
+                            median_ax_char, median_ax_idx = get_median_axis(od)
+                            bcg = {'radius': od[median_ax_idx]/2.0, 'height': od[major_ax_idx], 'axis': major_ax_char}
+
+                        body_data['collision geometry'] = bcg
 
             del body_data['inertia']
             body_data['mesh'] = obj_handle_name + get_extension(output_mesh)
@@ -797,8 +819,25 @@ class GenerateAMBF(bpy.types.Operator):
                     if child_obj_handle.rigid_body:
                         c_mass = child_obj_handle.rigid_body.mass
 
-                    joint_data["controller"]["P"] = round((p_mass + c_mass) * 1000.0, 3)
-                    joint_data["controller"]["D"] = round((p_mass + c_mass) * 2.0, 3)
+                    # Now lets load the loaded data if any from loaded AMBF File
+                    _jnt_ctrlr_already_defined = False
+                    if CommonConfig.loaded_joint_map[constraint]:
+                        if 'controller' in CommonConfig.loaded_joint_map[constraint]:
+                            joint_data['controller'] = CommonConfig.loaded_joint_map[constraint]['controller']
+                            _jnt_ctrlr_already_defined = True
+                        # The maximum damping in Blender for joints in 1.0, however
+                        # we can specify higher in AMBF, if a damping has been defined and
+                        # is higher than 1.0, consider it
+                        if 'damping' in CommonConfig.loaded_joint_map[constraint]:
+                            if 'damping' in joint_data:
+                                if joint_data['damping'] == 1.0 and CommonConfig.loaded_joint_map[constraint]['damping'] > 1.0:
+                                    joint_data['damping'] = CommonConfig.loaded_joint_map[constraint]['damping']
+                            else:
+                                joint_data['damping'] = CommonConfig.loaded_joint_map[constraint]['damping']
+
+                    if not _jnt_ctrlr_already_defined:
+                        joint_data["controller"]["P"] = round((p_mass + c_mass) * 1000.0, 3)
+                        joint_data["controller"]["D"] = round((p_mass + c_mass) * 2.0, 3)
 
     # Since changing the scale of the bodies directly impacts the rotation matrix, we have
     # to take that into account while calculating offset of child from parent using
@@ -1257,6 +1296,7 @@ class LoadAMBF(bpy.types.Operator):
             obj_handle.name = add_namespace_prefix(af_name)
 
         self._blender_remapped_body_names[body_name] = obj_handle.name
+        CommonConfig.loaded_body_map[obj_handle] = body_data
 
         if not _is_empty_object:
             if 'color rgba' in body_data:
@@ -1748,6 +1788,8 @@ class LoadAMBF(bpy.types.Operator):
                             _stiffness = joint_data['stiffness']
                             child_obj_handle.rigid_body_constraint.spring_stiffness_ang_z = _stiffness
                             child_obj_handle.rigid_body_constraint.use_spring_ang_z = True
+
+                CommonConfig.loaded_joint_map[child_obj_handle.rigid_body_constraint] = joint_data
 
     def execute(self, context):
         print('HOWDY PARTNER')
