@@ -138,10 +138,10 @@ def get_rot_mat_from_vecs(vecA, vecB):
 
 # Global Variables
 class CommonConfig:
-    # Since there isn't a convenient way of defining parallel linkages (hence redundant joints) due to the
+    # Since there isn't a convenient way of defining parallel linkages (hence detached joints) due to the
     # limit on 1 parent per body. We use kind of a hack. This prefix is what we we search for it we find an
     # empty body with the mentioned prefix.
-    redundant_joint_prefix = ['redundant', 'Redundant', 'REDUNDANT']
+    detached_joint_prefix = ['redundant', 'Redundant', 'REDUNDANT', 'detached', 'Detached', 'DETACHED']
     namespace = ''
     num_collision_groups = 20
     # Some properties don't exist in Blender are supported in AMBF. If an AMBF file is loaded
@@ -436,13 +436,13 @@ class GenerateAMBF(bpy.types.Operator):
         body_rot['y'] = round(world_rot[2], 3)
         if obj_handle.type == 'EMPTY':
             # Check for a special case for defining joints for parallel linkages
-            _is_redundant_joint = False
-            for _parallel_prefix_search_str in CommonConfig.redundant_joint_prefix:
-                if obj_handle_name.rfind(_parallel_prefix_search_str) == 0:
-                    _is_redundant_joint = True
+            _is_detached_joint = False
+            for _detached_prefix_search_str in CommonConfig.detached_joint_prefix:
+                if obj_handle_name.rfind(_detached_prefix_search_str) == 0:
+                    _is_detached_joint = True
                     break
 
-            if _is_redundant_joint:
+            if _is_detached_joint:
                 print('INFO: JOINT %s FOR PARALLEL LINKAGE FOUND' % obj_handle_name)
                 return
             else:
@@ -478,7 +478,7 @@ class GenerateAMBF(bpy.types.Operator):
 
                 # Now lets load the loaded data if any from loaded AMBF File
                 _body_col_geo_already_defined = False
-                if CommonConfig.loaded_body_map[obj_handle]:
+                if obj_handle in CommonConfig.loaded_body_map:
                     if 'controller' in CommonConfig.loaded_body_map[obj_handle]:
                         body_data['controller'] = CommonConfig.loaded_body_map[obj_handle]['controller']
                     if 'collision shape' in CommonConfig.loaded_body_map[obj_handle]:
@@ -579,162 +579,42 @@ class GenerateAMBF(bpy.types.Operator):
                     # parent_body_data = self._ambf_yaml[self.get_body_prefixed_name(parent_obj_handle_name)]
                     # child_body_data = self._ambf_yaml[self.get_body_prefixed_name(child_obj_handle_name)]
 
-                    # Since there isn't a convenient way of defining redundant joints and hence parallel linkages due
+                    # Since there isn't a convenient way of defining detached joints and hence parallel linkages due
                     # to the limit on 1 parent per body. We use a hack. This is how it works. In Blender
                     # we start by defining an empty body that has to have specific prefix as the first word
                     # in its name. Next we set up the rigid_body_constraint of this empty body as follows. For the RBC
                     # , we set the parent of this empty body to be the link that we want as the parent for
-                    # the redundant joint and the child body as the corresponding child of the redundant joint.
+                    # the detached joint and the child body as the corresponding child of the detached joint.
                     # Remember, this empty body is only a place holder and won't be added to
                     # AMBF. Next, its recommended to set the parent body of this empty body as it's parent in Blender
                     # and by that I mean the tree hierarchy parent (having set the the parent in the rigid body
                     # constraint property is different from parent in tree hierarchy). From there on, make sure to
                     # rotate this empty body such that the z axis / x axis is in the direction of the joint axis if
-                    # the redundant joint is supposed to be revolute or prismatic respectively.
-                    _is_redundant_joint = False
+                    # the detached joint is supposed to be revolute or prismatic respectively.
+                    _is_detached_joint = False
                     if obj_handle.type == 'EMPTY':
                         # Check for a special case for defining joints for parallel linkages
-                        for _parallel_prefix_search_str in CommonConfig.redundant_joint_prefix:
-                            if obj_handle_name.rfind(_parallel_prefix_search_str) == 0:
-                                _is_redundant_joint = True
+                        for _detached_prefix_search_str in CommonConfig.detached_joint_prefix:
+                            if obj_handle_name.rfind(_detached_prefix_search_str) == 0:
+                                _is_detached_joint = True
                                 break
 
-                    if _is_redundant_joint:
+                    if _is_detached_joint:
+                        print('INFO: FOR BODY \"%s\" ADDING DETACHED JOINT' % obj_handle_name)
 
-                        print('INFO: FOR BODY \"%s\" ADDING PARALLEL LINKAGE JOINT' % obj_handle_name)
+                        parent_pivot, parent_axis = self.compute_pivot_and_axis(
+                            parent_obj_handle, obj_handle, constraint)
 
-                        parent_pivot, parent_axis = self.compute_parent_pivot_and_axis(
-                            parent_obj_handle, obj_handle, obj_handle.rigid_body_constraint.type)
-
-                        child_pivot, child_axis = self.compute_parent_pivot_and_axis(
-                            child_obj_handle, obj_handle, obj_handle.rigid_body_constraint.type)
+                        child_pivot, child_axis = self.compute_pivot_and_axis(
+                            child_obj_handle, obj_handle, constraint)
                         # Add this field to the joint data, it will come in handy for blender later
-                        joint_data['redundant'] = True
+                        joint_data['detached'] = True
 
                     else:
-
-                        parent_pivot, parent_axis = self.compute_parent_pivot_and_axis(
-                            parent_obj_handle, child_obj_handle, obj_handle.rigid_body_constraint.type)
+                        parent_pivot, parent_axis = self.compute_pivot_and_axis(
+                            parent_obj_handle, child_obj_handle, constraint)
                         child_pivot = mathutils.Vector([0, 0, 0])
-                        child_axis = mathutils.Vector([0, 0, 0])
-                    if obj_handle.rigid_body_constraint.type == 'HINGE':
-                        child_axis = mathutils.Vector([0, 0, 1])
-                        if constraint.use_limit_ang_z:
-                            joint_data['type'] = 'revolute'
-                            higher_limit = constraint.limit_ang_z_upper
-                            lower_limit = constraint.limit_ang_z_lower
-                        else:
-                            joint_data['type'] = 'continuous'
-
-                    elif obj_handle.rigid_body_constraint.type == 'SLIDER':
-                        joint_data['type'] = 'prismatic'
-                        child_axis = mathutils.Vector([1, 0, 0])
-                        higher_limit = constraint.limit_lin_x_upper
-                        lower_limit = constraint.limit_lin_x_lower
-
-                    elif obj_handle.rigid_body_constraint.type == 'GENERIC':
-                        child_axis = mathutils.Vector([0, 0, 1])
-
-                        if constraint.use_limit_lin_x:
-                            joint_data['type'] = 'prismatic'
-                            higher_limit = constraint.limit_lin_x_upper
-                            lower_limit = constraint.limit_lin_x_lower
-                            child_axis = mathutils.Vector([1, 0, 0])
-
-                        elif constraint.use_limit_lin_y:
-                            joint_data['type'] = 'prismatic'
-                            higher_limit = constraint.limit_lin_y_upper
-                            lower_limit = constraint.limit_lin_y_lower
-                            child_axis = mathutils.Vector([0, 1, 0])
-
-                        elif constraint.use_limit_lin_z:
-                            joint_data['type'] = 'prismatic'
-                            higher_limit = constraint.limit_lin_z_upper
-                            lower_limit = constraint.limit_lin_z_lower
-                            child_axis = mathutils.Vector([0, 0, 1])
-
-                        elif constraint.use_limit_ang_x:
-                            joint_data['type'] = 'revolute'
-                            higher_limit = constraint.limit_ang_x_upper
-                            lower_limit = constraint.limit_ang_x_lower
-                            child_axis = mathutils.Vector([1, 0, 0])
-
-                        elif constraint.use_limit_ang_y:
-                            joint_data['type'] = 'revolute'
-                            higher_limit = constraint.limit_ang_y_upper
-                            lower_limit = constraint.limit_ang_y_lower
-                            child_axis = mathutils.Vector([0, 1, 0])
-
-                        elif constraint.use_limit_ang_z:
-                            joint_data['type'] = 'revolute'
-                            higher_limit = constraint.limit_ang_z_upper
-                            lower_limit = constraint.limit_ang_z_lower
-                            child_axis = mathutils.Vector([0, 0, 1])
-
-                    elif obj_handle.rigid_body_constraint.type == 'GENERIC_SPRING':
-                        child_axis = mathutils.Vector([0, 0, 1])
-
-                        if constraint.use_limit_lin_x:
-                            joint_data['type'] = 'linear spring'
-                            higher_limit = constraint.limit_lin_x_upper
-                            lower_limit = constraint.limit_lin_x_lower
-                            child_axis = mathutils.Vector([1, 0, 0])
-                            if constraint.use_spring_x:
-                                joint_data['damping'] = constraint.spring_damping_x
-                                joint_data['stiffness'] = constraint.spring_stiffness_x
-
-                        elif constraint.use_limit_lin_y:
-                            joint_data['type'] = 'linear spring'
-                            higher_limit = constraint.limit_lin_y_upper
-                            lower_limit = constraint.limit_lin_y_lower
-                            child_axis = mathutils.Vector([0, 1, 0])
-                            if constraint.use_spring_y:
-                                joint_data['damping'] = constraint.spring_damping_y
-                                joint_data['stiffness'] = constraint.spring_stiffness_y
-
-                        elif constraint.use_limit_lin_z:
-                            joint_data['type'] = 'linear spring'
-                            higher_limit = constraint.limit_lin_z_upper
-                            lower_limit = constraint.limit_lin_z_lower
-                            child_axis = mathutils.Vector([0, 0, 1])
-                            if constraint.use_spring_z:
-                                joint_data['damping'] = constraint.spring_damping_z
-                                joint_data['stiffness'] = constraint.spring_stiffness_z
-
-                        elif constraint.use_limit_ang_x:
-                            joint_data['type'] = 'torsion spring'
-                            higher_limit = constraint.limit_ang_x_upper
-                            lower_limit = constraint.limit_ang_x_lower
-                            child_axis = mathutils.Vector([1, 0, 0])
-                            if constraint.use_spring_ang_x:
-                                joint_data['damping'] = constraint.spring_damping_ang_x
-                                joint_data['stiffness'] = constraint.spring_stiffness_ang_x
-
-                        elif constraint.use_limit_ang_y:
-                            joint_data['type'] = 'torsion spring'
-                            higher_limit = constraint.limit_ang_y_upper
-                            lower_limit = constraint.limit_ang_y_lower
-                            child_axis = mathutils.Vector([0, 1, 0])
-                            if constraint.use_spring_ang_y:
-                                joint_data['damping'] = constraint.spring_damping_ang_y
-                                joint_data['stiffness'] = constraint.spring_stiffness_ang_y
-
-                        elif constraint.use_limit_ang_z:
-                            joint_data['type'] = 'torsion spring'
-                            higher_limit = constraint.limit_ang_z_upper
-                            lower_limit = constraint.limit_ang_z_lower
-                            child_axis = mathutils.Vector([0, 0, 1])
-                            if constraint.use_spring_ang_z:
-                                joint_data['damping'] = constraint.spring_damping_ang_z
-                                joint_data['stiffness'] = constraint.spring_stiffness_ang_z
-
-                    elif obj_handle.rigid_body_constraint.type == 'POINT':
-                        joint_data['type'] = 'p2p'
-                        child_axis = mathutils.Vector([0, 0, 1])
-
-                    elif obj_handle.rigid_body_constraint.type == 'FIXED':
-                        joint_data['type'] = 'fixed'
-                        child_axis = mathutils.Vector([0, 0, 1])
+                        child_axis, ax_idx = self.get_joint_axis(constraint)
 
                     parent_pivot_data = joint_data["parent pivot"]
                     parent_axis_data = joint_data["parent axis"]
@@ -753,17 +633,8 @@ class GenerateAMBF(bpy.types.Operator):
                     child_axis_data['y'] = round(child_axis.y, 3)
                     child_axis_data['z'] = round(child_axis.z, 3)
 
-                    if joint_data['type'] in ['fixed', 'p2p']:
-                        del joint_data["joint limits"]
-
-                    elif joint_data['type'] == 'continuous':
-                        del joint_data["joint limits"]['low']
-                        del joint_data["joint limits"]['high']
-
-                    else:
-                        joint_limit_data = joint_data["joint limits"]
-                        joint_limit_data['low'] = round(lower_limit, 3)
-                        joint_limit_data['high'] = round(higher_limit, 3)
+                    # This method assigns joint limits, joint_type, joint damping and stiffness for spring joints
+                    self.assign_joint_params(constraint, joint_data)
 
                     # The use of pivot and axis does not fully define the connection and relative
                     # transform between two bodies it is very likely that we need an additional offset
@@ -821,7 +692,7 @@ class GenerateAMBF(bpy.types.Operator):
 
                     # Now lets load the loaded data if any from loaded AMBF File
                     _jnt_ctrlr_already_defined = False
-                    if CommonConfig.loaded_joint_map[constraint]:
+                    if constraint in CommonConfig.loaded_joint_map:
                         if 'controller' in CommonConfig.loaded_joint_map[constraint]:
                             joint_data['controller'] = CommonConfig.loaded_joint_map[constraint]['controller']
                             _jnt_ctrlr_already_defined = True
@@ -839,10 +710,40 @@ class GenerateAMBF(bpy.types.Operator):
                         joint_data["controller"]["P"] = round((p_mass + c_mass) * 1000.0, 3)
                         joint_data["controller"]["D"] = round((p_mass + c_mass) * 2.0, 3)
 
+    # Get the joints axis as a vector
+    def get_joint_axis(self, constraint):
+        if constraint.type == 'HINGE':
+            ax_idx = 2
+        elif constraint.type == 'SLIDER':
+            ax_idx = 0
+        elif constraint.type == 'GENERIC':
+            ax_idx = 2
+            if constraint.use_limit_lin_x or constraint.use_limit_ang_x:
+                ax_idx = 0
+            elif constraint.use_limit_lin_y or constraint.use_limit_ang_y:
+                ax_idx = 1
+            elif constraint.use_limit_lin_z or constraint.use_limit_ang_z:
+                ax_idx = 2
+        elif constraint.type == 'GENERIC_SPRING':
+            if constraint.use_limit_lin_x or constraint.use_limit_ang_x:
+                ax_idx = 0
+            elif constraint.use_limit_lin_y or constraint.use_limit_ang_y:
+                ax_idx = 1
+            elif constraint.use_limit_lin_z or constraint.use_limit_ang_z:
+                ax_idx = 2
+        elif constraint.type == 'POINT':
+            ax_idx = 2
+        elif constraint.type == 'FIXED':
+            ax_idx = 2
+        # The third col of rotation matrix is the z axes of child in parent
+        joint_axis = mathutils.Vector([0, 0, 0])
+        joint_axis[ax_idx] = 1.0
+        return joint_axis, ax_idx
+
     # Since changing the scale of the bodies directly impacts the rotation matrix, we have
     # to take that into account while calculating offset of child from parent using
     # transform manipulation
-    def compute_parent_pivot_and_axis(self, parent, child, joint_type):
+    def compute_pivot_and_axis(self, parent, child, constraint):
         # Since the rotation matrix is carrying the scale, separate out just
         # the rotation component
         # Transform of Parent in World
@@ -861,36 +762,127 @@ class GenerateAMBF(bpy.types.Operator):
         # Transform of Child in Parent
         # t_c_p = t_w_p * t_c_w
         t_c_p = t_w_p * t_c_w
-        parent_pivot = t_c_p.translation
-        if joint_type == 'HINGE':
-            col_num = 2
-        elif joint_type == 'SLIDER':
-            col_num = 0
-        elif joint_type == 'GENERIC':
-            _joint = child.rigid_body_constraint
-            col_num = 2
-            if _joint.use_limit_lin_x or _joint.use_limit_ang_x:
-                col_num = 0
-            elif _joint.use_limit_lin_y or _joint.use_limit_ang_y:
-                col_num = 1
-            elif _joint.use_limit_lin_z or _joint.use_limit_ang_z:
-                col_num = 2
-        elif joint_type == 'GENERIC_SPRING':
-            _joint = child.rigid_body_constraint
-            col_num = 2
-            if _joint.use_limit_lin_x or _joint.use_limit_ang_x:
-                col_num = 0
-            elif _joint.use_limit_lin_y or _joint.use_limit_ang_y:
-                col_num = 1
-            elif _joint.use_limit_lin_z or _joint.use_limit_ang_z:
-                col_num = 2
-        elif joint_type == 'POINT':
-            col_num = 2
-        elif joint_type == 'FIXED':
-            col_num = 2
+        pivot = t_c_p.translation
+
+        joint_axis, axis_idx = self.get_joint_axis(constraint)
         # The third col of rotation matrix is the z axes of child in parent
-        parent_axis = mathutils.Vector(t_c_p.col[col_num][0:3])
-        return parent_pivot, parent_axis
+        axis = mathutils.Vector(t_c_p.col[axis_idx][0:3])
+        return pivot, axis
+
+    # Assign the joint parameters that include joint limits, type, damping and joint stiffness for spring joints
+    def assign_joint_params(self, constraint, joint_data):
+        if constraint.type == 'HINGE':
+            if constraint.use_limit_ang_z:
+                joint_data['type'] = 'revolute'
+                higher_limit = constraint.limit_ang_z_upper
+                lower_limit = constraint.limit_ang_z_lower
+            else:
+                joint_data['type'] = 'continuous'
+
+        elif constraint.type == 'SLIDER':
+            joint_data['type'] = 'prismatic'
+            higher_limit = constraint.limit_lin_x_upper
+            lower_limit = constraint.limit_lin_x_lower
+
+        elif constraint.type == 'GENERIC':
+
+            if constraint.use_limit_lin_x:
+                joint_data['type'] = 'prismatic'
+                higher_limit = constraint.limit_lin_x_upper
+                lower_limit = constraint.limit_lin_x_lower
+
+            elif constraint.use_limit_lin_y:
+                joint_data['type'] = 'prismatic'
+                higher_limit = constraint.limit_lin_y_upper
+                lower_limit = constraint.limit_lin_y_lower
+
+            elif constraint.use_limit_lin_z:
+                joint_data['type'] = 'prismatic'
+                higher_limit = constraint.limit_lin_z_upper
+                lower_limit = constraint.limit_lin_z_lower
+
+            elif constraint.use_limit_ang_x:
+                joint_data['type'] = 'revolute'
+                higher_limit = constraint.limit_ang_x_upper
+                lower_limit = constraint.limit_ang_x_lower
+
+            elif constraint.use_limit_ang_y:
+                joint_data['type'] = 'revolute'
+                higher_limit = constraint.limit_ang_y_upper
+                lower_limit = constraint.limit_ang_y_lower
+
+            elif constraint.use_limit_ang_z:
+                joint_data['type'] = 'revolute'
+                higher_limit = constraint.limit_ang_z_upper
+                lower_limit = constraint.limit_ang_z_lower
+
+        elif constraint.type == 'GENERIC_SPRING':
+
+            if constraint.use_limit_lin_x:
+                joint_data['type'] = 'linear spring'
+                higher_limit = constraint.limit_lin_x_upper
+                lower_limit = constraint.limit_lin_x_lower
+                if constraint.use_spring_x:
+                    joint_data['damping'] = constraint.spring_damping_x
+                    joint_data['stiffness'] = constraint.spring_stiffness_x
+
+            elif constraint.use_limit_lin_y:
+                joint_data['type'] = 'linear spring'
+                higher_limit = constraint.limit_lin_y_upper
+                lower_limit = constraint.limit_lin_y_lower
+                if constraint.use_spring_y:
+                    joint_data['damping'] = constraint.spring_damping_y
+                    joint_data['stiffness'] = constraint.spring_stiffness_y
+
+            elif constraint.use_limit_lin_z:
+                joint_data['type'] = 'linear spring'
+                higher_limit = constraint.limit_lin_z_upper
+                lower_limit = constraint.limit_lin_z_lower
+                if constraint.use_spring_z:
+                    joint_data['damping'] = constraint.spring_damping_z
+                    joint_data['stiffness'] = constraint.spring_stiffness_z
+
+            elif constraint.use_limit_ang_x:
+                joint_data['type'] = 'torsion spring'
+                higher_limit = constraint.limit_ang_x_upper
+                lower_limit = constraint.limit_ang_x_lower
+                if constraint.use_spring_ang_x:
+                    joint_data['damping'] = constraint.spring_damping_ang_x
+                    joint_data['stiffness'] = constraint.spring_stiffness_ang_x
+
+            elif constraint.use_limit_ang_y:
+                joint_data['type'] = 'torsion spring'
+                higher_limit = constraint.limit_ang_y_upper
+                lower_limit = constraint.limit_ang_y_lower
+                if constraint.use_spring_ang_y:
+                    joint_data['damping'] = constraint.spring_damping_ang_y
+                    joint_data['stiffness'] = constraint.spring_stiffness_ang_y
+
+            elif constraint.use_limit_ang_z:
+                joint_data['type'] = 'torsion spring'
+                higher_limit = constraint.limit_ang_z_upper
+                lower_limit = constraint.limit_ang_z_lower
+                if constraint.use_spring_ang_z:
+                    joint_data['damping'] = constraint.spring_damping_ang_z
+                    joint_data['stiffness'] = constraint.spring_stiffness_ang_z
+
+        elif constraint.type == 'POINT':
+            joint_data['type'] = 'p2p'
+
+        elif constraint.type == 'FIXED':
+            joint_data['type'] = 'fixed'
+
+        if joint_data['type'] in ['fixed', 'p2p']:
+            del joint_data["joint limits"]
+
+        elif joint_data['type'] == 'continuous':
+            del joint_data["joint limits"]['low']
+            del joint_data["joint limits"]['high']
+
+        else:
+            joint_limit_data = joint_data["joint limits"]
+            joint_limit_data['low'] = round(lower_limit, 3)
+            joint_limit_data['high'] = round(higher_limit, 3)
 
     def generate_ambf_yaml(self, context):
         num_objs = len(bpy.data.objects)
@@ -1122,7 +1114,7 @@ class GenerateLowResMeshModifiers(bpy.types.Operator):
 
 
 class CreateRedundantJoint(bpy.types.Operator):
-    bl_idname = "ambf.create_redundant_joint"
+    bl_idname = "ambf.create_detached_joint"
     bl_label = "Create Redundant Joint"
     bl_description = "This creates an empty object that can be used to create closed loop mechanisms. Make" \
                      " sure to set the rigid body constraint (RBC) for this empty mesh and ideally parent this empty" \
@@ -1131,7 +1123,7 @@ class CreateRedundantJoint(bpy.types.Operator):
     def execute(self, context):
         select_all_objects(False)
         bpy.ops.object.empty_add(type='PLAIN_AXES')
-        context.active_object.name = CommonConfig.redundant_joint_prefix[0] + ' joint'
+        context.active_object.name = CommonConfig.detached_joint_prefix[0] + ' joint'
         return {'FINISHED'}
 
 
@@ -1392,29 +1384,33 @@ class LoadAMBF(bpy.types.Operator):
             elif joint_data['type'] in ['fixed', 'FIXED']:
                 joint_type = 'FIXED'
 
-        _is_redundant_joint = False
+        _is_detached_joint = False
 
         if 'redundant' in joint_data:
             if joint_data['redundant'] is True or joint_data['redundant'] == 'True':
-                _is_redundant_joint = True
+                _is_detached_joint = True
 
-        if _is_redundant_joint is True:
-            print('INFO, JOINT \"%s\" IS REDUNDANT' % joint_name)
+        if 'detached' in joint_data:
+            if joint_data['detached'] is True or joint_data['detached'] == 'True':
+                _is_detached_joint = True
+
+        if _is_detached_joint is True:
+            print('INFO, JOINT \"%s\" IS DETACHED' % joint_name)
             parent_obj_handle = bpy.data.objects[self._blender_remapped_body_names[parent_body_name]]
 
             bpy.ops.object.empty_add(type='PLAIN_AXES')
             child_obj_handle = bpy.context.active_object
             joint_name = str(joint_data['name'])
 
-            _has_redundant_prefix = False
-            for _redundant_joint_name_str in CommonConfig.redundant_joint_prefix:
-                if joint_name.rfind(_redundant_joint_name_str) == 0:
-                    _has_redundant_prefix = True
+            _has_detached_prefix = False
+            for _detached_joint_name_str in CommonConfig.detached_joint_prefix:
+                if joint_name.rfind(_detached_joint_name_str) == 0:
+                    _has_detached_prefix = True
 
-            if _has_redundant_prefix:
+            if _has_detached_prefix:
                 child_obj_handle.name = joint_name
             else:
-                child_obj_handle.name = 'redundant joint ' + joint_name
+                child_obj_handle.name = 'detached joint ' + joint_name
 
         else:
             parent_obj_handle = bpy.data.objects[self._blender_remapped_body_names[parent_body_name]]
@@ -1426,7 +1422,7 @@ class LoadAMBF(bpy.types.Operator):
             if 'child pivot' in joint_data:
                 child_pivot_data = joint_data['child pivot']
 
-                if _is_redundant_joint:
+                if _is_detached_joint:
                     child_pivot_data = {'x': 0, 'y': 0, 'z': 0}
                     if joint_data['type'] in ['hinge', 'continuous', 'revolute', 'fixed']:
                         child_axis_data = {'x': 0, 'y': 0, 'z': 1}
@@ -1535,9 +1531,16 @@ class LoadAMBF(bpy.types.Operator):
         for joint_name in self._ambf['joints']:
             joint_data = self._ambf[joint_name]
             if 'child pivot' in joint_data:
+
                 if 'redundant' in joint_data:
                     if joint_data['redundant'] is True or joint_data['redundant'] == 'True':
-                        print('INFO, JOINT \"%s\" IS REDUNDANT, NO NEED'
+                        print('INFO, JOINT \"%s\" IS DETACHED, NO NEED'
+                              ' TO ADJUST CHILD BODY\'S AXIS AND PIVOTS' % joint_name)
+                        return
+
+                if 'detached' in joint_data:
+                    if joint_data['detached'] is True or joint_data['detached'] == 'True':
+                        print('INFO, JOINT \"%s\" IS DETACHED, NO NEED'
                               ' TO ADJUST CHILD BODY\'S AXIS AND PIVOTS' % joint_name)
                         return
 
@@ -1659,28 +1662,33 @@ class LoadAMBF(bpy.types.Operator):
             elif joint_data['type'] in ['fixed', 'FIXED']:
                 joint_type = 'FIXED'
 
-        _is_redundant_joint = False
+        _is_detached_joint = False
+
         if 'redundant' in joint_data:
             if joint_data['redundant'] is True or joint_data['redundant'] == 'True':
-                _is_redundant_joint = True
+                _is_detached_joint = True
 
-        if _is_redundant_joint is True:
-            print('INFO, JOINT \"%s\" IS REDUNDANT' % joint_name)
+        if 'detached' in joint_data:
+            if joint_data['detached'] is True or joint_data['detached'] == 'True':
+                _is_detached_joint = True
+
+        if _is_detached_joint is True:
+            print('INFO, JOINT \"%s\" IS DETACHED' % joint_name)
             parent_obj_handle = bpy.data.objects[self._blender_remapped_body_names[parent_body_name]]
 
             bpy.ops.object.empty_add(type='PLAIN_AXES')
             child_obj_handle = bpy.context.active_object
             joint_name = str(joint_data['name'])
 
-            _has_redundant_prefix = False
-            for _redundant_joint_name_str in CommonConfig.redundant_joint_prefix:
-                if joint_name.rfind(_redundant_joint_name_str) == 0:
-                    _has_redundant_prefix = True
+            _has_detached_prefix = False
+            for _detached_joint_name_str in CommonConfig.detached_joint_prefix:
+                if joint_name.rfind(_detached_joint_name_str) == 0:
+                    _has_detached_prefix = True
 
-            if _has_redundant_prefix:
+            if _has_detached_prefix:
                 child_obj_handle.name = joint_name
             else:
-                child_obj_handle.name = 'redundant joint ' + joint_name
+                child_obj_handle.name = 'detached joint ' + joint_name
         else:
             parent_obj_handle = bpy.data.objects[self._blender_remapped_body_names[parent_body_name]]
             child_obj_handle = bpy.data.objects[self._blender_remapped_body_names[child_body_name]]
@@ -1977,15 +1985,15 @@ class CreateAMBFPanel(bpy.types.Panel):
         row.label(text="OPTIONAL :")
 
         row = box.row()
-        # Column for creating redundant joint
+        # Column for creating detached joint
         col = box.column()
         col.alignment = 'CENTER'
         col.operator("ambf.remove_object_namespaces")
 
-        # Column for creating redundant joint
+        # Column for creating detached joint
         col = box.column()
         col.alignment = 'CENTER'
-        col.operator("ambf.create_redundant_joint")
+        col.operator("ambf.create_detached_joint")
 
         # Add Optional Button to Remove All Modifiers
         col = box.column()
