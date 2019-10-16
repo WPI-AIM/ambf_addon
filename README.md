@@ -1,4 +1,4 @@
-# Blender AMBF Add-on
+# Blender AMBF Add-on 
 Blender Add-on for creating and loading AMBF yaml config files
 
 # Introduction:
@@ -27,3 +27,13 @@ added and modified in the AMBF Yaml config files.
 
 5. Because of the underlying philosophy of treating joints as independent objects, the AMBF yaml config files can seperate out joints from the bodies in differnet files. E.g. one config file can contain information about the bodies only and another config file can contain information about the joints. In addition to this features, the joints can be added at run-time for any dynamic ridig body in simulation.
 
+#### Notes:
+1. This plugin is only supported for **Blender 2.79**
+
+#### Known Issues:
+The **yaml** modules is usually not installed alongside Blenders python compiler, therefore, while trying to load the plugin, you may encounter an issue saying **No Module Names 'yaml'**. This procedure seems to resolve this issue. The answers on these forums can be used to resolve this issue.
+
+https://blender.stackexchange.com/questions/56011/how-to-install-pip-for-blenders-bundled-python
+
+
+After install pip using the instructions above, one can simply install `yaml` or `pyyaml` for the blender specific python.
