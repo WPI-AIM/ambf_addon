@@ -29,6 +29,7 @@ added and modified in the AMBF Yaml config files.
 
 #### Notes:
 1. This plugin is only supported for **Blender 2.79**
+2. Simulation frame must be at 0 (box to the right of the start end frames)
 
 #### Known Issues:
 The **yaml** modules is usually not installed alongside Blenders python compiler, therefore, while trying to load the plugin, you may encounter an issue saying **No Module Names 'yaml'**. This procedure seems to resolve this issue. The answers on these forums can be used to resolve this issue.
