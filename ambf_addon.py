@@ -378,9 +378,11 @@ class GenerateAMBF(bpy.types.Operator):
         self.body_name_prefix = 'BODY '
         self.joint_name_prefix = 'JOINT '
         self._ambf_yaml = None
+        self._context = None
 
     def execute(self, context):
-        self.generate_ambf_yaml(context)
+        self._context = context
+        self.generate_ambf_yaml()
         return {'FINISHED'}
 
     # This joint adds the body prefix str if set to all the bodies in the AMBF
@@ -479,8 +481,6 @@ class GenerateAMBF(bpy.types.Operator):
                 # Now lets load the loaded data if any from loaded AMBF File
                 _body_col_geo_already_defined = False
                 if obj_handle in CommonConfig.loaded_body_map:
-                    if 'controller' in CommonConfig.loaded_body_map[obj_handle]:
-                        body_data['controller'] = CommonConfig.loaded_body_map[obj_handle]['controller']
                     if 'collision shape' in CommonConfig.loaded_body_map[obj_handle]:
                         _body_col_geo_already_defined = True
 
@@ -544,6 +544,24 @@ class GenerateAMBF(bpy.types.Operator):
                 body_data['color components']['ambient']['level'] = round(obj_handle.data.materials[0].ambient, 4)
 
                 body_data['color components']['transparency'] = round(obj_handle.data.materials[0].alpha, 4)
+            
+            # Set the body controller data from the controller props
+            if obj_handle.ambf_enable_body_props is True:
+                _controller_gains = OrderedDict()
+                _lin_gains = OrderedDict()
+                _ang_gains = OrderedDict()
+                _lin_gains['P'] = round(obj_handle.ambf_linear_controller_p_gain, 4)
+                _lin_gains['I'] = 0
+                _lin_gains['D'] = round(obj_handle.ambf_linear_controller_d_gain, 4)
+                _ang_gains['P'] = round(obj_handle.ambf_angular_controller_p_gain, 4)
+                _ang_gains['I'] = 0
+                _ang_gains['D'] = round(obj_handle.ambf_angular_controller_d_gain, 4)
+                _controller_gains['linear'] = _lin_gains
+                _controller_gains['angular'] = _ang_gains
+                body_data['controller'] = _controller_gains
+            else:
+                if 'controller' in body_data:
+                    del body_data['controller']
 
         ambf_yaml[body_yaml_name] = body_data
         self._body_names_list.append(body_yaml_name)
@@ -690,25 +708,20 @@ class GenerateAMBF(bpy.types.Operator):
                     if child_obj_handle.rigid_body:
                         c_mass = child_obj_handle.rigid_body.mass
 
-                    # Now lets load the loaded data if any from loaded AMBF File
-                    _jnt_ctrlr_already_defined = False
-                    if constraint in CommonConfig.loaded_joint_map:
-                        if 'controller' in CommonConfig.loaded_joint_map[constraint]:
-                            joint_data['controller'] = CommonConfig.loaded_joint_map[constraint]['controller']
-                            _jnt_ctrlr_already_defined = True
-                        # The maximum damping in Blender for joints in 1.0, however
-                        # we can specify higher in AMBF, if a damping has been defined and
-                        # is higher than 1.0, consider it
-                        if 'damping' in CommonConfig.loaded_joint_map[constraint]:
-                            if 'damping' in joint_data:
-                                if joint_data['damping'] == 1.0 and CommonConfig.loaded_joint_map[constraint]['damping'] > 1.0:
-                                    joint_data['damping'] = CommonConfig.loaded_joint_map[constraint]['damping']
-                            else:
-                                joint_data['damping'] = CommonConfig.loaded_joint_map[constraint]['damping']
-
-                    if not _jnt_ctrlr_already_defined:
-                        joint_data["controller"]["P"] = round((p_mass + c_mass) * 1000.0, 3)
-                        joint_data["controller"]["D"] = round((p_mass + c_mass) * 2.0, 3)
+                    # Set the joint controller gains data from the joint controller props
+                    if obj_handle.rigid_body_constraint.type in ['HINGE', 'SLIDER', 'GENERIC']:
+                        if obj_handle.ambf_enable_joint_props is True:
+                            _gains = OrderedDict()
+                            _gains['P'] = round(obj_handle.ambf_joint_controller_p_gain, 4)
+                            _gains['I'] = 0
+                            _gains['D'] = round(obj_handle.ambf_joint_controller_d_gain, 4)
+                            
+                            joint_data['controller'] = _gains
+                            joint_data['damping'] = round(obj_handle.ambf_joint_damping, 4)
+                        else:
+                            if 'controller' in joint_data:
+                                del joint_data['controller']
+                    
 
     # Get the joints axis as a vector
     def get_joint_axis(self, constraint):
@@ -884,9 +897,9 @@ class GenerateAMBF(bpy.types.Operator):
             joint_limit_data['low'] = round(lower_limit, 3)
             joint_limit_data['high'] = round(higher_limit, 3)
 
-    def generate_ambf_yaml(self, context):
+    def generate_ambf_yaml(self):
         num_objs = len(bpy.data.objects)
-        save_to = bpy.path.abspath(context.scene.ambf_yaml_conf_path)
+        save_to = bpy.path.abspath(self._context.scene.ambf_yaml_conf_path)
         filename = os.path.basename(save_to)
         save_dir = os.path.dirname(save_to)
         if not filename:
@@ -904,15 +917,15 @@ class GenerateAMBF(bpy.types.Operator):
         self._ambf_yaml['bodies'] = []
         self._ambf_yaml['joints'] = []
         print('SAVE PATH', bpy.path.abspath(save_dir))
-        print('AMBF CONFIG PATH', bpy.path.abspath(context.scene.ambf_yaml_mesh_path))
-        rel_mesh_path = os.path.relpath(bpy.path.abspath(context.scene.ambf_yaml_mesh_path), bpy.path.abspath(save_dir))
+        print('AMBF CONFIG PATH', bpy.path.abspath(self._context.scene.ambf_yaml_mesh_path))
+        rel_mesh_path = os.path.relpath(bpy.path.abspath(self._context.scene.ambf_yaml_mesh_path), bpy.path.abspath(save_dir))
 
         self._ambf_yaml['high resolution path'] = rel_mesh_path + '/high_res/'
         self._ambf_yaml['low resolution path'] = rel_mesh_path + '/low_res/'
 
-        self._ambf_yaml['ignore inter-collision'] = context.scene.ignore_inter_collision
+        self._ambf_yaml['ignore inter-collision'] = self._context.scene.ignore_inter_collision
 
-        update_global_namespace(context)
+        update_global_namespace(self._context)
 
         if CommonConfig.namespace is not "":
             self._ambf_yaml['namespace'] = CommonConfig.namespace
@@ -1115,7 +1128,7 @@ class GenerateLowResMeshModifiers(bpy.types.Operator):
 
 class CreateRedundantJoint(bpy.types.Operator):
     bl_idname = "ambf.create_detached_joint"
-    bl_label = "Create Redundant Joint"
+    bl_label = "Create Detached Joint"
     bl_description = "This creates an empty object that can be used to create closed loop mechanisms. Make" \
                      " sure to set the rigid body constraint (RBC) for this empty mesh and ideally parent this empty" \
                      " object with the parent body of its RBC"
@@ -1352,6 +1365,16 @@ class LoadAMBF(bpy.types.Operator):
                         obj_handle.rigid_body.collision_groups[group] = True
                     else:
                         print('WARNING, Collision Group Outside [0-20]')
+                        
+            # If Body Controller Defined. Set the P and D gains for linera and angular controller prop fields
+            if 'controller' in body_data:
+                obj_handle.ambf_linear_controller_p_gain = body_data['controller']['linear']['P']
+                obj_handle.ambf_linear_controller_d_gain = body_data['controller']['linear']['D']
+                
+                obj_handle.ambf_angular_controller_p_gain = body_data['controller']['angular']['P']
+                obj_handle.ambf_angular_controller_d_gain = body_data['controller']['angular']['D']
+                
+                obj_handle.ambf_enable_body_props = True
 
         obj_handle.matrix_world.translation[0] = body_location_xyz['x']
         obj_handle.matrix_world.translation[1] = body_location_xyz['y']
@@ -1526,6 +1549,13 @@ class LoadAMBF(bpy.types.Operator):
                     elif joint_data['type'] == 'continuous':
                         # Do nothing, not enable the limits
                         pass
+
+                    # If joint controller is defined. Set the corresponding values in the joint properties
+                    if 'controller' in joint_data:
+                        if joint_data['type'] in ['hinge', 'continuous', 'revolute', 'slider', 'prismatic']:
+                            self._context.object.ambf_enable_joint_props = True
+                            self._context.object.ambf_joint_controller_p_gain = joint_data["controller"]["P"]
+                            self._context.object.ambf_joint_controller_d_gain = joint_data["controller"]["D"]
 
     def adjust_body_pivots_and_axes(self):
         for joint_name in self._ambf['joints']:
@@ -1798,6 +1828,13 @@ class LoadAMBF(bpy.types.Operator):
                             child_obj_handle.rigid_body_constraint.use_spring_ang_z = True
 
                 CommonConfig.loaded_joint_map[child_obj_handle.rigid_body_constraint] = joint_data
+                
+                # If joint controller is defined. Set the corresponding values in the joint properties
+                if 'controller' in joint_data:
+                    if joint_data['type'] in ['hinge', 'continuous', 'revolute', 'slider', 'prismatic']:
+                        self._context.object.ambf_enable_joint_props = True
+                        self._context.object.ambf_joint_controller_p_gain = joint_data["controller"]["P"]
+                        self._context.object.ambf_joint_controller_d_gain = joint_data["controller"]["D"]
 
     def execute(self, context):
         print('HOWDY PARTNER')
@@ -1863,10 +1900,11 @@ class CreateAMBFPanel(bpy.types.Panel):
     bpy.types.Scene.mesh_output_type = bpy.props.EnumProperty \
         (
             items=[('STL', 'STL', 'STL'),('OBJ', 'OBJ', 'OBJ'),('3DS', '3DS', '3DS'),('PLY', 'PLY', 'PLY')],
-            name="Mesh Type"
+            name="Mesh Type",
+            default='STL'
         )
 
-    # bpy.context.scene['mesh_output_type'] = 0
+    bpy.context.scene['mesh_output_type'] = 0
 
     bpy.types.Scene.mesh_max_vertices = bpy.props.IntProperty \
         (
@@ -2028,6 +2066,108 @@ class CreateAMBFPanel(bpy.types.Panel):
         col = box.column()
         col.alignment = 'CENTER'
         col.operator("ambf.load_ambf_yaml_config")
+        
+
+class AddRigidBodyPropsPanel(bpy.types.Panel):
+    """Add Rigid Body Properties"""
+    bl_label = "AMBF RIGID BODY ADDITIONAL PROPERTIES"
+    bl_idname = "OBJECT_PT_ambf_rigid_body_props"
+    bl_space_type = 'PROPERTIES'
+    bl_region_type = 'WINDOW'
+    bl_context= "physics"
+    
+    bpy.types.Object.ambf_enable_body_props = bpy.props.BoolProperty(name="Enable", default=False)
+    
+    bpy.types.Object.ambf_linear_controller_p_gain = bpy.props.FloatProperty(name="Proportional Gain (P)", default=500)
+    bpy.types.Object.ambf_linear_controller_d_gain = bpy.props.FloatProperty(name="Damping Gain (D)", default=5)
+    
+    bpy.types.Object.ambf_angular_controller_p_gain = bpy.props.FloatProperty(name="Proportional Gain (P)", default=50)
+    bpy.types.Object.ambf_angular_controller_d_gain = bpy.props.FloatProperty(name="Damping Gain (D)", default=0.5)
+    
+    @classmethod
+    def poll(self, context):
+        active = False
+        if context.active_object:
+            if context.active_object.type == 'MESH':
+                if context.active_object.rigid_body:
+                    active=True
+        return active
+    
+    def draw(self, context):
+        layout = self.layout
+        
+        col = layout.column()
+        col.prop(context.object, 'ambf_enable_body_props')
+        
+        col = layout.column()
+        col.alignment = 'CENTER'
+        col.enabled = context.object.ambf_enable_body_props
+        col.label(text="BODY CONTROLLER GAINS")
+        
+        
+        col = col.column()
+        col.alignment = 'CENTER'
+        col.label(text="LINEAR GAINS:")
+        
+        row = col.row()
+        row.prop(context.object, 'ambf_linear_controller_p_gain')
+        
+        row = row.row()
+        row.prop(context.object, 'ambf_linear_controller_d_gain')
+        
+        col = col.column()
+        col.alignment = 'CENTER'
+        col.label(text="ANGULAR GAINS")
+        
+        row = col.row()
+        row.prop(context.object, 'ambf_angular_controller_p_gain')
+        
+        row = row.row()
+        row.prop(context.object, 'ambf_angular_controller_d_gain')
+        
+        
+class AddJointPropsPanel(bpy.types.Panel):
+    """Add Rigid Body Properties"""
+    bl_label = "AMBF JOINT ADDITIONAL PROPERTIES"
+    bl_idname = "OBJECT_PT_ambf_joint_props"
+    bl_space_type = 'PROPERTIES'
+    bl_region_type = 'WINDOW'
+    bl_context= "physics"
+    
+    
+    bpy.types.Object.ambf_enable_joint_props = bpy.props.BoolProperty(name="Enable", default=False)
+    bpy.types.Object.ambf_joint_controller_p_gain = bpy.props.FloatProperty(name="Proportional Gain (P)", default=500)
+    bpy.types.Object.ambf_joint_controller_d_gain = bpy.props.FloatProperty(name="Damping Gain (D)", default=5)
+    bpy.types.Object.ambf_joint_damping = bpy.props.FloatProperty(name="Joint Damping", default=0.0)
+    
+    @classmethod
+    def poll(self, context):
+        has_detached_prefix = False
+        if context.active_object: # Check if an object is active
+            if context.active_object.type in ['EMPTY', 'MESH']: # Check if the object is a mesh or an empty axes
+                if context.active_object.rigid_body_constraint: # Check if the object has a constraint
+                    if context.active_object.rigid_body_constraint.type in ['HINGE', 'SLIDER', 'GENERIC']: # Check if a valid constraint
+                        has_detached_prefix = True
+        return has_detached_prefix
+    
+    def draw(self, context):
+        layout = self.layout
+        
+        col = layout.column()
+        col.prop(context.object, 'ambf_enable_joint_props')
+ 
+        col = layout.column()
+        col.alignment = 'CENTER'
+        col.enabled = context.object.ambf_enable_joint_props
+        col.prop(context.object, 'ambf_joint_damping')
+        
+        col.label(text="JOINT CONTROLLER GAINS")
+        
+        row = col.row()
+        row.prop(context.object, 'ambf_joint_controller_p_gain')
+        
+        row = row.row()
+        row.prop(context.object, 'ambf_joint_controller_d_gain')
 
 
 def register():
@@ -2038,6 +2178,8 @@ def register():
     bpy.utils.register_class(SaveMeshes)
     bpy.utils.register_class(LoadAMBF)
     bpy.utils.register_class(CreateAMBFPanel)
+    bpy.utils.register_class(AddRigidBodyPropsPanel)
+    bpy.utils.register_class(AddJointPropsPanel)
     bpy.utils.register_class(CreateRedundantJoint)
     bpy.utils.register_class(RemoveObjectsNamespaces)
 
@@ -2050,6 +2192,8 @@ def unregister():
     bpy.utils.unregister_class(SaveMeshes)
     bpy.utils.unregister_class(LoadAMBF)
     bpy.utils.unregister_class(CreateAMBFPanel)
+    bpy.utils.unregister_class(AddRigidBodyPropsPanel)
+    bpy.utils.unregister_class(AddJointPropsPanel)
     bpy.utils.unregister_class(CreateRedundantJoint)
     bpy.utils.unregister_class(RemoveObjectsNamespaces)
 
