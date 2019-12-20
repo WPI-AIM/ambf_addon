@@ -2078,11 +2078,11 @@ class AddRigidBodyPropsPanel(bpy.types.Panel):
     
     bpy.types.Object.ambf_enable_body_props = bpy.props.BoolProperty(name="Enable", default=False)
     
-    bpy.types.Object.ambf_linear_controller_p_gain = bpy.props.FloatProperty(name="Proportional Gain (P)", default=500)
-    bpy.types.Object.ambf_linear_controller_d_gain = bpy.props.FloatProperty(name="Damping Gain (D)", default=5)
+    bpy.types.Object.ambf_linear_controller_p_gain = bpy.props.FloatProperty(name="Proportional Gain (P)", default=500, min=0)
+    bpy.types.Object.ambf_linear_controller_d_gain = bpy.props.FloatProperty(name="Damping Gain (D)", default=5, min=0)
     
-    bpy.types.Object.ambf_angular_controller_p_gain = bpy.props.FloatProperty(name="Proportional Gain (P)", default=50)
-    bpy.types.Object.ambf_angular_controller_d_gain = bpy.props.FloatProperty(name="Damping Gain (D)", default=0.5)
+    bpy.types.Object.ambf_angular_controller_p_gain = bpy.props.FloatProperty(name="Proportional Gain (P)", default=50, min=0)
+    bpy.types.Object.ambf_angular_controller_d_gain = bpy.props.FloatProperty(name="Damping Gain (D)", default=0.5, min=0)
     
     @classmethod
     def poll(self, context):
@@ -2136,9 +2136,9 @@ class AddJointPropsPanel(bpy.types.Panel):
     
     
     bpy.types.Object.ambf_enable_joint_props = bpy.props.BoolProperty(name="Enable", default=False)
-    bpy.types.Object.ambf_joint_controller_p_gain = bpy.props.FloatProperty(name="Proportional Gain (P)", default=500)
-    bpy.types.Object.ambf_joint_controller_d_gain = bpy.props.FloatProperty(name="Damping Gain (D)", default=5)
-    bpy.types.Object.ambf_joint_damping = bpy.props.FloatProperty(name="Joint Damping", default=0.0)
+    bpy.types.Object.ambf_joint_controller_p_gain = bpy.props.FloatProperty(name="Proportional Gain (P)", default=500, min=0)
+    bpy.types.Object.ambf_joint_controller_d_gain = bpy.props.FloatProperty(name="Damping Gain (D)", default=5, min=0)
+    bpy.types.Object.ambf_joint_damping = bpy.props.FloatProperty(name="Joint Damping", default=0.0, min=0.0)
     
     @classmethod
     def poll(self, context):
