@@ -365,10 +365,10 @@ class JointTemplate:
         self._ambf_data['controller'] = {'P': 1000, 'I': 0, 'D': 1}
 
 
-class GenerateAMBF(bpy.types.Operator):
+class AMBF_OT_generate_ambf_file(bpy.types.Operator):
     """Tooltip"""
-    bl_idname = "ambf.add_create_ambf_config"
-    bl_label = "Write Multi-Body AMBF Config"
+    bl_idname = "ambf.add_generate_ambf_file"
+    bl_label = "Write AMBF Description File (ADF)"
     bl_description = "This generated the AMBF Config file in the location and filename specified in the field" \
                      " above"
 
@@ -958,8 +958,8 @@ class GenerateAMBF(bpy.types.Operator):
         prepend_comment_to_file(output_filename, header_str)
 
 
-class SaveMeshes(bpy.types.Operator):
-    bl_idname = "ambf.add_save_meshes"
+class AMBF_OT_save_meshes(bpy.types.Operator):
+    bl_idname = "ambf.save_meshes"
     bl_label = "Save Meshes"
     bl_description = "This saves the meshes in base folder specifed in the field above. Two folders" \
                      " are created in the base folder named, \"high_res\" and \"low_res\" to store the" \
@@ -1097,7 +1097,7 @@ class SaveMeshes(bpy.types.Operator):
         self.reset_meshes_to_original_position(mesh_name_mat_list)
 
 
-class GenerateLowResMeshModifiers(bpy.types.Operator):
+class AMBF_OT_generate_low_res_mesh_modifiers(bpy.types.Operator):
     bl_idname = "ambf.generate_low_res_mesh_modifiers"
     bl_label = "Generate Low-Res Meshes"
     bl_description = "This creates the low-res modifiers for higher speed collision computation" \
@@ -1106,7 +1106,7 @@ class GenerateLowResMeshModifiers(bpy.types.Operator):
 
     def execute(self, context):
         # First off, remove any existing Modifiers:
-        bpy.ops.ambf.remove_modifiers()
+        bpy.ops.ambf.remove_low_res_mesh_modifiers()
 
         # Now deselect all objects
         for obj in bpy.data.objects:
@@ -1126,7 +1126,7 @@ class GenerateLowResMeshModifiers(bpy.types.Operator):
         return {'FINISHED'}
 
 
-class CreateRedundantJoint(bpy.types.Operator):
+class AMBF_OT_create_detached_joint(bpy.types.Operator):
     bl_idname = "ambf.create_detached_joint"
     bl_label = "Create Detached Joint"
     bl_description = "This creates an empty object that can be used to create closed loop mechanisms. Make" \
@@ -1140,8 +1140,8 @@ class CreateRedundantJoint(bpy.types.Operator):
         return {'FINISHED'}
 
 
-class RemoveModifiers(bpy.types.Operator):
-    bl_idname = "ambf.remove_modifiers"
+class AMBF_OT_remove_low_res_mesh_modifiers(bpy.types.Operator):
+    bl_idname = "ambf.remove_low_res_mesh_modifiers"
     bl_label = "Remove All Modifiers"
     bl_description = "This removes all the mesh modifiers generated for meshes in the current scene"
 
@@ -1152,8 +1152,8 @@ class RemoveModifiers(bpy.types.Operator):
         return {'FINISHED'}
 
 
-class ToggleModifiersVisibility(bpy.types.Operator):
-    bl_idname = "ambf.toggle_modifiers_visibility"
+class AMBF_OT_toggle_low_res_mesh_modifiers_visibility(bpy.types.Operator):
+    bl_idname = "ambf.toggle_low_res_mesh_modifiers_visibility"
     bl_label = "Toggle Modifiers Visibility"
     bl_description = "This hides all the mesh modifiers generated for meshes in the current scene"
 
@@ -1164,7 +1164,7 @@ class ToggleModifiersVisibility(bpy.types.Operator):
         return {'FINISHED'}
 
 
-class RemoveObjectsNamespaces(bpy.types.Operator):
+class AMBF_OT_remove_object_namespaces(bpy.types.Operator):
     bl_idname = "ambf.remove_object_namespaces"
     bl_label = "Remove Object Namespaces"
     bl_description = "This removes any current object namespaces"
@@ -1175,9 +1175,9 @@ class RemoveObjectsNamespaces(bpy.types.Operator):
         return {'FINISHED'}
 
 
-class LoadAMBF(bpy.types.Operator):
-    bl_idname = "ambf.load_ambf_yaml_config"
-    bl_label = "Load AMBF YAML Config"
+class AMBF_OT_load_ambf_file(bpy.types.Operator):
+    bl_idname = "ambf.load_ambf_file"
+    bl_label = "Load AMBF Description File (ADF)"
     bl_description = "This loads an AMBF from the specified config file"
 
     def __init__(self):
@@ -1873,10 +1873,10 @@ class LoadAMBF(bpy.types.Operator):
         return {'FINISHED'}
 
 
-class CreateAMBFPanel(bpy.types.Panel):
+class AMBF_PT_create_ambf(bpy.types.Panel):
     """Creates a Panel in the Tool Shelf"""
     bl_label = "AF FILE CREATION"
-    bl_idname = "OBJECT_PT_ambf_yaml"
+    bl_idname = "ambf.create_ambf"
     bl_space_type = 'VIEW_3D'
     bl_region_type = 'TOOLS'
     bl_category = "AMBF"
@@ -1959,7 +1959,7 @@ class CreateAMBFPanel(bpy.types.Panel):
         box = layout.box()
         row = box.row()
         # Panel Label
-        row.label(text="Step 1: GENERATE LOW-RES COLLISION MESH MODIFIERS")
+        row.label(text="Step 1: GENERATE LOW-RES MESH MODIFIERS FOR COLLISION")
 
         # Mesh Reduction Ratio Properties
         row = box.row(align=True)
@@ -1991,13 +1991,13 @@ class CreateAMBFPanel(bpy.types.Panel):
         # Meshes Save Button
         col = box.column()
         col.alignment = 'CENTER'
-        col.operator("ambf.add_save_meshes")
+        col.operator("ambf.save_meshes")
 
         row = box.row()
-        row.label(text="Step 3: GENERATE AMBF CONFIG")
+        row.label(text="Step 3: GENERATE ADF")
 
         row = box.row()
-        row.label(text="Step 3a: AMBF CONFIG PATH")
+        row.label(text="Step 3a: ADF PATH")
         # Config File Save Location
         col = box.column()
         col.prop(context.scene, 'ambf_yaml_conf_path')
@@ -2007,7 +2007,7 @@ class CreateAMBFPanel(bpy.types.Panel):
         col.prop(context.scene, 'ambf_namespace')
         # Config File Save Button
         row = box.row()
-        row.label(text="Step 3a: SAVE AMBF CONFIG")
+        row.label(text="Step 3a: SAVE ADF")
 
         # Ignore Inter Collision Button
         col = box.column()
@@ -2016,7 +2016,7 @@ class CreateAMBFPanel(bpy.types.Panel):
 
         col = box.column()
         col.alignment = 'CENTER'
-        col.operator("ambf.add_create_ambf_config")
+        col.operator("ambf.add_generate_ambf_file")
 
         box = layout.box()
         row = box.row()
@@ -2036,12 +2036,12 @@ class CreateAMBFPanel(bpy.types.Panel):
         # Add Optional Button to Remove All Modifiers
         col = box.column()
         col.alignment = 'CENTER'
-        col.operator("ambf.remove_modifiers")
+        col.operator("ambf.remove_low_res_mesh_modifiers")
 
         # Add Optional Button to Toggle the Visibility of Low-Res Modifiers
         col = box.column()
         col.alignment = 'CENTER'
-        col.operator("ambf.toggle_modifiers_visibility")
+        col.operator("ambf.toggle_low_res_mesh_modifiers_visibility")
 
         box = layout.box()
         row = box.row()
@@ -2065,13 +2065,13 @@ class CreateAMBFPanel(bpy.types.Panel):
         
         col = box.column()
         col.alignment = 'CENTER'
-        col.operator("ambf.load_ambf_yaml_config")
+        col.operator("ambf.load_ambf_file")
         
 
-class AddRigidBodyPropsPanel(bpy.types.Panel):
+class AMBF_PT_rigid_body_props(bpy.types.Panel):
     """Add Rigid Body Properties"""
     bl_label = "AMBF RIGID BODY ADDITIONAL PROPERTIES"
-    bl_idname = "OBJECT_PT_ambf_rigid_body_props"
+    bl_idname = "ambf.rigid_body_props"
     bl_space_type = 'PROPERTIES'
     bl_region_type = 'WINDOW'
     bl_context= "physics"
@@ -2126,15 +2126,15 @@ class AddRigidBodyPropsPanel(bpy.types.Panel):
         row.prop(context.object, 'ambf_angular_controller_d_gain')
         
         
-class AddJointPropsPanel(bpy.types.Panel):
+class AMBF_PT_joint_props(bpy.types.Panel):
     """Add Rigid Body Properties"""
     bl_label = "AMBF JOINT ADDITIONAL PROPERTIES"
-    bl_idname = "OBJECT_PT_ambf_joint_props"
+    bl_idname = "ambf.joint_props"
     bl_space_type = 'PROPERTIES'
     bl_region_type = 'WINDOW'
     bl_context= "physics"
-    
-    
+
+
     bpy.types.Object.ambf_enable_joint_props = bpy.props.BoolProperty(name="Enable", default=False)
     bpy.types.Object.ambf_joint_controller_p_gain = bpy.props.FloatProperty(name="Proportional Gain (P)", default=500, min=0)
     bpy.types.Object.ambf_joint_controller_d_gain = bpy.props.FloatProperty(name="Damping Gain (D)", default=5, min=0)
@@ -2170,33 +2170,31 @@ class AddJointPropsPanel(bpy.types.Panel):
         row.prop(context.object, 'ambf_joint_controller_d_gain')
 
 
+custom_classes = (AMBF_OT_toggle_low_res_mesh_modifiers_visibility,
+                  AMBF_OT_remove_low_res_mesh_modifiers,
+                  AMBF_OT_generate_low_res_mesh_modifiers,
+                  AMBF_OT_generate_ambf_file,
+                  AMBF_OT_save_meshes,
+                  AMBF_OT_load_ambf_file,
+                  AMBF_PT_create_ambf,
+                  AMBF_PT_rigid_body_props,
+                  AMBF_PT_joint_props,
+                  AMBF_OT_create_detached_joint,
+                  AMBF_OT_remove_object_namespaces)
+
+
 def register():
-    bpy.utils.register_class(ToggleModifiersVisibility)
-    bpy.utils.register_class(RemoveModifiers)
-    bpy.utils.register_class(GenerateLowResMeshModifiers)
-    bpy.utils.register_class(GenerateAMBF)
-    bpy.utils.register_class(SaveMeshes)
-    bpy.utils.register_class(LoadAMBF)
-    bpy.utils.register_class(CreateAMBFPanel)
-    bpy.utils.register_class(AddRigidBodyPropsPanel)
-    bpy.utils.register_class(AddJointPropsPanel)
-    bpy.utils.register_class(CreateRedundantJoint)
-    bpy.utils.register_class(RemoveObjectsNamespaces)
+    from bpy.utils import register_class
+    for cls in custom_classes:
+        register_class(cls)
 
 
 def unregister():
-    bpy.utils.unregister_class(ToggleModifiersVisibility)
-    bpy.utils.unregister_class(RemoveModifiers)
-    bpy.utils.unregister_class(GenerateLowResMeshModifiers)
-    bpy.utils.unregister_class(GenerateAMBF)
-    bpy.utils.unregister_class(SaveMeshes)
-    bpy.utils.unregister_class(LoadAMBF)
-    bpy.utils.unregister_class(CreateAMBFPanel)
-    bpy.utils.unregister_class(AddRigidBodyPropsPanel)
-    bpy.utils.unregister_class(AddJointPropsPanel)
-    bpy.utils.unregister_class(CreateRedundantJoint)
-    bpy.utils.unregister_class(RemoveObjectsNamespaces)
+    from bpy.utils import unregister_class
+    for cls in reversed(custom_classes):
+        unregister_class(cls)
 
 
 if __name__ == "__main__":
     register()
+    #unregister()
