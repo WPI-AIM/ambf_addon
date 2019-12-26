@@ -2170,26 +2170,25 @@ class AMBF_PT_joint_props(bpy.types.Panel):
         row.prop(context.object, 'ambf_joint_controller_d_gain')
 
 
-class AMBF_OT_ambf_enable(bpy.types.Operator):
+class AMBF_OT_ambf_rigid_body_activate(bpy.types.Operator):
     """Add Rigid Body Properties"""
-    bl_label = "AMBF ENABLE"
-    bl_idname = "ambf.ambf_enable"
+    bl_label = "AMBF RIGID BODY ACTIVATE"
+    bl_idname = "ambf.ambf_rigid_body_activate"
     
     def execute(self, context):
-        print('ENABLED:', context.object.ambf_enabled)
-        context.object.ambf_enabled = not context.object.ambf_enabled
+        context.object.ambf_rigid_body_enable = not context.object.ambf_rigid_body_enable
         return {'FINISHED'}
     
         
-class AMBF_PT_random_props(bpy.types.Panel):
+class AMBF_PT_ambf_rigid_body(bpy.types.Panel):
     """Add Rigid Body Properties"""
-    bl_label = "AMBF RANDOM PROPERTIES"
-    bl_idname = "ambf.random_props"
+    bl_label = "AMBF RIGID BODY PROPERTIES"
+    bl_idname = "ambf.ambf_rigid_body"
     bl_space_type = 'PROPERTIES'
     bl_region_type = 'WINDOW'
     bl_context= "physics"
     
-    bpy.types.Object.ambf_enabled = bpy.props.BoolProperty(name="AMBF ENABLE", default=False)
+    bpy.types.Object.ambf_rigid_body_enable = bpy.props.BoolProperty(name="Enable AMBF Rigid Body", default=False)
     
     bpy.types.Object.ambf_rigid_body_is_static = bpy.props.BoolProperty \
     (
@@ -2198,7 +2197,7 @@ class AMBF_PT_random_props(bpy.types.Panel):
         description="Is this object dynamic or static (mass = 0.0 Kg)"
     )
     
-    bpy.context.object['ambf_rigid_body_active_type'] = 0
+    bpy.context.object['ambf_rigid_body_is_static'] = 0
     
     bpy.types.Object.ambf_rigid_body_collision_shape = bpy.props.EnumProperty \
     (
@@ -2239,6 +2238,24 @@ class AMBF_PT_random_props(bpy.types.Panel):
         subtype='LAYER'
     )
     
+    bpy.types.Object.ambf_rigid_body_linear_inertial_offset = bpy.props.FloatVectorProperty \
+    (
+        name='Linear Inertial Offset',
+        default=(0.0, 0.0, 0.0),
+        options={'PROPORTIONAL'},
+        subtype='XYZ',
+        min=0.0
+    )
+    
+    bpy.types.Object.ambf_rigid_body_angular_inertial_offset = bpy.props.FloatVectorProperty \
+    (
+        name='Angular Inertial Offset',
+        default=(0.0, 0.0, 0.0),
+        options={'PROPORTIONAL'},
+        subtype='EULER',
+        min=0.0
+    )
+    
     bpy.types.Object.ambf_rigid_body_enable_controllers = bpy.props.BoolProperty(name="Enable Controllers", default=False)
     
     bpy.types.Object.ambf_rigid_body_linear_controller_p_gain = bpy.props.FloatProperty(name="Proportional Gain (P)", default=500, min=0)
@@ -2264,9 +2281,9 @@ class AMBF_PT_random_props(bpy.types.Panel):
         col = layout.row()
         col.alignment = 'EXPAND'
         col.scale_y = 2
-        col.operator('ambf.ambf_enable', text='AMBF Rigid Body', icon='RNA_ADD')
+        col.operator('ambf.ambf_rigid_body_activate', text='Enable AMBF Rigid Body', icon='RNA_ADD')
         
-        if context.object.ambf_enabled:
+        if context.object.ambf_rigid_body_enable:
             
             row = layout.row()
             col = row.split(percentage=0.5)
@@ -2315,32 +2332,144 @@ class AMBF_PT_random_props(bpy.types.Panel):
             row.prop(context.object, 'ambf_rigid_body_collision_groups', toggle=True)
             
             col = layout.column()
-        col.prop(context.object, 'ambf_rigid_body_enable_controllers')
+            col = col.split(percentage=0.5)
+            col.alignment = 'EXPAND'
+            col.prop(context.object, 'ambf_rigid_body_linear_inertial_offset')
+            
+            col = col.column()
+            col.enabled = False
+            col.alignment = 'EXPAND'
+            col.prop(context.object, 'ambf_rigid_body_angular_inertial_offset')
+            
+            # Rigid Body Controller Properties
+            col = layout.column()
+            col.prop(context.object, 'ambf_rigid_body_enable_controllers')
         
-        col = layout.column()
-        col.alignment = 'CENTER'
-        col.enabled = context.object.ambf_rigid_body_enable_controllers
-        col.label(text="BODY CONTROLLER GAINS")
+            col = layout.column()
+            col.alignment = 'CENTER'
+            col.enabled = context.object.ambf_rigid_body_enable_controllers
+            col.label(text="BODY CONTROLLER GAINS")
         
-        col = col.column()
-        col.alignment = 'CENTER'
-        col.label(text="LINEAR GAINS:")
+            col = col.column()
+            col.alignment = 'CENTER'
+            col.label(text="LINEAR GAINS:")
         
-        row = col.row()
-        row.prop(context.object, 'ambf_rigid_body_linear_controller_p_gain')
+            row = col.row()
+            row.prop(context.object, 'ambf_rigid_body_linear_controller_p_gain')
         
-        row = row.row()
-        row.prop(context.object, 'ambf_rigid_body_linear_controller_d_gain')
+            row = row.row()
+            row.prop(context.object, 'ambf_rigid_body_linear_controller_d_gain')
         
-        col = col.column()
-        col.alignment = 'CENTER'
-        col.label(text="ANGULAR GAINS")
+            col = col.column()
+            col.alignment = 'CENTER'
+            col.label(text="ANGULAR GAINS")
         
-        row = col.row()
-        row.prop(context.object, 'ambf_rigid_body_angular_controller_p_gain')
+            row = col.row()
+            row.prop(context.object, 'ambf_rigid_body_angular_controller_p_gain')
         
-        row = row.row()
-        row.prop(context.object, 'ambf_rigid_body_angular_controller_d_gain')
+            row = row.row()
+            row.prop(context.object, 'ambf_rigid_body_angular_controller_d_gain')
+            
+            
+class AMBF_OT_ambf_constraint_activate(bpy.types.Operator):
+    """Add Rigid Body Properties"""
+    bl_label = "AMBF CONSTRAINT ACTIVATE"
+    bl_idname = "ambf.ambf_constraint_activate"
+    
+    def execute(self, context):
+        context.object.ambf_constraint_enable = not context.object.ambf_constraint_enable
+        return {'FINISHED'}
+            
+
+class AMBF_PT_ambf_constraint(bpy.types.Panel):
+    """Add Rigid Body Properties"""
+    bl_label = "AMBF CONSTRAINT PROPERTIES"
+    bl_idname = "ambf.ambf_constraint"
+    bl_space_type = 'PROPERTIES'
+    bl_region_type = 'WINDOW'
+    bl_context= "physics"
+    
+    bpy.types.Object.ambf_constraint_enable = bpy.props.BoolProperty(name="Enable", default=False)
+    
+    bpy.types.Object.ambf_constraint_parent = bpy.props.PointerProperty(name="Parent", type=bpy.types.Object)
+    
+    bpy.types.Object.ambf_constraint_child = bpy.props.PointerProperty(name="Child", type=bpy.types.Object)
+    
+    bpy.types.Object.ambf_constraint_name = bpy.props.StringProperty(name="Constraint Name", default="")
+    
+    bpy.types.Object.ambf_constraint_enable_controller = bpy.props.BoolProperty(name="Enable Controller", default=False)
+    
+    bpy.types.Object.ambf_constraint_controller_p_gain = bpy.props.FloatProperty(name="Proportional Gain (P)", default=500, min=0)
+    
+    bpy.types.Object.ambf_constraint_controller_d_gain = bpy.props.FloatProperty(name="Damping Gain (D)", default=5, min=0)
+    
+    bpy.types.Object.ambf_constraint_damping = bpy.props.FloatProperty(name="Joint Damping", default=0.0, min=0.0)
+    
+    bpy.types.Object.ambf_constraint_type = bpy.props.EnumProperty \
+    (
+        items=[
+            ('Fixed', 'Fixed', '', '', 0),
+            ('Revolute', 'Revolute', '', '', 1),
+            ('Prismatic', 'Prismatic', '', '', 2),
+            ('Linear Spring', 'Linear Spring', '', '', 3),
+            ('Angular Spring', 'Angular Spring', '', '', 4),
+            ('Universal', 'Universal', '', '', 5),
+            ],
+        name="Type"
+    )
+    
+    bpy.context.object['ambf_constraint_type'] = 0
+    
+    @classmethod
+    def poll(self, context):
+        active = False
+        if context.active_object: # Check if an object is active
+            if context.active_object.type in ['EMPTY']:
+                active = True             
+        return active
+    
+    def draw(self, context):
+        
+        layout = self.layout
+        
+        row = layout.row()
+        row.alignment = 'EXPAND'
+        row.operator('ambf.ambf_constraint_activate')
+        row.scale_y = 2
+        
+        if context.object.ambf_constraint_enable:
+            
+            col = layout.column()
+            col.alignment = 'CENTER'
+            col.prop(context.object, 'ambf_constraint_name')
+            
+            col = layout.column()
+            col.prop(context.object, 'ambf_constraint_type')
+            
+            col = layout.column()
+            col.prop_search(context.object, "ambf_constraint_parent", context.scene, "objects")
+            
+            col = layout.column()
+            col.prop_search(context.object, "ambf_constraint_child", context.scene, "objects")
+ 
+            col = layout.column()
+            col.alignment = 'CENTER'
+            col.prop(context.object, 'ambf_constraint_enable_controller')
+ 
+            col = layout.column()
+            col.alignment = 'CENTER'
+            col.enabled = context.object.ambf_constraint_enable_controller
+            col.prop(context.object, 'ambf_constraint_damping')
+        
+            col.label(text="JOINT CONTROLLER GAINS")
+        
+            row = col.row()
+            row.prop(context.object, 'ambf_constraint_controller_p_gain')
+        
+            row = row.row()
+            row.prop(context.object, 'ambf_constraint_controller_d_gain')
+        
+
 
 
 custom_classes = (AMBF_OT_toggle_low_res_mesh_modifiers_visibility,
@@ -2350,12 +2479,12 @@ custom_classes = (AMBF_OT_toggle_low_res_mesh_modifiers_visibility,
                   AMBF_OT_save_meshes,
                   AMBF_OT_load_ambf_file,
                   AMBF_PT_create_ambf,
-                  AMBF_PT_rigid_body_props,
-                  AMBF_PT_joint_props,
                   AMBF_OT_create_detached_joint,
                   AMBF_OT_remove_object_namespaces,
-                  AMBF_OT_ambf_enable,
-                  AMBF_PT_random_props)
+                  AMBF_OT_ambf_rigid_body_activate,
+                  AMBF_PT_ambf_rigid_body,
+                  AMBF_OT_ambf_constraint_activate,
+                  AMBF_PT_ambf_constraint)
 
 
 def register():
