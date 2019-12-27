@@ -721,7 +721,6 @@ class AMBF_OT_generate_ambf_file(bpy.types.Operator):
                         else:
                             if 'controller' in joint_data:
                                 del joint_data['controller']
-                    
 
     # Get the joints axis as a vector
     def get_joint_axis(self, constraint):
@@ -1882,24 +1881,30 @@ class AMBF_PT_create_ambf(bpy.types.Panel):
     bl_category = "AMBF"
 
     bpy.types.Scene.ambf_yaml_conf_path = bpy.props.StringProperty \
-      (
-        name="Config (Save To)",
-        default="",
-        description="Define the root path of the project",
-        subtype='FILE_PATH'
-      )
+        (
+            name="Config (Save To)",
+            default="",
+            description="Define the root path of the project",
+            subtype='FILE_PATH'
+        )
 
     bpy.types.Scene.ambf_yaml_mesh_path = bpy.props.StringProperty \
-      (
-        name="Meshes (Save To)",
-        default="",
-        description = "Define the path to save to mesh files",
-        subtype='DIR_PATH'
-      )
+        (
+            name="Meshes (Save To)",
+            default="",
+            description = "Define the path to save to mesh files",
+            subtype='DIR_PATH'
+        )
 
     bpy.types.Scene.mesh_output_type = bpy.props.EnumProperty \
         (
-            items=[('STL', 'STL', 'STL'),('OBJ', 'OBJ', 'OBJ'),('3DS', '3DS', '3DS'),('PLY', 'PLY', 'PLY')],
+            items=
+            [
+                ('STL', 'STL', 'STL'),
+                ('OBJ', 'OBJ', 'OBJ'),
+                ('3DS', '3DS', '3DS'),
+                ('PLY', 'PLY', 'PLY')
+            ],
             name="Mesh Type",
             default='STL'
         )
@@ -1930,7 +1935,7 @@ class AMBF_PT_create_ambf(bpy.types.Panel):
         )
 
     bpy.types.Scene.ignore_inter_collision = bpy.props.BoolProperty \
-            (
+        (
             name="Ignore Inter-Collision",
             default=True,
             description="Ignore collision between all the bodies in the scene (default = True)",
@@ -2103,8 +2108,7 @@ class AMBF_PT_rigid_body_props(bpy.types.Panel):
         col.alignment = 'CENTER'
         col.enabled = context.object.ambf_enable_body_props
         col.label(text="BODY CONTROLLER GAINS")
-        
-        
+
         col = col.column()
         col.alignment = 'CENTER'
         col.label(text="LINEAR GAINS:")
@@ -2133,7 +2137,6 @@ class AMBF_PT_joint_props(bpy.types.Panel):
     bl_space_type = 'PROPERTIES'
     bl_region_type = 'WINDOW'
     bl_context= "physics"
-
 
     bpy.types.Object.ambf_enable_joint_props = bpy.props.BoolProperty(name="Enable", default=False)
     bpy.types.Object.ambf_joint_controller_p_gain = bpy.props.FloatProperty(name="Proportional Gain (P)", default=500, min=0)
@@ -2196,30 +2199,6 @@ class AMBF_PT_ambf_rigid_body(bpy.types.Panel):
     
     bpy.types.Object.ambf_rigid_body_enable = bpy.props.BoolProperty(name="Enable AMBF Rigid Body", default=False)
     
-    bpy.types.Object.ambf_rigid_body_is_static = bpy.props.BoolProperty \
-    (
-        name="Static",
-        default=False,
-        description="Is this object dynamic or static (mass = 0.0 Kg)"
-    )
-    
-    bpy.context.object['ambf_rigid_body_is_static'] = 0
-    
-    bpy.types.Object.ambf_rigid_body_collision_shape = bpy.props.EnumProperty \
-    (
-        items=
-        [
-            ('CONVEX_HULL', 'Convex Hull', '', 'MESH_ICOSPHERE', 0),
-            ('CONE', 'Cone', '', 'MESH_CONE', 1),
-            ('CYLINDER', 'Cylinder', '', 'MESH_CYLINDER', 2),
-            ('CAPSULE', 'Capsule', '', 'MESH_CAPSULE', 3),
-            ('SPHERE', 'Sphere', '', 'MESH_UVSPHERE', 4),
-            ('BOX', 'Box', '', 'MESH_CUBE', 5),
-        ],
-        name="Collision Shape",
-        default = "CONVEX_HULL"
-    )
-    
     bpy.types.Object.ambf_rigid_body_mass = bpy.props.FloatProperty(name="mass", default=1.0, min=0.001)
     
     bpy.types.Object.ambf_rigid_body_friction = bpy.props.FloatProperty(name="Friction", default=0.5, min=0.0, max=1.0)
@@ -2233,55 +2212,77 @@ class AMBF_PT_ambf_rigid_body(bpy.types.Panel):
     bpy.types.Object.ambf_rigid_body_linear_damping = bpy.props.FloatProperty(name="Linear Damping", default=0.5, min=0.0, max=1.0)
     
     bpy.types.Object.ambf_rigid_body_angular_damping = bpy.props.FloatProperty(name="Angular Damping", default=0.1, min=0.0, max=1.0)
+
+    bpy.types.Object.ambf_rigid_body_enable_controllers = bpy.props.BoolProperty(name="Enable Controllers", default=False)
+
+    bpy.types.Object.ambf_rigid_body_linear_controller_p_gain = bpy.props.FloatProperty(name="Proportional Gain (P)", default=500, min=0)
+
+    bpy.types.Object.ambf_rigid_body_linear_controller_d_gain = bpy.props.FloatProperty(name="Damping Gain (D)", default=5, min=0)
+
+    bpy.types.Object.ambf_rigid_body_angular_controller_p_gain = bpy.props.FloatProperty(name="Proportional Gain (P)", default=50, min=0)
+
+    bpy.types.Object.ambf_rigid_body_angular_controller_d_gain = bpy.props.FloatProperty(name="Damping Gain (D)", default=0.5, min=0)
+
+    bpy.types.Object.ambf_rigid_body_is_static = bpy.props.BoolProperty \
+        (
+            name="Static",
+            default=False,
+            description="Is this object dynamic or static (mass = 0.0 Kg)"
+        )
+
+    bpy.types.Object.ambf_rigid_body_collision_shape = bpy.props.EnumProperty \
+        (
+            items=
+            [
+                ('CONVEX_HULL', 'Convex Hull', '', 'MESH_ICOSPHERE', 0),
+                ('CONE', 'Cone', '', 'MESH_CONE', 1),
+                ('CYLINDER', 'Cylinder', '', 'MESH_CYLINDER', 2),
+                ('CAPSULE', 'Capsule', '', 'MESH_CAPSULE', 3),
+                ('SPHERE', 'Sphere', '', 'MESH_UVSPHERE', 4),
+                ('BOX', 'Box', '', 'MESH_CUBE', 5),
+            ],
+            name="Collision Shape",
+            default="CONVEX_HULL"
+        )
     
     bpy.types.Object.ambf_rigid_body_collision_groups = bpy.props.BoolVectorProperty \
-    (
-        name='Collision Groups',
-        size=20,
-        default=(0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0),
-        options={'PROPORTIONAL'},
-        subtype='LAYER'
-    )
+        (
+            name='Collision Groups',
+            size=20,
+            default=(0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0),
+            options={'PROPORTIONAL'},
+            subtype='LAYER'
+        )
     
     bpy.types.Object.ambf_rigid_body_linear_inertial_offset = bpy.props.FloatVectorProperty \
-    (
-        name='Linear Inertial Offset',
-        default=(0.0, 0.0, 0.0),
-        options={'PROPORTIONAL'},
-        subtype='XYZ',
-        min=0.0
-    )
+        (
+            name='Linear Inertial Offset',
+            default=(0.0, 0.0, 0.0),
+            options={'PROPORTIONAL'},
+            subtype='XYZ',
+            min=0.0
+        )
     
     bpy.types.Object.ambf_rigid_body_angular_inertial_offset = bpy.props.FloatVectorProperty \
-    (
-        name='Angular Inertial Offset',
-        default=(0.0, 0.0, 0.0),
-        options={'PROPORTIONAL'},
-        subtype='EULER',
-        min=0.0
-    )
-    
-    bpy.types.Object.ambf_rigid_body_enable_controllers = bpy.props.BoolProperty(name="Enable Controllers", default=False)
-    
-    bpy.types.Object.ambf_rigid_body_linear_controller_p_gain = bpy.props.FloatProperty(name="Proportional Gain (P)", default=500, min=0)
-    
-    bpy.types.Object.ambf_rigid_body_linear_controller_d_gain = bpy.props.FloatProperty(name="Damping Gain (D)", default=5, min=0)
-    
-    bpy.types.Object.ambf_rigid_body_angular_controller_p_gain = bpy.props.FloatProperty(name="Proportional Gain (P)", default=50, min=0)
-    
-    bpy.types.Object.ambf_rigid_body_angular_controller_d_gain = bpy.props.FloatProperty(name="Damping Gain (D)", default=0.5, min=0)
+        (
+            name='Angular Inertial Offset',
+            default=(0.0, 0.0, 0.0),
+            options={'PROPORTIONAL'},
+            subtype='EULER',
+            min=0.0
+        )
     
     bpy.types.Object.ambf_object_type = bpy.props.EnumProperty \
-    (
-        name="Object Type",
-        items=
-        [
-            ('NONE', 'None', '', '', 0),
-            ('RIGID_BODY', 'RIGID_BODY', '', '', 1),
-            ('CONSTRAINT', 'CONSTRAINT', '', '', 2),
-        ],
-        default='NONE'
-    )
+        (
+            name="Object Type",
+            items=
+            [
+                ('NONE', 'None', '', '', 0),
+                ('RIGID_BODY', 'RIGID_BODY', '', '', 1),
+                ('CONSTRAINT', 'CONSTRAINT', '', '', 2),
+            ],
+            default='NONE'
+        )
     
     @classmethod
     def poll(self, context):
@@ -2369,10 +2370,10 @@ class AMBF_PT_ambf_rigid_body(bpy.types.Panel):
             col = layout.column()
             col.enabled = context.object.ambf_rigid_body_enable_controllers
             row = col.row()
-            row.prop(context.object, 'ambf_rigid_body_linear_controller_p_gain', text='P:')
+            row.prop(context.object, 'ambf_rigid_body_linear_controller_p_gain', text='P')
         
             row = row.row()
-            row.prop(context.object, 'ambf_rigid_body_linear_controller_d_gain', text='D:')
+            row.prop(context.object, 'ambf_rigid_body_linear_controller_d_gain', text='D')
             
             col = layout.column()
             col.label('Angular Gains')
@@ -2380,10 +2381,10 @@ class AMBF_PT_ambf_rigid_body(bpy.types.Panel):
             col = layout.column()
             col.enabled = context.object.ambf_rigid_body_enable_controllers
             row = col.row()
-            row.prop(context.object, 'ambf_rigid_body_angular_controller_p_gain', text='P:')
+            row.prop(context.object, 'ambf_rigid_body_angular_controller_p_gain', text='P')
         
             row = row.row()
-            row.prop(context.object, 'ambf_rigid_body_angular_controller_d_gain', text='D:')
+            row.prop(context.object, 'ambf_rigid_body_angular_controller_d_gain', text='D')
             
             
 class AMBF_OT_ambf_constraint_activate(bpy.types.Operator):
@@ -2426,38 +2427,39 @@ class AMBF_PT_ambf_constraint(bpy.types.Panel):
     bpy.types.Object.ambf_constraint_controller_d_gain = bpy.props.FloatProperty(name="Damping Gain (D)", default=5, min=0)
     
     bpy.types.Object.ambf_constraint_damping = bpy.props.FloatProperty(name="Joint Damping", default=0.0, min=0.0)
-    
-    bpy.types.Object.ambf_constraint_axes = bpy.props.EnumProperty \
-    (
-        name='Axis',
-        items=
-        [
-            ('X', 'X', '', '', 0),
-            ('Y', 'Y', '', '', 1),
-            ('Z', 'Z', '', '', 2),
-        ],
-        default='Z'
-    )
-    
+
     bpy.types.Object.ambf_constraint_limits_enable = bpy.props.BoolProperty(name="Enable Limits", default=True)
-    
+
     bpy.types.Object.ambf_constraint_limits_lower = bpy.props.FloatProperty(name="Low", default=-60, min=-359, max=359)
-    
+
     bpy.types.Object.ambf_constraint_limits_higher = bpy.props.FloatProperty(name="High", default=60, min=-359, max=359)
     
-    bpy.types.Object.ambf_constraint_type = bpy.props.EnumProperty \
-    (
-        items=[
-            ('FIXED', 'Fixed', '', '', 0),
-            ('REVOLUTE', 'Revolute', '', '', 1),
-            ('PRISMATIC', 'Prismatic', '', '', 2),
-            ('LINEAR_SPRING', 'Linear Spring', '', '', 3),
-            ('ANGULAR_SPRING', 'Angular Spring', '', '', 4),
-            ('UNIVERSAL', 'Universal', '', '', 5),
+    bpy.types.Object.ambf_constraint_axes = bpy.props.EnumProperty \
+        (
+            name='Axis',
+            items=
+            [
+                ('X', 'X', '', '', 0),
+                ('Y', 'Y', '', '', 1),
+                ('Z', 'Z', '', '', 2),
             ],
-        name="Type",
-        default='REVOLUTE'
-    )
+            default='Z'
+        )
+    
+    bpy.types.Object.ambf_constraint_type = bpy.props.EnumProperty \
+        (
+            items=
+            [
+                ('FIXED', 'Fixed', '', '', 0),
+                ('REVOLUTE', 'Revolute', '', '', 1),
+                ('PRISMATIC', 'Prismatic', '', '', 2),
+                ('LINEAR_SPRING', 'Linear Spring', '', '', 3),
+                ('ANGULAR_SPRING', 'Angular Spring', '', '', 4),
+                ('UNIVERSAL', 'Universal', '', '', 5),
+            ],
+            name="Type",
+            default='REVOLUTE'
+        )
     
     @classmethod
     def poll(self, context):
@@ -2527,9 +2529,6 @@ class AMBF_PT_ambf_constraint(bpy.types.Panel):
         
                     col = col.column()
                     col.prop(context.object, 'ambf_constraint_controller_d_gain', text='D')
-            
-        
-
 
 
 custom_classes = (AMBF_OT_toggle_low_res_mesh_modifiers_visibility,
