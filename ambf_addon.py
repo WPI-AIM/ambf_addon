@@ -1201,14 +1201,14 @@ class AMBF_OT_load_ambf_file(bpy.types.Operator):
             path = str(ambf_filepath.parent.joinpath(filepath))
             return path
 
-    def load_body(self, body_name):
-        body_data = self._ambf[body_name]
-        # print(body['name'])
+    def load_mesh(self, body_data):
+
+        af_name = body_data['name']
+
         if 'high resolution path' in body_data:
             body_high_res_path = self.get_qualified_path(body_data['high resolution path'])
         else:
             body_high_res_path = self._high_res_path
-        af_name = body_data['name']
         # If body name is world. Check if a world body has already
         # been defined, and if it has been, ignore adding another world body
         if af_name in ['world', 'World', 'WORLD']:
@@ -1219,20 +1219,8 @@ class AMBF_OT_load_ambf_file(bpy.types.Operator):
                         self._body_t_j_c[body_name] = mathutils.Matrix()
                         return
         body_mesh_name = body_data['mesh']
-        body_mass = body_data['mass']
-        self._body_t_j_c[body_name] = mathutils.Matrix()
-
-        body_location_xyz = {'x': 0, 'y': 0, 'z': 0}
-        body_location_rpy = {'r': 0, 'p': 0, 'y': 0}
-
-        if 'location' in body_data:
-            if 'position' in body_data['location']:
-                body_location_xyz = body_data['location']['position']
-            if 'orientation' in body_data['location']:
-                body_location_rpy = body_data['location']['orientation']
 
         mesh_filepath = Path(os.path.join(body_high_res_path, body_mesh_name))
-        _is_empty_object = False
 
         if mesh_filepath.suffix in ['.stl', '.STL']:
             bpy.ops.import_mesh.stl(filepath=str(mesh_filepath.resolve()))
@@ -1259,7 +1247,7 @@ class AMBF_OT_load_ambf_file(bpy.types.Operator):
             if len(so) > 1:
                 self._context.scene.objects.active = so[0]
                 bpy.ops.object.join()
-                self._context.active_object.name = body_data['name']
+                self._context.active_object.name = af_name
                 obj_handle = self._context.active_object
 
                 # The lines below are essential in joint the multiple meshes
@@ -1287,55 +1275,50 @@ class AMBF_OT_load_ambf_file(bpy.types.Operator):
 
         elif mesh_filepath.suffix == '':
             bpy.ops.object.empty_add(type='PLAIN_AXES')
-            _is_empty_object = True
 
-        obj_handle = self._context.active_object
+        return self._context.active_object
 
-        bpy.ops.object.transform_apply(scale=True)
+    def load_material(self, body_data, obj_handle):
 
-        if 'namespace' in body_data:
-            _body_namespace = body_data['namespace']
-            obj_handle.name = _body_namespace + af_name
-        else:
-            obj_handle.name = add_namespace_prefix(af_name)
+        af_name = body_data['name']
 
-        self._blender_remapped_body_names[body_name] = obj_handle.name
-        CommonConfig.loaded_body_map[obj_handle] = body_data
+        if 'color rgba' in body_data:
+            mat = bpy.data.materials.new(name=af_name + 'mat')
+            mat.diffuse_color[0] = body_data['color rgba']['r']
+            mat.diffuse_color[1] = body_data['color rgba']['g']
+            mat.diffuse_color[2] = body_data['color rgba']['b']
+            mat.use_transparency = True
+            mat.transparency_method = 'Z_TRANSPARENCY'
+            mat.alpha = body_data['color rgba']['a']
+            obj_handle.data.materials.append(mat)
 
-        if not _is_empty_object:
-            if 'color rgba' in body_data:
-                mat = bpy.data.materials.new(name=body_name + 'mat')
-                mat.diffuse_color[0] = body_data['color rgba']['r']
-                mat.diffuse_color[1] = body_data['color rgba']['g']
-                mat.diffuse_color[2] = body_data['color rgba']['b']
-                mat.use_transparency = True
-                mat.transparency_method = 'Z_TRANSPARENCY'
-                mat.alpha = body_data['color rgba']['a']
-                obj_handle.data.materials.append(mat)
+        elif 'color components' in body_data:
+            mat = bpy.data.materials.new(name=af_name + 'mat')
+            mat.diffuse_color[0] = body_data['color components']['diffuse']['r']
+            mat.diffuse_color[1] = body_data['color components']['diffuse']['g']
+            mat.diffuse_color[2] = body_data['color components']['diffuse']['b']
 
-            elif 'color components' in body_data:
-                mat = bpy.data.materials.new(name=body_name + 'mat')
-                mat.diffuse_color[0] = body_data['color components']['diffuse']['r']
-                mat.diffuse_color[1] = body_data['color components']['diffuse']['g']
-                mat.diffuse_color[2] = body_data['color components']['diffuse']['b']
+            mat.specular_color[0] = body_data['color components']['specular']['r']
+            mat.specular_color[1] = body_data['color components']['specular']['g']
+            mat.specular_color[2] = body_data['color components']['specular']['b']
 
-                mat.specular_color[0] = body_data['color components']['specular']['r']
-                mat.specular_color[1] = body_data['color components']['specular']['g']
-                mat.specular_color[2] = body_data['color components']['specular']['b']
+            mat.ambient = body_data['color components']['ambient']['level']
+            mat.use_transparency = True
+            mat.transparency_method = 'Z_TRANSPARENCY'
+            mat.alpha = body_data['color components']['transparency']
+            obj_handle.data.materials.append(mat)
 
-                mat.ambient = body_data['color components']['ambient']['level']
-                mat.use_transparency = True
-                mat.transparency_method = 'Z_TRANSPARENCY'
-                mat.alpha = body_data['color components']['transparency']
-                obj_handle.data.materials.append(mat)
+    def load_blender_rigid_body(self, body_data, obj_handle):
 
+        if obj_handle.type == 'MESH':
             bpy.ops.rigidbody.object_add()
+            body_mass = body_data['mass']
             if body_mass is 0.0:
                 obj_handle.rigid_body.type = 'PASSIVE'
             else:
                 obj_handle.rigid_body.mass = body_mass
 
-            # Finall add the rigid body data if defined
+            # Finally add the rigid body data if defined
             if 'friction' in body_data:
                 if 'static' in body_data['friction']:
                     obj_handle.rigid_body.friction = body_data['friction']['static']
@@ -1364,16 +1347,37 @@ class AMBF_OT_load_ambf_file(bpy.types.Operator):
                         obj_handle.rigid_body.collision_groups[group] = True
                     else:
                         print('WARNING, Collision Group Outside [0-20]')
-                        
+
             # If Body Controller Defined. Set the P and D gains for linera and angular controller prop fields
             if 'controller' in body_data:
                 obj_handle.ambf_linear_controller_p_gain = body_data['controller']['linear']['P']
                 obj_handle.ambf_linear_controller_d_gain = body_data['controller']['linear']['D']
-                
                 obj_handle.ambf_angular_controller_p_gain = body_data['controller']['angular']['P']
                 obj_handle.ambf_angular_controller_d_gain = body_data['controller']['angular']['D']
-                
                 obj_handle.ambf_enable_body_props = True
+
+    def load_rigid_body_name(self, body_data, obj_handle):
+
+        af_name = body_data['name']
+
+        if 'namespace' in body_data:
+            _body_namespace = body_data['namespace']
+            obj_handle.name = _body_namespace + af_name
+        else:
+            obj_handle.name = add_namespace_prefix(af_name)
+
+    def load_rigid_body_transform(self, body_data, obj_handle):
+
+        bpy.ops.object.transform_apply(scale=True)
+
+        body_location_xyz = {'x': 0, 'y': 0, 'z': 0}
+        body_location_rpy = {'r': 0, 'p': 0, 'y': 0}
+
+        if 'location' in body_data:
+            if 'position' in body_data['location']:
+                body_location_xyz = body_data['location']['position']
+            if 'orientation' in body_data['location']:
+                body_location_rpy = body_data['location']['orientation']
 
         obj_handle.matrix_world.translation[0] = body_location_xyz['x']
         obj_handle.matrix_world.translation[1] = body_location_xyz['y']
@@ -1382,7 +1386,22 @@ class AMBF_OT_load_ambf_file(bpy.types.Operator):
                                      body_location_rpy['p'],
                                      body_location_rpy['y'])
 
-    # print('Remapped Body Names: ', self._blender_remapped_body_names)
+    def load_body(self, body_name):
+        body_data = self._ambf[body_name]
+
+        obj_handle = self.load_mesh(body_data)
+
+        self.load_rigid_body_name(body_data, obj_handle)
+
+        self.load_blender_rigid_body(body_data, obj_handle)
+
+        self.load_rigid_body_transform(body_data, obj_handle)
+
+        self.load_material(body_data, obj_handle)
+
+        self._blender_remapped_body_names[body_name] = obj_handle.name
+        CommonConfig.loaded_body_map[obj_handle] = body_data
+        self._body_t_j_c[body_name] = mathutils.Matrix()
 
     def load_joint(self, joint_name):
         joint_data = self._ambf[joint_name]
