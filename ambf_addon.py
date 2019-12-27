@@ -1180,7 +1180,7 @@ class AMBF_OT_load_ambf_file(bpy.types.Operator):
     bl_description = "This loads an AMBF from the specified config file"
 
     def __init__(self):
-        self._ambf = None
+        self._ambf_data = None
         # A dict of T_c_j frames for each body
         self._body_t_j_c = {}
         self._joint_additional_offset = {}
@@ -1190,6 +1190,7 @@ class AMBF_OT_load_ambf_file(bpy.types.Operator):
         self._high_res_path = ''
         self._low_res_path = ''
         self._context = None
+        self._yaml_filepath = ''
 
     def get_qualified_path(self, path):
         filepath = Path(path)
@@ -1340,7 +1341,7 @@ class AMBF_OT_load_ambf_file(bpy.types.Operator):
 
             if 'collision groups' in body_data:
                 col_groups = body_data['collision groups']
-                # First clear existing collisoin group of 0
+                # First clear existing collision group of 0
                 obj_handle.rigid_body.collision_groups[0] = False
                 for group in col_groups:
                     if 0 <= group < 20:
@@ -1355,6 +1356,54 @@ class AMBF_OT_load_ambf_file(bpy.types.Operator):
                 obj_handle.ambf_angular_controller_p_gain = body_data['controller']['angular']['P']
                 obj_handle.ambf_angular_controller_d_gain = body_data['controller']['angular']['D']
                 obj_handle.ambf_enable_body_props = True
+
+    def load_ambf_rigid_body(self, body_data, obj_handle):
+
+        if obj_handle.type == 'MESH':
+            obj_handle.ambf_rigid_body_enable = True
+            obj_handle.ambf_rigid_body_mass = body_data['mass']
+
+            if body_data['mass'] is 0.0:
+                obj_handle.ambf_rigid_body_is_static = True
+
+            # Finally add the rigid body data if defined
+            if 'friction' in body_data:
+                if 'static' in body_data['friction']:
+                    obj_handle.ambf_rigid_body_friction = body_data['friction']['static']
+
+            if 'damping' in body_data:
+                if 'linear' in body_data['damping']:
+                    obj_handle.ambf_rigid_body_linear_damping = body_data['damping']['linear']
+                if 'angular' in body_data['damping']:
+                    obj_handle.ambf_rigid_body_angular_damping = body_data['damping']['angular']
+
+            if 'restitution' in body_data:
+                obj_handle.ambf_rigid_body_restitution = body_data['restitution']
+
+            if 'collision margin' in body_data:
+                obj_handle.ambf_rigid_body_collision_margin = body_data['collision margin']
+                obj_handle.ambf_rigid_body_enable_collision_margin = True
+
+            if 'collision shape' in body_data:
+                obj_handle.ambf_rigid_body_collision_shape = body_data['collision shape']
+
+            if 'collision groups' in body_data:
+                col_groups = body_data['collision groups']
+                # First clear existing collision group of 0
+                obj_handle.ambf_rigid_body_collision_groups[0] = False
+                for group in col_groups:
+                    if 0 <= group < 20:
+                        obj_handle.ambf_rigid_body_collision_groups[group] = True
+                    else:
+                        print('WARNING, Collision Group Outside [0-20]')
+
+            # If Body Controller Defined. Set the P and D gains for linera and angular controller prop fields
+            if 'controller' in body_data:
+                obj_handle.ambf_rigid_body_linear_controller_p_gain = body_data['controller']['linear']['P']
+                obj_handle.ambf_rigid_body_linear_controller_d_gain = body_data['controller']['linear']['D']
+                obj_handle.ambf_rigid_body_angular_controller_p_gain = body_data['controller']['angular']['P']
+                obj_handle.ambf_rigid_body_angular_controller_d_gain = body_data['controller']['angular']['D']
+                obj_handle.ambf_rigid_body_enable_controllers = True
 
     def load_rigid_body_name(self, body_data, obj_handle):
 
@@ -1387,13 +1436,15 @@ class AMBF_OT_load_ambf_file(bpy.types.Operator):
                                      body_location_rpy['y'])
 
     def load_body(self, body_name):
-        body_data = self._ambf[body_name]
+        body_data = self._ambf_data[body_name]
 
         obj_handle = self.load_mesh(body_data)
 
         self.load_rigid_body_name(body_data, obj_handle)
 
         self.load_blender_rigid_body(body_data, obj_handle)
+
+        self.load_ambf_rigid_body(body_data, obj_handle)
 
         self.load_rigid_body_transform(body_data, obj_handle)
 
@@ -1404,13 +1455,13 @@ class AMBF_OT_load_ambf_file(bpy.types.Operator):
         self._body_t_j_c[body_name] = mathutils.Matrix()
 
     def load_joint(self, joint_name):
-        joint_data = self._ambf[joint_name]
+        joint_data = self._ambf_data[joint_name]
         select_all_objects(False)
         self._context.scene.objects.active = None
         parent_body_name = joint_data['parent']
         child_body_name = joint_data['child']
-        parent_body_data = self._ambf[parent_body_name]
-        child_body_data = self._ambf[child_body_name]
+        parent_body_data = self._ambf_data[parent_body_name]
+        child_body_data = self._ambf_data[child_body_name]
         # Set joint type to blender appropriate name
         joint_type = 'HINGE'
         if 'type' in joint_data:
@@ -1576,8 +1627,8 @@ class AMBF_OT_load_ambf_file(bpy.types.Operator):
                             self._context.object.ambf_joint_controller_d_gain = joint_data["controller"]["D"]
 
     def adjust_body_pivots_and_axes(self):
-        for joint_name in self._ambf['joints']:
-            joint_data = self._ambf[joint_name]
+        for joint_name in self._ambf_data['joints']:
+            joint_data = self._ambf_data[joint_name]
             if 'child pivot' in joint_data:
 
                 if 'redundant' in joint_data:
@@ -1689,13 +1740,13 @@ class AMBF_OT_load_ambf_file(bpy.types.Operator):
             # Finally assign joints and set correct positions
 
     def load_joint_with_adjusted_bodies(self, joint_name):
-        joint_data = self._ambf[joint_name]
+        joint_data = self._ambf_data[joint_name]
         select_all_objects(False)
         self._context.scene.objects.active = None
         parent_body_name = joint_data['parent']
         child_body_name = joint_data['child']
-        parent_body_data = self._ambf[parent_body_name]
-        child_body_data = self._ambf[child_body_name]
+        parent_body_data = self._ambf_data[parent_body_name]
+        child_body_data = self._ambf_data[child_body_name]
          # Set joint type to blender appropriate name
         joint_type = 'HINGE'
         if 'type' in joint_data:
@@ -1855,25 +1906,25 @@ class AMBF_OT_load_ambf_file(bpy.types.Operator):
                         self._context.object.ambf_joint_controller_d_gain = joint_data["controller"]["D"]
 
     def execute(self, context):
-        print('HOWDY PARTNER')
         self._yaml_filepath = str(bpy.path.abspath(context.scene['external_ambf_yaml_filepath']))
         print(self._yaml_filepath)
         yaml_file = open(self._yaml_filepath)
-        self._ambf = yaml.load(yaml_file)
+        self._ambf_data = yaml.load(yaml_file)
         self._context = context
 
-        bodies_list = self._ambf['bodies']
-        joints_list = self._ambf['joints']
+        bodies_list = self._ambf_data['bodies']
+        joints_list = self._ambf_data['joints']
 
-        if 'namespace' in self._ambf:
-            set_global_namespace(context, self._ambf['namespace'])
+        if 'namespace' in self._ambf_data:
+            set_global_namespace(context, self._ambf_data['namespace'])
         else:
             set_global_namespace(context, '/ambf/env/')
 
-        num_bodies = len(bodies_list)
+        # num_bodies = len(bodies_list)
         # print('Number of Bodies Specified = ', num_bodies)
-        self._high_res_path = self.get_qualified_path(self._ambf['high resolution path'])
-        print(self._high_res_path)
+
+        self._high_res_path = self.get_qualified_path(self._ambf_data['high resolution path'])
+        # print(self._high_res_path)
         for body_name in bodies_list:
             self.load_body(body_name)
 
