@@ -2177,6 +2177,12 @@ class AMBF_OT_ambf_rigid_body_activate(bpy.types.Operator):
     
     def execute(self, context):
         context.object.ambf_rigid_body_enable = not context.object.ambf_rigid_body_enable
+        
+        if context.object.ambf_rigid_body_enable:
+            context.object.ambf_object_type = 'RIGID_BODY'
+        else:
+            context.object.ambf_object_type = 'NONE'
+            
         return {'FINISHED'}
     
         
@@ -2201,19 +2207,18 @@ class AMBF_PT_ambf_rigid_body(bpy.types.Panel):
     
     bpy.types.Object.ambf_rigid_body_collision_shape = bpy.props.EnumProperty \
     (
-        items=[
-            ('Convex Hull', 'Convex Hull', '', 'MESH_ICOSPHERE', 0),
-            ('Cone', 'Cone', '', 'MESH_CONE', 1),
-            ('Cylinder', 'Cylinder', '', 'MESH_CYLINDER', 2),
-            ('Capsule', 'Capsule', '', 'MESH_CAPSULE', 3),
-            ('Sphere', 'Sphere', '', 'MESH_UVSPHERE', 4),
-            ('Box', 'Box', '', 'MESH_CUBE', 5),
-            ],
-        name="Collision Shape"
+        items=
+        [
+            ('CONVEX_HULL', 'Convex Hull', '', 'MESH_ICOSPHERE', 0),
+            ('CONE', 'Cone', '', 'MESH_CONE', 1),
+            ('CYLINDER', 'Cylinder', '', 'MESH_CYLINDER', 2),
+            ('CAPSULE', 'Capsule', '', 'MESH_CAPSULE', 3),
+            ('SPHERE', 'Sphere', '', 'MESH_UVSPHERE', 4),
+            ('BOX', 'Box', '', 'MESH_CUBE', 5),
+        ],
+        name="Collision Shape",
+        default = "CONVEX_HULL"
     )
-    
-    bpy.context.object['ambf_rigid_body_collision_shape'] = 0
-    
     
     bpy.types.Object.ambf_rigid_body_mass = bpy.props.FloatProperty(name="mass", default=1.0, min=0.001)
     
@@ -2225,9 +2230,9 @@ class AMBF_PT_ambf_rigid_body(bpy.types.Panel):
     
     bpy.types.Object.ambf_rigid_body_collision_margin = bpy.props.FloatProperty(name="Margin", default=0.001, min=-0.1, max=1.0)
     
-    bpy.types.Object.ambf_rigid_body_linear_damping = bpy.props.FloatProperty(name="Linear", default=0.5, min=0.0, max=1.0)
+    bpy.types.Object.ambf_rigid_body_linear_damping = bpy.props.FloatProperty(name="Linear Damping", default=0.5, min=0.0, max=1.0)
     
-    bpy.types.Object.ambf_rigid_body_angular_damping = bpy.props.FloatProperty(name="Angular", default=0.1, min=0.0, max=1.0)
+    bpy.types.Object.ambf_rigid_body_angular_damping = bpy.props.FloatProperty(name="Angular Damping", default=0.1, min=0.0, max=1.0)
     
     bpy.types.Object.ambf_rigid_body_collision_groups = bpy.props.BoolVectorProperty \
     (
@@ -2266,6 +2271,18 @@ class AMBF_PT_ambf_rigid_body(bpy.types.Panel):
     
     bpy.types.Object.ambf_rigid_body_angular_controller_d_gain = bpy.props.FloatProperty(name="Damping Gain (D)", default=0.5, min=0)
     
+    bpy.types.Object.ambf_object_type = bpy.props.EnumProperty \
+    (
+        name="Object Type",
+        items=
+        [
+            ('NONE', 'None', '', '', 0),
+            ('RIGID_BODY', 'RIGID_BODY', '', '', 1),
+            ('CONSTRAINT', 'CONSTRAINT', '', '', 2),
+        ],
+        default='NONE'
+    )
+    
     @classmethod
     def poll(self, context):
         active = False
@@ -2283,53 +2300,52 @@ class AMBF_PT_ambf_rigid_body(bpy.types.Panel):
         col.scale_y = 2
         col.operator('ambf.ambf_rigid_body_activate', text='Enable AMBF Rigid Body', icon='RNA_ADD')
         
-        if context.object.ambf_rigid_body_enable:
-            
+        if context.object.ambf_rigid_body_enable: 
+            layout.separator() 
+            layout.separator()           
             row = layout.row()
-            col = row.split(percentage=0.5)
-            col.alignment = 'EXPAND'
-            col.prop(context.object, 'ambf_rigid_body_is_static')
+            row.prop(context.object, 'ambf_rigid_body_is_static', toggle=True)
             
             col = row.row()
             col.enabled = not context.object.ambf_rigid_body_is_static
             col.alignment = 'EXPAND'
             col.prop(context.object, 'ambf_rigid_body_mass')
             
+            layout.separator()
+            
             row = layout.row()
-            row.alignment = 'EXPAND'
             row.prop(context.object, 'ambf_rigid_body_collision_shape')
             
-            row = layout.row()
-            col = row.split(percentage=0.5)
-            col.alignment = 'EXPAND'
-            col.prop(context.object, 'ambf_rigid_body_friction')
-            
-            col = col.row()
-            col.alignment = 'EXPAND'
-            col.prop(context.object, 'ambf_rigid_body_enable_collision_margin')
+            layout.separator()
             
             row = layout.row()
-            col = row.split(percentage=0.5)
-            col.alignment = 'EXPAND'
-            col.prop(context.object, 'ambf_rigid_body_restitution')
+            row.prop(context.object, 'ambf_rigid_body_enable_collision_margin', toggle=True)
             
-            col = col.row()
-            col.alignment = 'EXPAND'
-            col.prop(context.object, 'ambf_rigid_body_collision_margin')
+            row = row.row()
+            row.enabled = context.object.ambf_rigid_body_enable_collision_margin
+            row.prop(context.object, 'ambf_rigid_body_collision_margin')
             
-            row = layout.row()
-            col = row.split(percentage=0.5)
-            col.alignment = 'EXPAND'
-            col.prop(context.object, 'ambf_rigid_body_linear_damping')
-            
-            row = layout.row()
-            col = row.split(percentage=0.5)
-            col.alignment = 'EXPAND'
-            col.prop(context.object, 'ambf_rigid_body_angular_damping')
+            layout.separator()
             
             row = layout.column()
             row.alignment = 'EXPAND'
             row.prop(context.object, 'ambf_rigid_body_collision_groups', toggle=True)
+            
+            layout.separator()
+            
+            row = layout.row()
+            row.prop(context.object, 'ambf_rigid_body_friction')
+            
+            row = layout.row()
+            row.prop(context.object, 'ambf_rigid_body_restitution')
+            
+            layout.separator()
+            
+            row = layout.row()
+            row.prop(context.object, 'ambf_rigid_body_linear_damping')
+            
+            row = layout.row()
+            row.prop(context.object, 'ambf_rigid_body_angular_damping')
             
             col = layout.column()
             col = col.split(percentage=0.5)
@@ -2342,33 +2358,32 @@ class AMBF_PT_ambf_rigid_body(bpy.types.Panel):
             col.prop(context.object, 'ambf_rigid_body_angular_inertial_offset')
             
             # Rigid Body Controller Properties
-            col = layout.column()
-            col.prop(context.object, 'ambf_rigid_body_enable_controllers')
+            row = layout.row()
+            row.alignment = 'CENTER'
+            row.prop(context.object, 'ambf_rigid_body_enable_controllers', toggle=True)
+            row.scale_y=2
         
             col = layout.column()
-            col.alignment = 'CENTER'
+            col.label('Linear Gains')
+            
+            col = layout.column()
             col.enabled = context.object.ambf_rigid_body_enable_controllers
-            col.label(text="BODY CONTROLLER GAINS")
-        
-            col = col.column()
-            col.alignment = 'CENTER'
-            col.label(text="LINEAR GAINS:")
-        
             row = col.row()
-            row.prop(context.object, 'ambf_rigid_body_linear_controller_p_gain')
+            row.prop(context.object, 'ambf_rigid_body_linear_controller_p_gain', text='P:')
         
             row = row.row()
-            row.prop(context.object, 'ambf_rigid_body_linear_controller_d_gain')
-        
-            col = col.column()
-            col.alignment = 'CENTER'
-            col.label(text="ANGULAR GAINS")
-        
+            row.prop(context.object, 'ambf_rigid_body_linear_controller_d_gain', text='D:')
+            
+            col = layout.column()
+            col.label('Angular Gains')
+            
+            col = layout.column()
+            col.enabled = context.object.ambf_rigid_body_enable_controllers
             row = col.row()
-            row.prop(context.object, 'ambf_rigid_body_angular_controller_p_gain')
+            row.prop(context.object, 'ambf_rigid_body_angular_controller_p_gain', text='P:')
         
             row = row.row()
-            row.prop(context.object, 'ambf_rigid_body_angular_controller_d_gain')
+            row.prop(context.object, 'ambf_rigid_body_angular_controller_d_gain', text='D:')
             
             
 class AMBF_OT_ambf_constraint_activate(bpy.types.Operator):
@@ -2378,6 +2393,13 @@ class AMBF_OT_ambf_constraint_activate(bpy.types.Operator):
     
     def execute(self, context):
         context.object.ambf_constraint_enable = not context.object.ambf_constraint_enable
+        
+        if context.object.ambf_constraint_enable:
+            context.object.ambf_object_type = 'CONSTRAINT'
+        else:
+            context.object.ambf_object_type = 'NONE'
+            
+        
         return {'FINISHED'}
             
 
@@ -2395,9 +2417,9 @@ class AMBF_PT_ambf_constraint(bpy.types.Panel):
     
     bpy.types.Object.ambf_constraint_child = bpy.props.PointerProperty(name="Child", type=bpy.types.Object)
     
-    bpy.types.Object.ambf_constraint_name = bpy.props.StringProperty(name="Constraint Name", default="")
+    bpy.types.Object.ambf_constraint_name = bpy.props.StringProperty(name="Name", default="")
     
-    bpy.types.Object.ambf_constraint_enable_controller = bpy.props.BoolProperty(name="Enable Controller", default=False)
+    bpy.types.Object.ambf_constraint_enable_controller_gains = bpy.props.BoolProperty(name="Enable Controller Gains", default=False)
     
     bpy.types.Object.ambf_constraint_controller_p_gain = bpy.props.FloatProperty(name="Proportional Gain (P)", default=500, min=0)
     
@@ -2405,27 +2427,44 @@ class AMBF_PT_ambf_constraint(bpy.types.Panel):
     
     bpy.types.Object.ambf_constraint_damping = bpy.props.FloatProperty(name="Joint Damping", default=0.0, min=0.0)
     
+    bpy.types.Object.ambf_constraint_axes = bpy.props.EnumProperty \
+    (
+        name='Axis',
+        items=
+        [
+            ('X', 'X', '', '', 0),
+            ('Y', 'Y', '', '', 1),
+            ('Z', 'Z', '', '', 2),
+        ],
+        default='Z'
+    )
+    
+    bpy.types.Object.ambf_constraint_limits_enable = bpy.props.BoolProperty(name="Enable Limits", default=True)
+    
+    bpy.types.Object.ambf_constraint_limits_lower = bpy.props.FloatProperty(name="Low", default=-60, min=-359, max=359)
+    
+    bpy.types.Object.ambf_constraint_limits_higher = bpy.props.FloatProperty(name="High", default=60, min=-359, max=359)
+    
     bpy.types.Object.ambf_constraint_type = bpy.props.EnumProperty \
     (
         items=[
-            ('Fixed', 'Fixed', '', '', 0),
-            ('Revolute', 'Revolute', '', '', 1),
-            ('Prismatic', 'Prismatic', '', '', 2),
-            ('Linear Spring', 'Linear Spring', '', '', 3),
-            ('Angular Spring', 'Angular Spring', '', '', 4),
-            ('Universal', 'Universal', '', '', 5),
+            ('FIXED', 'Fixed', '', '', 0),
+            ('REVOLUTE', 'Revolute', '', '', 1),
+            ('PRISMATIC', 'Prismatic', '', '', 2),
+            ('LINEAR_SPRING', 'Linear Spring', '', '', 3),
+            ('ANGULAR_SPRING', 'Angular Spring', '', '', 4),
+            ('UNIVERSAL', 'Universal', '', '', 5),
             ],
-        name="Type"
+        name="Type",
+        default='REVOLUTE'
     )
-    
-    bpy.context.object['ambf_constraint_type'] = 0
     
     @classmethod
     def poll(self, context):
         active = False
         if context.active_object: # Check if an object is active
             if context.active_object.type in ['EMPTY']:
-                active = True             
+                active = True          
         return active
     
     def draw(self, context):
@@ -2434,7 +2473,7 @@ class AMBF_PT_ambf_constraint(bpy.types.Panel):
         
         row = layout.row()
         row.alignment = 'EXPAND'
-        row.operator('ambf.ambf_constraint_activate')
+        row.operator('ambf.ambf_constraint_activate', text='Enable AMBF Constraint', icon='FORCE_HARMONIC')
         row.scale_y = 2
         
         if context.object.ambf_constraint_enable:
@@ -2451,23 +2490,44 @@ class AMBF_PT_ambf_constraint(bpy.types.Panel):
             
             col = layout.column()
             col.prop_search(context.object, "ambf_constraint_child", context.scene, "objects")
+            
+            layout.separator()
+            layout.separator()
+            
+            if context.object.ambf_constraint_type in ['PRISMATIC', 'REVOLUTE', 'LINEAR_SPRING', 'ANGULAR_SPRING']:
+                row = layout.row()
+                row.alignment = 'EXPAND'
+                row.prop(context.object, 'ambf_constraint_axes')
+                
+                row = layout.row()
+                row.prop(context.object, 'ambf_constraint_damping')
+                row.scale_y=1.5
+                
+                row = layout.row()
+                row.alignment = 'CENTER'
+                row.prop(context.object, 'ambf_constraint_limits_enable', toggle=True)
+                row.scale_y=2
+                
+                col = layout.column()
+                col.enabled = context.object.ambf_constraint_limits_enable
+                col.prop(context.object, 'ambf_constraint_limits_lower', text='Low')
+                
+                col = col.column()
+                col.prop(context.object, 'ambf_constraint_limits_higher', text='High')
  
-            col = layout.column()
-            col.alignment = 'CENTER'
-            col.prop(context.object, 'ambf_constraint_enable_controller')
- 
-            col = layout.column()
-            col.alignment = 'CENTER'
-            col.enabled = context.object.ambf_constraint_enable_controller
-            col.prop(context.object, 'ambf_constraint_damping')
+                if context.object.ambf_constraint_type in ['PRISMATIC', 'REVOLUTE']:
+                    row = layout.row()
+                    row.alignment = 'CENTER'
+                    row.prop(context.object, 'ambf_constraint_enable_controller_gains', toggle=True, text='Enable Gains')
+                    row.scale_y=2
         
-            col.label(text="JOINT CONTROLLER GAINS")
+                    col = layout.column()
+                    col.enabled = context.object.ambf_constraint_enable_controller_gains
+                    col.prop(context.object, 'ambf_constraint_controller_p_gain', text='P')
         
-            row = col.row()
-            row.prop(context.object, 'ambf_constraint_controller_p_gain')
-        
-            row = row.row()
-            row.prop(context.object, 'ambf_constraint_controller_d_gain')
+                    col = col.column()
+                    col.prop(context.object, 'ambf_constraint_controller_d_gain', text='D')
+            
         
 
 
