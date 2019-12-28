@@ -1366,6 +1366,15 @@ class AMBF_OT_load_ambf_file(bpy.types.Operator):
             if body_data['mass'] is 0.0:
                 obj_handle.ambf_rigid_body_is_static = True
 
+            if 'inertial offset' in body_data:
+                obj_handle.ambf_rigid_body_linear_inertial_offset[0] = body_data['inertial offset']['position']['x']
+                obj_handle.ambf_rigid_body_linear_inertial_offset[1] = body_data['inertial offset']['position']['y']
+                obj_handle.ambf_rigid_body_linear_inertial_offset[2] = body_data['inertial offset']['position']['z']
+
+                obj_handle.ambf_rigid_body_angular_inertial_offset[0] = body_data['inertial offset']['orientation']['r']
+                obj_handle.ambf_rigid_body_angular_inertial_offset[1] = body_data['inertial offset']['orientation']['p']
+                obj_handle.ambf_rigid_body_angular_inertial_offset[2] = body_data['inertial offset']['orientation']['y']
+
             # Finally add the rigid body data if defined
             if 'friction' in body_data:
                 if 'static' in body_data['friction']:
@@ -1453,6 +1462,119 @@ class AMBF_OT_load_ambf_file(bpy.types.Operator):
         self._blender_remapped_body_names[body_name] = obj_handle.name
         CommonConfig.loaded_body_map[obj_handle] = body_data
         self._body_t_j_c[body_name] = mathutils.Matrix()
+
+    def adjust_body_pivots_and_axes(self):
+        for joint_name in self._ambf_data['joints']:
+            joint_data = self._ambf_data[joint_name]
+            if 'child pivot' in joint_data:
+
+                if 'redundant' in joint_data:
+                    if joint_data['redundant'] is True or joint_data['redundant'] == 'True':
+                        print('INFO, JOINT \"%s\" IS DETACHED, NO NEED'
+                              ' TO ADJUST CHILD BODY\'S AXIS AND PIVOTS' % joint_name)
+                        return
+
+                if 'detached' in joint_data:
+                    if joint_data['detached'] is True or joint_data['detached'] == 'True':
+                        print('INFO, JOINT \"%s\" IS DETACHED, NO NEED'
+                              ' TO ADJUST CHILD BODY\'S AXIS AND PIVOTS' % joint_name)
+                        return
+
+                child_body_name = joint_data['child']
+                child_pivot_data = joint_data['child pivot']
+                child_axis_data = joint_data['child axis']
+                parent_axis_data = joint_data['parent axis']
+
+                child_obj_handle = bpy.data.objects[self._blender_remapped_body_names[child_body_name]]
+
+                joint_type = 'HINGE'
+                if 'type' in joint_data:
+                    if joint_data['type'] in ['hinge', 'revolute', 'continuous']:
+                        joint_type = 'HINGE'
+                    elif joint_data['type'] in ['prismatic', 'slider']:
+                        joint_type = 'SLIDER'
+                    elif joint_data['type'] in ['spring', 'linear spring', 'angular spring', 'torsional spring', 'torsion spring']:
+                        joint_type = 'GENERIC_SPRING'
+                    elif joint_data['type'] in ['p2p', 'point2point']:
+                        joint_type = 'POINT'
+                    elif joint_data['type'] in ['fixed', 'FIXED']:
+                        joint_type = 'FIXED'
+
+                # Universal Constraint Axis
+                constraint_axis = mathutils.Vector([0, 0, 1])
+                # If check is enabled, set the appropriate constraint axis
+                if joint_type == 'HINGE':
+                    constraint_axis = mathutils.Vector([0, 0, 1])
+                elif joint_type == 'SLIDER':
+                    constraint_axis = mathutils.Vector([1, 0, 0])
+                elif joint_data['type'] in ['spring', 'linear spring']:
+                    constraint_axis = mathutils.Vector([1, 0, 0])
+                elif joint_data['type'] in ['angular spring', 'torsional spring', 'torsion spring']:
+                    constraint_axis = mathutils.Vector([0, 0, 1])
+                elif joint_type == 'POINT':
+                    constraint_axis = mathutils.Vector([0, 0, 1])
+                elif joint_type == 'FIXED':
+                    constraint_axis = mathutils.Vector([0, 0, 1])
+
+                # Child's Joint Axis in child's frame
+                child_axis = mathutils.Vector([child_axis_data['x'], child_axis_data['y'], child_axis_data['z']])
+
+                # To keep the joint limits intact, we set the constraint axis as
+                # negative if the joint axis is negative
+                # if any(child_axis[i] < 0.0 for i in range(0, 3)):
+                #     constraint_axis = -constraint_axis
+
+                r_j_c, d_angle = get_rot_mat_from_vecs(constraint_axis, child_axis)
+
+                # Transformation of joint in child frame
+                p_j_c = mathutils.Matrix()
+                p_j_c.translation = mathutils.Vector(
+                    [child_pivot_data['x'], child_pivot_data['y'], child_pivot_data['z']])
+                # Now apply the rotation based on the axes deflection from constraint_axis
+                t_j_c = r_j_c
+                t_j_c.translation = p_j_c.translation
+                t_c_j = t_j_c.copy()
+                t_c_j.invert()
+                child_axis_data['x'] = constraint_axis[0]
+                child_axis_data['y'] = constraint_axis[1]
+                child_axis_data['z'] = constraint_axis[2]
+
+                if child_obj_handle.type != 'EMPTY':
+                    child_obj_handle.data.transform(t_c_j)
+                self._body_t_j_c[joint_data['child']] = t_c_j
+
+                # Implementing the Alignment Offset Correction Algorithm (AO)
+
+                # Parent's Joint Axis in parent's frame
+                parent_axis = mathutils.Vector([parent_axis_data['x'], parent_axis_data['y'], parent_axis_data['z']])
+
+                r_caxis_p, r_cnew_p_angle = get_rot_mat_from_vecs(constraint_axis, parent_axis)
+                r_cnew_p = r_caxis_p * t_c_j
+                r_c_p, r_c_p_angle = get_rot_mat_from_vecs(child_axis, parent_axis)
+                r_p_cnew = r_cnew_p.copy()
+                r_p_cnew.invert()
+                delta_r = r_p_cnew * r_c_p
+                # print('Joint Name: ', joint_name)
+                # print('Delta R: ')
+                d_axis_angle = delta_r.to_quaternion().to_axis_angle()
+                d_axis = round_vec(d_axis_angle[0])
+                d_angle = d_axis_angle[1]
+                # Sanity Check: The axis angle should be along the the direction of child axis
+                # Throw warning if its not
+                v_diff = d_axis.cross(child_axis)
+                if v_diff.length > 0.1 and abs(d_angle) > 0.1:
+                    print('*** WARNING: AXIS ALIGNMENT LOGIC ERROR')
+                # print(d_axis, ' : ', d_angle)
+                if any(d_axis[i] < 0.0 for i in range(0, 3)):
+                    d_angle = - d_angle
+
+                if abs(d_angle) > 0.1:
+                    r_ao = mathutils.Matrix().Rotation(d_angle, 4, constraint_axis)
+                    child_obj_handle.data.transform(r_ao)
+                    self._body_t_j_c[joint_data['child']] = r_ao * t_c_j
+                # end of AO algorithm
+
+            # Finally assign joints and set correct positions
 
     def load_joint(self, joint_name):
         joint_data = self._ambf_data[joint_name]
@@ -1626,119 +1748,6 @@ class AMBF_OT_load_ambf_file(bpy.types.Operator):
                             self._context.object.ambf_joint_controller_p_gain = joint_data["controller"]["P"]
                             self._context.object.ambf_joint_controller_d_gain = joint_data["controller"]["D"]
 
-    def adjust_body_pivots_and_axes(self):
-        for joint_name in self._ambf_data['joints']:
-            joint_data = self._ambf_data[joint_name]
-            if 'child pivot' in joint_data:
-
-                if 'redundant' in joint_data:
-                    if joint_data['redundant'] is True or joint_data['redundant'] == 'True':
-                        print('INFO, JOINT \"%s\" IS DETACHED, NO NEED'
-                              ' TO ADJUST CHILD BODY\'S AXIS AND PIVOTS' % joint_name)
-                        return
-
-                if 'detached' in joint_data:
-                    if joint_data['detached'] is True or joint_data['detached'] == 'True':
-                        print('INFO, JOINT \"%s\" IS DETACHED, NO NEED'
-                              ' TO ADJUST CHILD BODY\'S AXIS AND PIVOTS' % joint_name)
-                        return
-
-                child_body_name = joint_data['child']
-                child_pivot_data = joint_data['child pivot']
-                child_axis_data = joint_data['child axis']
-                parent_axis_data = joint_data['parent axis']
-
-                child_obj_handle = bpy.data.objects[self._blender_remapped_body_names[child_body_name]]
-
-                joint_type = 'HINGE'
-                if 'type' in joint_data:
-                    if joint_data['type'] in ['hinge', 'revolute', 'continuous']:
-                        joint_type = 'HINGE'
-                    elif joint_data['type'] in ['prismatic', 'slider']:
-                        joint_type = 'SLIDER'
-                    elif joint_data['type'] in ['spring', 'linear spring', 'angular spring', 'torsional spring', 'torsion spring']:
-                        joint_type = 'GENERIC_SPRING'
-                    elif joint_data['type'] in ['p2p', 'point2point']:
-                        joint_type = 'POINT'
-                    elif joint_data['type'] in ['fixed', 'FIXED']:
-                        joint_type = 'FIXED'
-
-                # Universal Constraint Axis
-                constraint_axis = mathutils.Vector([0, 0, 1])
-                # If check is enabled, set the appropriate constraint axis
-                if joint_type == 'HINGE':
-                    constraint_axis = mathutils.Vector([0, 0, 1])
-                elif joint_type == 'SLIDER':
-                    constraint_axis = mathutils.Vector([1, 0, 0])
-                elif joint_data['type'] in ['spring', 'linear spring']:
-                    constraint_axis = mathutils.Vector([1, 0, 0])
-                elif joint_data['type'] in ['angular spring', 'torsional spring', 'torsion spring']:
-                    constraint_axis = mathutils.Vector([0, 0, 1])
-                elif joint_type == 'POINT':
-                    constraint_axis = mathutils.Vector([0, 0, 1])
-                elif joint_type == 'FIXED':
-                    constraint_axis = mathutils.Vector([0, 0, 1])
-
-                # Child's Joint Axis in child's frame
-                child_axis = mathutils.Vector([child_axis_data['x'], child_axis_data['y'], child_axis_data['z']])
-
-                # To keep the joint limits intact, we set the constraint axis as
-                # negative if the joint axis is negative
-                # if any(child_axis[i] < 0.0 for i in range(0, 3)):
-                #     constraint_axis = -constraint_axis
-
-                r_j_c, d_angle = get_rot_mat_from_vecs(constraint_axis, child_axis)
-
-                # Transformation of joint in child frame
-                p_j_c = mathutils.Matrix()
-                p_j_c.translation = mathutils.Vector(
-                    [child_pivot_data['x'], child_pivot_data['y'], child_pivot_data['z']])
-                # Now apply the rotation based on the axes deflection from constraint_axis
-                t_j_c = r_j_c
-                t_j_c.translation = p_j_c.translation
-                t_c_j = t_j_c.copy()
-                t_c_j.invert()
-                child_axis_data['x'] = constraint_axis[0]
-                child_axis_data['y'] = constraint_axis[1]
-                child_axis_data['z'] = constraint_axis[2]
-
-                if child_obj_handle.type != 'EMPTY':
-                    child_obj_handle.data.transform(t_c_j)
-                self._body_t_j_c[joint_data['child']] = t_c_j
-
-                # Implementing the Alignment Offset Correction Algorithm (AO)
-
-                # Parent's Joint Axis in parent's frame
-                parent_axis = mathutils.Vector([parent_axis_data['x'], parent_axis_data['y'], parent_axis_data['z']])
-
-                r_caxis_p, r_cnew_p_angle = get_rot_mat_from_vecs(constraint_axis, parent_axis)
-                r_cnew_p = r_caxis_p * t_c_j
-                r_c_p, r_c_p_angle = get_rot_mat_from_vecs(child_axis, parent_axis)
-                r_p_cnew = r_cnew_p.copy()
-                r_p_cnew.invert()
-                delta_r = r_p_cnew * r_c_p
-                # print('Joint Name: ', joint_name)
-                # print('Delta R: ')
-                d_axis_angle = delta_r.to_quaternion().to_axis_angle()
-                d_axis = round_vec(d_axis_angle[0])
-                d_angle = d_axis_angle[1]
-                # Sanity Check: The axis angle should be along the the direction of child axis
-                # Throw warning if its not
-                v_diff = d_axis.cross(child_axis)
-                if v_diff.length > 0.1 and abs(d_angle) > 0.1:
-                    print('*** WARNING: AXIS ALIGNMENT LOGIC ERROR')
-                # print(d_axis, ' : ', d_angle)
-                if any(d_axis[i] < 0.0 for i in range(0, 3)):
-                    d_angle = - d_angle
-
-                if abs(d_angle) > 0.1:
-                    r_ao = mathutils.Matrix().Rotation(d_angle, 4, constraint_axis)
-                    child_obj_handle.data.transform(r_ao)
-                    self._body_t_j_c[joint_data['child']] = r_ao * t_c_j
-                # end of AO algorithm
-
-            # Finally assign joints and set correct positions
-
     def load_joint_with_adjusted_bodies(self, joint_name):
         joint_data = self._ambf_data[joint_name]
         select_all_objects(False)
@@ -1747,12 +1756,13 @@ class AMBF_OT_load_ambf_file(bpy.types.Operator):
         child_body_name = joint_data['child']
         parent_body_data = self._ambf_data[parent_body_name]
         child_body_data = self._ambf_data[child_body_name]
-         # Set joint type to blender appropriate name
+        # Set joint type to blender appropriate name
         joint_type = 'HINGE'
         if 'type' in joint_data:
             if joint_data['type'] in ['hinge', 'revolute', 'continuous']:
                 joint_type = 'HINGE'
-            elif joint_data['type'] in ['spring', 'linear spring', 'angular spring', 'torsional spring', 'torsion spring']:
+            elif joint_data['type'] in ['spring', 'linear spring', 'angular spring', 'torsional spring',
+                                        'torsion spring']:
                 joint_type = 'GENERIC_SPRING'
             elif joint_data['type'] in ['prismatic', 'slider']:
                 joint_type = 'SLIDER'
@@ -1897,13 +1907,134 @@ class AMBF_OT_load_ambf_file(bpy.types.Operator):
                             child_obj_handle.rigid_body_constraint.use_spring_ang_z = True
 
                 CommonConfig.loaded_joint_map[child_obj_handle.rigid_body_constraint] = joint_data
-                
+
                 # If joint controller is defined. Set the corresponding values in the joint properties
                 if 'controller' in joint_data:
                     if joint_data['type'] in ['hinge', 'continuous', 'revolute', 'slider', 'prismatic']:
                         self._context.object.ambf_enable_joint_props = True
                         self._context.object.ambf_joint_controller_p_gain = joint_data["controller"]["P"]
                         self._context.object.ambf_joint_controller_d_gain = joint_data["controller"]["D"]
+
+    def load_ambf_constraint(self, joint_name):
+        joint_data = self._ambf_data[joint_name]
+        select_all_objects(False)
+        self._context.scene.objects.active = None
+        parent_body_name = joint_data['parent']
+        child_body_name = joint_data['child']
+        parent_body_data = self._ambf_data[parent_body_name]
+        child_body_data = self._ambf_data[child_body_name]
+        # Set joint type to blender appropriate name
+        joint_type = 'FIXED'
+        if 'type' in joint_data:
+            if joint_data['type'] in ['hinge', 'revolute', 'continuous']:
+                joint_type = 'REVOLUTE'
+            elif joint_data['type'] in ['spring', 'linear spring']:
+                joint_type = 'LINEAR_SPRING'
+            elif joint_data['type'] in ['angular spring', 'torsional spring', 'torsion spring']:
+                joint_type = 'TORSION_SPRING'
+            elif joint_data['type'] in ['prismatic', 'slider']:
+                joint_type = 'PRISMATIC'
+            elif joint_data['type'] in ['p2p', 'point2point']:
+                joint_type = 'P2P'
+            elif joint_data['type'] in ['fixed', 'FIXED']:
+                joint_type = 'FIXED'
+
+        print('INFO, JOINT \"%s\" IS DETACHED' % joint_name)
+        parent_obj_handle = bpy.data.objects[self._blender_remapped_body_names[parent_body_name]]
+
+        bpy.ops.object.empty_add(type='PLAIN_AXES')
+        child_obj_handle = bpy.context.active_object
+        joint_name = str(joint_data['name'])
+
+        child_obj_handle.name = joint_name
+
+        # print('JOINT:', joint_name)
+        # print('\tParent: ', parent_obj_handle.name)
+        # print('\tChild: ', child_obj_handle.name)
+        if 'parent pivot' in joint_data:
+            parent_pivot_data = joint_data['parent pivot']
+            parent_axis_data = joint_data['parent axis']
+            if 'child pivot' in joint_data:
+                child_pivot_data = joint_data['child pivot']
+                child_axis_data = joint_data['child axis']
+                # To fully define a child body's connection and pose in a parent body, just the joint pivots
+                # and joint axes are not sufficient. We also need the joint offset which correctly defines
+                # the initial pose of the child body in the parent body.
+                offset_angle = 0.0
+                if not self._context.scene.ignore_ambf_joint_offsets:
+                    if 'offset' in joint_data:
+                        offset_angle = joint_data['offset']
+                # Latest release of blender (2.79) only supports joints along child's z axis
+                # which requires a workaround for this limitation. We rotate the joint frame by the
+                # angular offset of parent's joint axis, w.r.t to parent's z axis.
+                # Transformation matrix representing parent in world frame
+                t_p_w = parent_obj_handle.matrix_world.copy()
+
+                # Parent's Joint Axis in parent's frame
+                parent_axis = mathutils.Vector([parent_axis_data['x'], parent_axis_data['y'], parent_axis_data['z']])
+
+                # Child's Joint Axis in Child's frame
+                child_axis = mathutils.Vector([child_axis_data['x'], child_axis_data['y'], child_axis_data['z']])
+
+                # Transformation of joint in parent frame
+                p_j_p = mathutils.Matrix()
+                # P_j_p = P_j_p * r_j_p
+                p_j_p.translation = mathutils.Vector(
+                    [parent_pivot_data['x'], parent_pivot_data['y'], parent_pivot_data['z']])
+                # Now we need to transform the child since we could have potentially moved
+                # the origin of the mesh in last loop's iterations
+                # Child's Joint Axis in child's frame
+
+                # Rotation matrix representing child frame in parent frame
+                r_c_p, r_c_p_angle = get_rot_mat_from_vecs(child_axis, parent_axis)
+                # print ('r_c_p')
+                # print(r_c_p)
+
+                # Offset along constraint axis
+                t_c_offset_rot = mathutils.Matrix().Rotation(offset_angle, 4, parent_axis)
+
+                t_p_w_off = self._body_t_j_c[joint_data['parent']]
+
+                # Transformation of child in parents frame
+                t_c_p = t_p_w * t_p_w_off * p_j_p * t_c_offset_rot * r_c_p
+                # Set the child body the pose calculated above
+                child_obj_handle.matrix_world = t_c_p
+                child_obj_handle.select = True
+                parent_obj_handle.select = True
+                self._context.scene.objects.active = parent_obj_handle
+                bpy.ops.object.parent_set(keep_transform=True)
+                self._context.scene.objects.active = child_obj_handle
+                child_obj_handle.select = True
+
+                child_obj_handle.ambf_constraint_enable = True
+
+                child_obj_handle.ambf_constraint_type = joint_type
+
+                child_obj_handle.ambf_constraint_parent \
+                    = bpy.data.objects[self._blender_remapped_body_names[parent_body_name]]
+
+                child_obj_handle.ambf_constraint_child \
+                    = bpy.data.objects[self._blender_remapped_body_names[child_body_name]]
+
+                if 'joint limits' in joint_data:
+                    child_obj_handle.ambf_constraint_limits_lower = joint_data['joint limits']['low']
+                    child_obj_handle.ambf_constraint_limits_higher = joint_data['joint limits']['high']
+
+                if 'damping' in joint_data:
+                    child_obj_handle.ambf_constraint_damping = joint_data['damping']
+
+                if 'stiffness' in joint_data:
+                    if joint_type in ['LINEAR_SPRING', 'TORSION_SPRING']:
+                        child_obj_handle.ambf_constraint_stiffness = joint_data['stiffness']
+
+                # If joint controller is defined. Set the corresponding values in the joint properties
+                if 'controller' in joint_data:
+                    if joint_type in ['REVOLUTE', 'PRISMATIC']:
+                        child_obj_handle.ambf_constraint_enable_controller_gains = True
+                        child_obj_handle.ambf_constraint_controller_p_gain = joint_data["controller"]["P"]
+                        child_obj_handle.ambf_constraint_controller_d_gain = joint_data["controller"]["D"]
+
+                CommonConfig.loaded_joint_map[child_obj_handle.rigid_body_constraint] = joint_data
 
     def execute(self, context):
         self._yaml_filepath = str(bpy.path.abspath(context.scene['external_ambf_yaml_filepath']))
@@ -1933,7 +2064,8 @@ class AMBF_OT_load_ambf_file(bpy.types.Operator):
 
         for joint_name in joints_list:
             if context.scene.adjust_joint_pivots is True:
-                self.load_joint_with_adjusted_bodies(joint_name)
+                #self.load_joint_with_adjusted_bodies(joint_name)
+                self.load_ambf_constraint(joint_name)
             else:
                 self.load_joint(joint_name)
 
@@ -2498,6 +2630,8 @@ class AMBF_PT_ambf_constraint(bpy.types.Panel):
     
     bpy.types.Object.ambf_constraint_damping = bpy.props.FloatProperty(name="Joint Damping", default=0.0, min=0.0)
 
+    bpy.types.Object.ambf_constraint_stiffness = bpy.props.FloatProperty(name="Joint Stiffness", default=0.0, min=0.0)
+
     bpy.types.Object.ambf_constraint_limits_enable = bpy.props.BoolProperty(name="Enable Limits", default=True)
 
     bpy.types.Object.ambf_constraint_limits_lower = bpy.props.FloatProperty(name="Low", default=-60, min=-359, max=359)
@@ -2524,8 +2658,8 @@ class AMBF_PT_ambf_constraint(bpy.types.Panel):
                 ('REVOLUTE', 'Revolute', '', '', 1),
                 ('PRISMATIC', 'Prismatic', '', '', 2),
                 ('LINEAR_SPRING', 'Linear Spring', '', '', 3),
-                ('ANGULAR_SPRING', 'Angular Spring', '', '', 4),
-                ('UNIVERSAL', 'Universal', '', '', 5),
+                ('TORSION_SPRING', 'Torsion Spring', '', '', 4),
+                ('P2P', 'p2p', '', '', 5),
             ],
             name="Type",
             default='REVOLUTE'
@@ -2566,14 +2700,19 @@ class AMBF_PT_ambf_constraint(bpy.types.Panel):
             layout.separator()
             layout.separator()
             
-            if context.object.ambf_constraint_type in ['PRISMATIC', 'REVOLUTE', 'LINEAR_SPRING', 'ANGULAR_SPRING']:
+            if context.object.ambf_constraint_type in ['PRISMATIC', 'REVOLUTE', 'LINEAR_SPRING', 'TORSION_SPRING']:
                 row = layout.row()
                 row.alignment = 'EXPAND'
                 row.prop(context.object, 'ambf_constraint_axes')
-                
+
                 row = layout.row()
                 row.prop(context.object, 'ambf_constraint_damping')
                 row.scale_y=1.5
+
+                if context.object.ambf_constraint_type in ['LINEAR_SPRING', 'TORSION_SPRING']:
+                    row = layout.row()
+                    row.prop(context.object, 'ambf_constraint_stiffness')
+                    row.scale_y=1.5
                 
                 row = layout.row()
                 row.alignment = 'CENTER'
