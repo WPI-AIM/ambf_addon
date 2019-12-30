@@ -1806,7 +1806,13 @@ class AMBF_OT_load_ambf_file(bpy.types.Operator):
         joint_obj_handle.ambf_constraint_child = child_obj_handle
 
     def set_blender_constraint_params(self, joint_obj_handle, joint_data):
-        offset_angle = self.get_joint_offset_angle(joint_data)
+        # If the adjust body pivots and axes was set, the offset angle
+        # has already been incorporated, so set it to zero, otherwise
+        # get the reading from the ADF
+        if self._context.scene.adjust_joint_pivots:
+            offset_angle = 0
+        else:
+            offset_angle = self.get_joint_offset_angle(joint_data)
 
         if 'joint limits' in joint_data:
             if joint_data['type'] == 'revolute':
