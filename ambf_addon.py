@@ -1450,10 +1450,11 @@ class AMBF_OT_load_ambf_file(bpy.types.Operator):
         obj_handle = self.load_mesh(body_data, body_name)
 
         self.load_rigid_body_name(body_data, obj_handle)
-
-        self.load_blender_rigid_body(body_data, obj_handle)
-
-        self.load_ambf_rigid_body(body_data, obj_handle)
+        
+        if self._context.scene.enable_legacy_loading:
+            self.load_blender_rigid_body(body_data, obj_handle)
+        else:
+            self.load_ambf_rigid_body(body_data, obj_handle)
 
         self.load_rigid_body_transform(body_data, obj_handle)
 
@@ -1627,9 +1628,9 @@ class AMBF_OT_load_ambf_file(bpy.types.Operator):
         parent_axis_data = {'x': 0, 'y': 0, 'z': 1}
 
         if 'parent pivot' in joint_data:
-            parent_pivot_data = joint_data['child pivot']
+            parent_pivot_data = joint_data['parent pivot']
         if 'parent axis' in joint_data:
-            parent_axis_data = joint_data['child axis']
+            parent_axis_data = joint_data['parent axis']
 
         return parent_pivot_data, parent_axis_data
 
@@ -1955,13 +1956,14 @@ class AMBF_OT_load_ambf_file(bpy.types.Operator):
         for body_name in bodies_list:
             self.load_body(body_name)
 
-        if context.scene.adjust_joint_pivots is True:
-            #self.adjust_body_pivots_and_axes()
-            pass
+        if context.scene.enable_legacy_loading and context.scene.adjust_joint_pivots:
+            self.adjust_body_pivots_and_axes()
 
         for joint_name in joints_list:
-            #self.load_blender_joint(joint_name)
-            self.load_ambf_joint(joint_name)
+            if context.scene.enable_legacy_loading:
+                self.load_blender_joint(joint_name)    
+            else:
+                self.load_ambf_joint(joint_name)
 
         # print('Printing Blender Remapped Body Names')
         # print(self._blender_remapped_body_names)
@@ -2014,10 +2016,17 @@ class AMBF_PT_create_ambf(bpy.types.Panel):
             description="The maximum number of vertices the low resolution collision mesh is allowed to have",
         )
 
+    bpy.types.Scene.enable_legacy_loading = bpy.props.BoolProperty \
+        (
+            name="Enable Legacy Load",
+            default=False,
+            description="Enable Legacy Loading of ADF Files",
+        )
+
     bpy.types.Scene.adjust_joint_pivots = bpy.props.BoolProperty \
         (
             name="Adjust Child Pivots",
-            default=True,
+            default=False,
             description="If the child axis is offset from the joint axis, correct for this offset, keep this to "
                         "default (True) unless you want to debug the model or something advanced",
         )
@@ -2152,22 +2161,31 @@ class AMBF_PT_create_ambf(bpy.types.Panel):
         # Load
         col = box.column()
         col.alignment = 'CENTER'
-        col.prop(context.scene, 'adjust_joint_pivots')
-
-        # Load
-        col = box.column()
-        col.alignment = 'CENTER'
-        col.prop(context.scene, 'ignore_ambf_joint_offsets')
-
-        # Load
-        col = box.column()
-        col.alignment = 'CENTER'
         col.prop(context.scene, 'external_ambf_yaml_filepath')
         
         col = box.column()
         col.alignment = 'CENTER'
         col.operator("ambf.load_ambf_file")
-        
+
+        box = layout.box()
+
+        # Enable Legacy Loading
+        col = box.column()
+        col.alignment = 'CENTER'
+        col.prop(context.scene, 'enable_legacy_loading')
+
+        # Load
+        col = box.column()
+        col.alignment = 'CENTER'
+        col.enabled = context.scene.enable_legacy_loading
+        col.prop(context.scene, 'adjust_joint_pivots')
+
+        # Load
+        col = box.column()
+        col.alignment = 'CENTER'
+        col.enabled = context.scene.enable_legacy_loading
+        col.prop(context.scene, 'ignore_ambf_joint_offsets')
+
 
 class AMBF_PT_rigid_body_props(bpy.types.Panel):
     """Add Rigid Body Properties"""
