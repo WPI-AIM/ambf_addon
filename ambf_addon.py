@@ -283,7 +283,7 @@ def select_all_objects(select=True):
 # the major axis by comparing the dimensions of the bounding box
 def get_major_axis(dims):
     d = dims
-    axes = {0: 'x', 1: 'y', 2: 'z'}
+    axis = {0: 'x', 1: 'y', 2: 'z'}
     sum_diff = [abs(d[0] - d[1]) + abs(d[0] - d[2]),
                 abs(d[1] - d[0]) + abs(d[1] - d[2]),
                 abs(d[2] - d[0]) + abs(d[2] - d[1])]
@@ -293,29 +293,29 @@ def get_major_axis(dims):
     else:
         axis_idx = sum_diff.index(max(sum_diff))
 
-    return axes[axis_idx], axis_idx
+    return axis[axis_idx], axis_idx
 
 
 # For shapes such as Cylinder, Cone and Ellipse, this function returns
 # the median axis (not-major and non-minor or the middle axis) by comparing
 # the dimensions of the bounding box
 def get_median_axis(dims):
-    axes = {0: 'x', 1: 'y', 2: 'z'}
+    axis = {0: 'x', 1: 'y', 2: 'z'}
     maj_ax, maj_ax_idx = get_major_axis(dims)
     min_ax, min_ax_idx = get_minor_axis(dims)
-    med_axes_idx = [1, 1, 1]
-    med_axes_idx[maj_ax_idx] = 0
-    med_axes_idx[min_ax_idx] = 0
-    axis_idx = med_axes_idx.index(max(med_axes_idx))
+    med_axis_idx = [1, 1, 1]
+    med_axis_idx[maj_ax_idx] = 0
+    med_axis_idx[min_ax_idx] = 0
+    axis_idx = med_axis_idx.index(max(med_axis_idx))
 
-    return axes[axis_idx], axis_idx
+    return axis[axis_idx], axis_idx
 
 
 # For shapes such as Cylinder, Cone and Ellipse, this function returns
 # the minor axis by comparing the dimensions of the bounding box
 def get_minor_axis(dims):
     d = dims
-    axes = {0: 'x', 1: 'y', 2: 'z'}
+    axis = {0: 'x', 1: 'y', 2: 'z'}
     sum_diff = [abs(d[0] - d[1]) + abs(d[0] - d[2]),
                 abs(d[1] - d[0]) + abs(d[1] - d[2]),
                 abs(d[2] - d[0]) + abs(d[2] - d[1])]
@@ -325,7 +325,7 @@ def get_minor_axis(dims):
     sort_idx[max_idx] = 0
     sort_idx[min_idx] = 0
     median_idx = sort_idx.index(max(sort_idx))
-    return axes[median_idx], median_idx
+    return axis[median_idx], median_idx
 
 
 # Body Template for the some commonly used of afBody's data
@@ -747,7 +747,7 @@ class AMBF_OT_generate_ambf_file(bpy.types.Operator):
             ax_idx = 2
         elif constraint.type == 'FIXED':
             ax_idx = 2
-        # The third col of rotation matrix is the z axes of child in parent
+        # The third col of rotation matrix is the z axis of child in parent
         joint_axis = mathutils.Vector([0, 0, 0])
         joint_axis[ax_idx] = 1.0
         return joint_axis, ax_idx
@@ -777,7 +777,7 @@ class AMBF_OT_generate_ambf_file(bpy.types.Operator):
         pivot = t_c_p.translation
 
         joint_axis, axis_idx = self.get_joint_axis(constraint)
-        # The third col of rotation matrix is the z axes of child in parent
+        # The third col of rotation matrix is the z axis of child in parent
         axis = mathutils.Vector(t_c_p.col[axis_idx][0:3])
         return pivot, axis
 
@@ -1260,7 +1260,7 @@ class AMBF_OT_load_ambf_file(bpy.types.Operator):
                 obj_handle.data.transform(trans_o)
 
                 # Kind of a hack, blender is spawning the collada file
-                # a 90 deg offset along the axis axes, this is to correct that
+                # a 90 deg offset along the axis axis, this is to correct that
                 # Maybe this will not be needed in future versions of blender
                 r_x = mathutils.Matrix.Rotation(-1.57, 4, 'X')
                 obj_handle.data.transform(r_x)
@@ -1464,7 +1464,7 @@ class AMBF_OT_load_ambf_file(bpy.types.Operator):
         CommonConfig.loaded_body_map[obj_handle] = body_data
         self._body_T_j_c[body_name] = mathutils.Matrix()
 
-    def adjust_body_pivots_and_axes(self):
+    def adjust_body_pivots_and_axis(self):
         for joint_name in self._ambf_data['joints']:
             joint_data = self._ambf_data[joint_name]
             if 'child pivot' in joint_data:
@@ -1505,7 +1505,7 @@ class AMBF_OT_load_ambf_file(bpy.types.Operator):
                 P_j_c = mathutils.Matrix()
                 P_j_c.translation = mathutils.Vector(
                     [child_pivot_data['x'], child_pivot_data['y'], child_pivot_data['z']])
-                # Now apply the rotation based on the axes deflection from constraint_axis
+                # Now apply the rotation based on the axis deflection from constraint_axis
                 T_j_c = R_j_c
                 T_j_c.translation = P_j_c.translation
                 T_c_j = T_j_c.copy()
@@ -1592,6 +1592,13 @@ class AMBF_OT_load_ambf_file(bpy.types.Operator):
                 joint_type = 'FIXED'
 
         return joint_type
+    
+    def set_default_ambf_constraint_axis(self, joint_obj_handle):
+        if joint_obj_handle.ambf_object_type == 'CONSTRAINT':
+            if joint_obj_handle.ambf_constraint_type in ['REVOLUTE', 'TORSION_SPRING']:
+                joint_obj_handle.ambf_constraint_axis = 'Z'
+            elif joint_obj_handle.ambf_constraint_type in ['PRISMATIC', 'LINEAR_SPRING']:
+                joint_obj_handle.ambf_constraint_axis = 'X'
 
     def is_detached_joint(self, joint_data):
         _is_detached_joint = False
@@ -1663,7 +1670,7 @@ class AMBF_OT_load_ambf_file(bpy.types.Operator):
 
     def get_joint_offset_angle(self, joint_data):
         # To fully define a child body's connection and pose in a parent body, just the joint pivots
-        # and joint axes are not sufficient. We also need the joint offset which correctly defines
+        # and joint axis are not sufficient. We also need the joint offset which correctly defines
         # the initial pose of the child body in the parent body.
         offset_angle = 0.0
         if not self._context.scene.ignore_ambf_joint_offsets:
@@ -1674,6 +1681,7 @@ class AMBF_OT_load_ambf_file(bpy.types.Operator):
 
     def get_joint_in_parent_transform(self, parent_obj_handle, joint_data):
         parent_pivot_data, parent_axis_data = self.get_parent_pivot_and_axis_data(joint_data)
+        standard_pivot_data, standard_axis_data = self.get_standard_pivot_and_axis_data(joint_data)
 
         # Transformation matrix representing parent in world frame
         T_p_w = parent_obj_handle.matrix_world.copy()
@@ -1687,6 +1695,13 @@ class AMBF_OT_load_ambf_file(bpy.types.Operator):
                                               parent_pivot_data['y'],
                                               parent_pivot_data['z']])
 
+        joint_axis = mathutils.Vector([standard_axis_data['x'],
+                                       standard_axis_data['y'],
+                                       standard_axis_data['z']])
+
+        # Rotation matrix representing child frame in parent frame
+        R_j_p, r_j_p_angle = get_rot_mat_from_vecs(joint_axis, parent_axis)
+
         # Offset along constraint axis
         T_c_offset_rot = mathutils.Matrix().Rotation(self.get_joint_offset_angle(joint_data), 4, parent_axis)
 
@@ -1695,7 +1710,7 @@ class AMBF_OT_load_ambf_file(bpy.types.Operator):
 
         T_p_w_off = self._body_T_j_c[joint_data['parent']]
         # Transformation of child in parents frame
-        T_j_p = T_p_w * T_p_w_off * P_j_p * T_c_offset_rot
+        T_j_p = T_p_w * T_p_w_off * P_j_p * T_c_offset_rot * R_j_p
 
         return T_j_p
 
@@ -1750,7 +1765,7 @@ class AMBF_OT_load_ambf_file(bpy.types.Operator):
 
         child_obj_handle = bpy.data.objects[self._blender_remapped_body_names[child_body_name]]
 
-        # If the joint is a detached joint, create an empty axes and return that
+        # If the joint is a detached joint, create an empty axis and return that
         # as the child object handle. Otherwise, return the child obj handle
         # as the joint obj handle
         if self.is_detached_joint(joint_data):
@@ -1806,7 +1821,7 @@ class AMBF_OT_load_ambf_file(bpy.types.Operator):
         joint_obj_handle.ambf_constraint_child = child_obj_handle
 
     def set_blender_constraint_params(self, joint_obj_handle, joint_data):
-        # If the adjust body pivots and axes was set, the offset angle
+        # If the adjust body pivots and axis was set, the offset angle
         # has already been incorporated, so set it to zero, otherwise
         # get the reading from the ADF
         if self._context.scene.adjust_joint_pivots:
@@ -1875,6 +1890,8 @@ class AMBF_OT_load_ambf_file(bpy.types.Operator):
                 joint_obj_handle.ambf_constraint_limits_lower = joint_data['joint limits']['low']
                 joint_obj_handle.ambf_constraint_limits_higher = joint_data['joint limits']['high']
                 limits_defined = True
+                
+        self.set_default_ambf_constraint_axis(joint_obj_handle)
 
         if not limits_defined:
             joint_obj_handle.ambf_constraint_limits_enable = False
@@ -1963,7 +1980,7 @@ class AMBF_OT_load_ambf_file(bpy.types.Operator):
             self.load_body(body_name)
 
         if context.scene.enable_legacy_loading and context.scene.adjust_joint_pivots:
-            self.adjust_body_pivots_and_axes()
+            self.adjust_body_pivots_and_axis()
 
         for joint_name in joints_list:
             if context.scene.enable_legacy_loading:
@@ -2267,7 +2284,7 @@ class AMBF_PT_joint_props(bpy.types.Panel):
     def poll(self, context):
         has_detached_prefix = False
         if context.active_object: # Check if an object is active
-            if context.active_object.type in ['EMPTY', 'MESH']: # Check if the object is a mesh or an empty axes
+            if context.active_object.type in ['EMPTY', 'MESH']: # Check if the object is a mesh or an empty axis
                 if context.active_object.rigid_body_constraint: # Check if the object has a constraint
                     if context.active_object.rigid_body_constraint.type in ['HINGE', 'SLIDER', 'GENERIC']: # Check if a valid constraint
                         has_detached_prefix = True
@@ -2552,11 +2569,10 @@ class AMBF_PT_ambf_constraint(bpy.types.Panel):
 
     bpy.types.Object.ambf_constraint_limits_enable = bpy.props.BoolProperty(name="Enable Limits", default=True)
 
-    bpy.types.Object.ambf_constraint_limits_lower = bpy.props.FloatProperty(name="Low", default=-60, min=-359, max=359)
-
-    bpy.types.Object.ambf_constraint_limits_higher = bpy.props.FloatProperty(name="High", default=60, min=-359, max=359)
+    bpy.types.Object.ambf_constraint_limits_lower = bpy.props.FloatProperty(name="Low", default=math.radians(-60), min=-3.14, max=3.14, unit='ROTATION')
+    bpy.types.Object.ambf_constraint_limits_higher = bpy.props.FloatProperty(name="High", default=math.radians(60), min=-3.14, max=3.14, unit='ROTATION')
     
-    bpy.types.Object.ambf_constraint_axes = bpy.props.EnumProperty \
+    bpy.types.Object.ambf_constraint_axis = bpy.props.EnumProperty \
         (
             name='Axis',
             items=
@@ -2621,7 +2637,7 @@ class AMBF_PT_ambf_constraint(bpy.types.Panel):
             if context.object.ambf_constraint_type in ['PRISMATIC', 'REVOLUTE', 'LINEAR_SPRING', 'TORSION_SPRING']:
                 row = layout.row()
                 row.alignment = 'EXPAND'
-                row.prop(context.object, 'ambf_constraint_axes')
+                row.prop(context.object, 'ambf_constraint_axis')
 
                 row = layout.row()
                 row.prop(context.object, 'ambf_constraint_damping')
