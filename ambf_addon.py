@@ -1468,56 +1468,30 @@ class AMBF_OT_load_ambf_file(bpy.types.Operator):
             joint_data = self._ambf_data[joint_name]
             if 'child pivot' in joint_data:
 
-                if 'redundant' in joint_data:
-                    if joint_data['redundant'] is True or joint_data['redundant'] == 'True':
-                        print('INFO, JOINT \"%s\" IS DETACHED, NO NEED'
-                              ' TO ADJUST CHILD BODY\'S AXIS AND PIVOTS' % joint_name)
-                        return
-
-                if 'detached' in joint_data:
-                    if joint_data['detached'] is True or joint_data['detached'] == 'True':
-                        print('INFO, JOINT \"%s\" IS DETACHED, NO NEED'
-                              ' TO ADJUST CHILD BODY\'S AXIS AND PIVOTS' % joint_name)
-                        return
+                if self.is_detached_joint(joint_data):
+                    print('INFO, JOINT \"%s\" IS DETACHED, NO NEED'
+                          ' TO ADJUST CHILD BODY\'S AXIS AND PIVOTS' % joint_name)
+                    return
 
                 child_body_name = joint_data['child']
-                child_pivot_data = joint_data['child pivot']
-                child_axis_data = joint_data['child axis']
-                parent_axis_data = joint_data['parent axis']
+                parent_pivot_data, parent_axis_data = self.get_parent_pivot_and_axis_data(joint_data)
+                child_pivot_data, child_axis_data = self.get_child_pivot_and_axis_data(joint_data)
 
                 child_obj_handle = bpy.data.objects[self._blender_remapped_body_names[child_body_name]]
 
-                joint_type = 'HINGE'
-                if 'type' in joint_data:
-                    if joint_data['type'] in ['hinge', 'revolute', 'continuous']:
-                        joint_type = 'HINGE'
-                    elif joint_data['type'] in ['prismatic', 'slider']:
-                        joint_type = 'SLIDER'
-                    elif joint_data['type'] in ['spring', 'linear spring', 'angular spring', 'torsional spring', 'torsion spring']:
-                        joint_type = 'GENERIC_SPRING'
-                    elif joint_data['type'] in ['p2p', 'point2point']:
-                        joint_type = 'POINT'
-                    elif joint_data['type'] in ['fixed', 'FIXED']:
-                        joint_type = 'FIXED'
+                joint_type = self.get_ambf_joint_type(joint_data)
+
+                standard_pivot_data, standard_axis_data = self.get_standard_pivot_and_axis_data(joint_data)
 
                 # Universal Constraint Axis
-                constraint_axis = mathutils.Vector([0, 0, 1])
-                # If check is enabled, set the appropriate constraint axis
-                if joint_type == 'HINGE':
-                    constraint_axis = mathutils.Vector([0, 0, 1])
-                elif joint_type == 'SLIDER':
-                    constraint_axis = mathutils.Vector([1, 0, 0])
-                elif joint_data['type'] in ['spring', 'linear spring']:
-                    constraint_axis = mathutils.Vector([1, 0, 0])
-                elif joint_data['type'] in ['angular spring', 'torsional spring', 'torsion spring']:
-                    constraint_axis = mathutils.Vector([0, 0, 1])
-                elif joint_type == 'POINT':
-                    constraint_axis = mathutils.Vector([0, 0, 1])
-                elif joint_type == 'FIXED':
-                    constraint_axis = mathutils.Vector([0, 0, 1])
+                constraint_axis = mathutils.Vector([standard_axis_data['x'],
+                                                    standard_axis_data['y'],
+                                                    standard_axis_data['z']])
 
                 # Child's Joint Axis in child's frame
-                child_axis = mathutils.Vector([child_axis_data['x'], child_axis_data['y'], child_axis_data['z']])
+                child_axis = mathutils.Vector([child_axis_data['x'],
+                                               child_axis_data['y'],
+                                               child_axis_data['z']])
 
                 # To keep the joint limits intact, we set the constraint axis as
                 # negative if the joint axis is negative
@@ -1536,13 +1510,13 @@ class AMBF_OT_load_ambf_file(bpy.types.Operator):
                 T_c_j = T_j_c.copy()
                 T_c_j.invert()
 
-                child_pivot_data['x'] = 0.0
-                child_pivot_data['y'] = 0.0
-                child_pivot_data['z'] = 0.0
+                child_pivot_data['x'] = standard_pivot_data['x']
+                child_pivot_data['y'] = standard_pivot_data['y']
+                child_pivot_data['z'] = standard_pivot_data['z']
 
-                child_axis_data['x'] = constraint_axis[0]
-                child_axis_data['y'] = constraint_axis[1]
-                child_axis_data['z'] = constraint_axis[2]
+                child_axis_data['x'] = standard_axis_data['x']
+                child_axis_data['y'] = standard_axis_data['y']
+                child_axis_data['z'] = standard_axis_data['z']
 
                 if child_obj_handle.type != 'EMPTY':
                     child_obj_handle.data.transform(T_c_j)
@@ -1551,7 +1525,9 @@ class AMBF_OT_load_ambf_file(bpy.types.Operator):
                 # Implementing the Alignment Offset Correction Algorithm (AO)
 
                 # Parent's Joint Axis in parent's frame
-                parent_axis = mathutils.Vector([parent_axis_data['x'], parent_axis_data['y'], parent_axis_data['z']])
+                parent_axis = mathutils.Vector([parent_axis_data['x'],
+                                                parent_axis_data['y'],
+                                                parent_axis_data['z']])
 
                 R_caxis_p, r_cnew_p_angle = get_rot_mat_from_vecs(constraint_axis, parent_axis)
                 R_cnew_p = R_caxis_p * T_c_j
@@ -1646,30 +1622,43 @@ class AMBF_OT_load_ambf_file(bpy.types.Operator):
 
         return parent_obj_handle, child_obj_handle
 
-    def get_child_pivot_and_axes_data(self, joint_data, adjust_if_detached_joint):
+    def get_parent_pivot_and_axis_data(self, joint_data):
+        parent_pivot_data = {'x': 0, 'y': 0, 'z': 0}
+        parent_axis_data = {'x': 0, 'y': 0, 'z': 1}
+
+        if 'parent pivot' in joint_data:
+            parent_pivot_data = joint_data['child pivot']
+        if 'parent axis' in joint_data:
+            parent_axis_data = joint_data['child axis']
+
+        return parent_pivot_data, parent_axis_data
+
+    def get_child_pivot_and_axis_data(self, joint_data):
         child_pivot_data = {'x': 0, 'y': 0, 'z': 0}
-        child_axis_data = {'x': 0, 'y': 0, 'z': 0}
+        child_axis_data = {'x': 0, 'y': 0, 'z': 1}
 
         if 'child pivot' in joint_data:
             child_pivot_data = joint_data['child pivot']
         if 'child axis' in joint_data:
             child_axis_data = joint_data['child axis']
 
-        if adjust_if_detached_joint:
-            if self.is_detached_joint(joint_data):
-                child_pivot_data = {'x': 0, 'y': 0, 'z': 0}
-                if joint_data['type'] in ['hinge', 'continuous', 'revolute', 'fixed']:
-                    child_axis_data = {'x': 0, 'y': 0, 'z': 1}
-                elif joint_data['type'] in ['prismatic', 'slider']:
-                    child_axis_data = {'x': 1, 'y': 0, 'z': 0}
-                elif joint_data['type'] in ['spring', 'linear spring']:
-                    child_axis_data = {'x': 1, 'y': 0, 'z': 0}
-                elif joint_data['type'] in ['angular spring', 'torsional spring', 'torsion spring']:
-                    child_axis_data = {'x': 0, 'y': 0, 'z': 1}
-                elif joint_data['type'] in ['p2p', 'point2point']:
-                    child_axis_data = {'x': 0, 'y': 0, 'z': 1}
-
         return child_pivot_data, child_axis_data
+
+    def get_standard_pivot_and_axis_data(self, joint_data):
+        pivot_data = {'x': 0, 'y': 0, 'z': 0}
+        axis_data = {'x': 0, 'y': 0, 'z': 1}
+        if joint_data['type'] in ['hinge', 'continuous', 'revolute', 'fixed']:
+            axis_data = {'x': 0, 'y': 0, 'z': 1}
+        elif joint_data['type'] in ['prismatic', 'slider']:
+            axis_data = {'x': 1, 'y': 0, 'z': 0}
+        elif joint_data['type'] in ['spring', 'linear spring']:
+            axis_data = {'x': 1, 'y': 0, 'z': 0}
+        elif joint_data['type'] in ['angular spring', 'torsional spring', 'torsion spring']:
+            axis_data = {'x': 0, 'y': 0, 'z': 1}
+        elif joint_data['type'] in ['p2p', 'point2point']:
+            axis_data = {'x': 0, 'y': 0, 'z': 1}
+
+        return pivot_data, axis_data
 
     def get_joint_offset_angle(self, joint_data):
         # To fully define a child body's connection and pose in a parent body, just the joint pivots
@@ -1683,17 +1672,19 @@ class AMBF_OT_load_ambf_file(bpy.types.Operator):
         return offset_angle
 
     def get_joint_in_parent_transform(self, parent_obj_handle, joint_data):
-        parent_pivot_data = joint_data['parent pivot']
-        parent_axis_data = joint_data['parent axis']
+        parent_pivot_data, parent_axis_data = self.get_parent_pivot_and_axis_data(joint_data)
 
         # Transformation matrix representing parent in world frame
         T_p_w = parent_obj_handle.matrix_world.copy()
         # Parent's Joint Axis in parent's frame
-        parent_axis = mathutils.Vector([parent_axis_data['x'], parent_axis_data['y'], parent_axis_data['z']])
+        parent_axis = mathutils.Vector([parent_axis_data['x'],
+                                        parent_axis_data['y'],
+                                        parent_axis_data['z']])
         # Transformation of joint in parent frame
         P_j_p = mathutils.Matrix()
-        P_j_p.translation = mathutils.Vector(
-            [parent_pivot_data['x'], parent_pivot_data['y'], parent_pivot_data['z']])
+        P_j_p.translation = mathutils.Vector([parent_pivot_data['x'],
+                                              parent_pivot_data['y'],
+                                              parent_pivot_data['z']])
 
         # Offset along constraint axis
         T_c_offset_rot = mathutils.Matrix().Rotation(self.get_joint_offset_angle(joint_data), 4, parent_axis)
@@ -1704,27 +1695,28 @@ class AMBF_OT_load_ambf_file(bpy.types.Operator):
         T_p_w_off = self._body_T_j_c[joint_data['parent']]
         # Transformation of child in parents frame
         T_j_p = T_p_w * T_p_w_off * P_j_p * T_c_offset_rot
-        
-        print('1.************')
-        print('T_j_p', T_j_p)
 
         return T_j_p
 
-    def get_child_in_parent_transform(self, parent_obj_handle, joint_data, adjust_if_detached_joint):
-        parent_pivot_data = joint_data['parent pivot']
-        parent_axis_data = joint_data['parent axis']
-        child_pivot_data, child_axis_data = self.get_child_pivot_and_axes_data(joint_data, adjust_if_detached_joint)
+    def get_child_in_parent_transform(self, parent_obj_handle, joint_data):
+        parent_pivot_data, parent_axis_data = self.get_parent_pivot_and_axis_data(joint_data)
+        child_pivot_data, child_axis_data = self.get_child_pivot_and_axis_data(joint_data)
 
         # Transformation matrix representing parent in world frame
         T_p_w = parent_obj_handle.matrix_world.copy()
         # Parent's Joint Axis in parent's frame
-        parent_axis = mathutils.Vector([parent_axis_data['x'], parent_axis_data['y'], parent_axis_data['z']])
+        parent_axis = mathutils.Vector([parent_axis_data['x'],
+                                        parent_axis_data['y'],
+                                        parent_axis_data['z']])
         # Transformation of joint in parent frame
         P_j_p = mathutils.Matrix()
         # P_j_p = P_j_p * r_j_p
-        P_j_p.translation = mathutils.Vector(
-            [parent_pivot_data['x'], parent_pivot_data['y'], parent_pivot_data['z']])
-        child_axis = mathutils.Vector([child_axis_data['x'], child_axis_data['y'], child_axis_data['z']])
+        P_j_p.translation = mathutils.Vector([parent_pivot_data['x'],
+                                              parent_pivot_data['y'],
+                                              parent_pivot_data['z']])
+        child_axis = mathutils.Vector([child_axis_data['x'],
+                                       child_axis_data['y'],
+                                       child_axis_data['z']])
         # Rotation matrix representing child frame in parent frame
         R_c_p, r_c_p_angle = get_rot_mat_from_vecs(child_axis, parent_axis)
         # print ('r_c_p')
@@ -1749,11 +1741,6 @@ class AMBF_OT_load_ambf_file(bpy.types.Operator):
         T_p_w_off = self._body_T_j_c[joint_data['parent']]
         # Transformation of child in parents frame
         T_c_p = T_p_w * T_p_w_off * P_j_p * T_c_offset_rot * R_c_p * P_c_j
-        
-        print('2.************')
-        print('R_c_p', R_c_p)
-        print('P_c_j', P_c_j)
-        print('T_c_p', T_c_p)
 
         return T_c_p
 
@@ -1908,7 +1895,7 @@ class AMBF_OT_load_ambf_file(bpy.types.Operator):
         parent_obj_handle, child_obj_handle = self.get_parent_and_child_object_handles(joint_data)
         joint_obj_handle = self.get_blender_joint_handle(joint_data)
 
-        T_c_p = self.get_child_in_parent_transform(parent_obj_handle, joint_data, True)
+        T_c_p = self.get_child_in_parent_transform(parent_obj_handle, joint_data)
         # Set the child body the pose calculated above
         joint_obj_handle.matrix_world = T_c_p
 
@@ -1930,7 +1917,7 @@ class AMBF_OT_load_ambf_file(bpy.types.Operator):
         joint_obj_handle = self.get_ambf_joint_handle(joint_data)
 
         T_j_p = self.get_joint_in_parent_transform(parent_obj_handle, joint_data)
-        T_c_p = self.get_child_in_parent_transform(parent_obj_handle, joint_data, False)
+        T_c_p = self.get_child_in_parent_transform(parent_obj_handle, joint_data)
         # Set the child body the pose calculated above
         joint_obj_handle.matrix_world = T_j_p
         child_obj_handle.matrix_world = T_c_p
