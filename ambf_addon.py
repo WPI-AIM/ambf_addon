@@ -1629,7 +1629,7 @@ class AMBF_OT_load_ambf_file(bpy.types.Operator):
 
         return _is_detached_joint
 
-    def had_detached_prefix(self, joint_name):
+    def has_detached_prefix(self, joint_name):
         _has_detached_prefix = False
         for _detached_joint_name_str in CommonConfig.detached_joint_prefix:
             if joint_name.rfind(_detached_joint_name_str) == 0:
@@ -1646,11 +1646,16 @@ class AMBF_OT_load_ambf_file(bpy.types.Operator):
 
         return parent_obj_handle, child_obj_handle
 
-    def get_child_pivot_and_axes_data(self, joint_data):
+    def get_child_pivot_and_axes_data(self, joint_data, adjust_if_detached_joint):
         child_pivot_data = {'x': 0, 'y': 0, 'z': 0}
         child_axis_data = {'x': 0, 'y': 0, 'z': 0}
+
         if 'child pivot' in joint_data:
             child_pivot_data = joint_data['child pivot']
+        if 'child axis' in joint_data:
+            child_axis_data = joint_data['child axis']
+
+        if adjust_if_detached_joint:
             if self.is_detached_joint(joint_data):
                 child_pivot_data = {'x': 0, 'y': 0, 'z': 0}
                 if joint_data['type'] in ['hinge', 'continuous', 'revolute', 'fixed']:
@@ -1663,8 +1668,6 @@ class AMBF_OT_load_ambf_file(bpy.types.Operator):
                     child_axis_data = {'x': 0, 'y': 0, 'z': 1}
                 elif joint_data['type'] in ['p2p', 'point2point']:
                     child_axis_data = {'x': 0, 'y': 0, 'z': 1}
-            else:
-                child_axis_data = joint_data['child axis']
 
         return child_pivot_data, child_axis_data
 
@@ -1682,7 +1685,6 @@ class AMBF_OT_load_ambf_file(bpy.types.Operator):
     def get_joint_in_parent_transform(self, parent_obj_handle, joint_data):
         parent_pivot_data = joint_data['parent pivot']
         parent_axis_data = joint_data['parent axis']
-        child_pivot_data, child_axis_data = self.get_child_pivot_and_axes_data(joint_data)
 
         # Transformation matrix representing parent in world frame
         T_p_w = parent_obj_handle.matrix_world.copy()
@@ -1690,34 +1692,28 @@ class AMBF_OT_load_ambf_file(bpy.types.Operator):
         parent_axis = mathutils.Vector([parent_axis_data['x'], parent_axis_data['y'], parent_axis_data['z']])
         # Transformation of joint in parent frame
         P_j_p = mathutils.Matrix()
-        # P_j_p = P_j_p * r_j_p
         P_j_p.translation = mathutils.Vector(
             [parent_pivot_data['x'], parent_pivot_data['y'], parent_pivot_data['z']])
-        child_axis = mathutils.Vector([child_axis_data['x'], child_axis_data['y'], child_axis_data['z']])
-        # Rotation matrix representing child frame in parent frame
-        R_c_p, r_c_p_angle = get_rot_mat_from_vecs(child_axis, parent_axis)
-        # print ('r_c_p')
-        # print(r_c_p)
-        # Transformation of joint in child frame
-        P_j_c = mathutils.Matrix()
-        # p_j_c *= r_j_c
-        P_j_c.translation = mathutils.Vector(
-            [child_pivot_data['x'], child_pivot_data['y'], child_pivot_data['z']])
-        # print(p_j_c)
-        # Transformation of child in joints frame
-        P_c_j = P_j_c.copy()
-        P_c_j.invert()
+
         # Offset along constraint axis
-        R_c_offset_rot = mathutils.Matrix().Rotation(self.get_joint_offset_angle(joint_data), 4, parent_axis)
+        T_c_offset_rot = mathutils.Matrix().Rotation(self.get_joint_offset_angle(joint_data), 4, parent_axis)
+
+        # Axis Alignment Offset resulting from adjusting the child bodies. If the child bodies are not
+        # adjusted, this will be an identity matrix
+
+        T_p_w_off = self._body_T_j_c[joint_data['parent']]
         # Transformation of child in parents frame
-        T_c_p = T_p_w * P_j_p * R_c_offset_rot * R_c_p * P_c_j
+        T_j_p = T_p_w * T_p_w_off * P_j_p * T_c_offset_rot
+        
+        print('1.************')
+        print('T_j_p', T_j_p)
 
-        return T_c_p
+        return T_j_p
 
-    def get_child_in_parent_transform(self, parent_obj_handle, joint_data):
+    def get_child_in_parent_transform(self, parent_obj_handle, joint_data, adjust_if_detached_joint):
         parent_pivot_data = joint_data['parent pivot']
         parent_axis_data = joint_data['parent axis']
-        child_pivot_data, child_axis_data = self.get_child_pivot_and_axes_data(joint_data)
+        child_pivot_data, child_axis_data = self.get_child_pivot_and_axes_data(joint_data, adjust_if_detached_joint)
 
         # Transformation matrix representing parent in world frame
         T_p_w = parent_obj_handle.matrix_world.copy()
@@ -1753,6 +1749,11 @@ class AMBF_OT_load_ambf_file(bpy.types.Operator):
         T_p_w_off = self._body_T_j_c[joint_data['parent']]
         # Transformation of child in parents frame
         T_c_p = T_p_w * T_p_w_off * P_j_p * T_c_offset_rot * R_c_p * P_c_j
+        
+        print('2.************')
+        print('R_c_p', R_c_p)
+        print('P_c_j', P_c_j)
+        print('T_c_p', T_c_p)
 
         return T_c_p
 
@@ -1769,7 +1770,7 @@ class AMBF_OT_load_ambf_file(bpy.types.Operator):
             joint_obj_handle = bpy.context.active_object
             joint_name = str(joint_data['name'])
 
-            if self.had_detached_prefix(joint_name):
+            if self.has_detached_prefix(joint_name):
                 joint_obj_handle.name = joint_name
             else:
                 joint_obj_handle.name = 'detached joint ' + joint_name
@@ -1873,6 +1874,7 @@ class AMBF_OT_load_ambf_file(bpy.types.Operator):
 
     def set_ambf_constraint_params(self, joint_obj_handle, joint_data):
         limits_defined = False
+        joint_obj_handle.ambf_constraint_name = joint_data['name']
         joint_type = self.get_ambf_joint_type(joint_data)
         if 'joint limits' in joint_data:
             if 'low' in joint_data['joint limits'] and 'high' in joint_data['joint limits']:
@@ -1906,9 +1908,9 @@ class AMBF_OT_load_ambf_file(bpy.types.Operator):
         parent_obj_handle, child_obj_handle = self.get_parent_and_child_object_handles(joint_data)
         joint_obj_handle = self.get_blender_joint_handle(joint_data)
 
-        t_c_p = self.get_child_in_parent_transform(parent_obj_handle, joint_data)
+        T_c_p = self.get_child_in_parent_transform(parent_obj_handle, joint_data, True)
         # Set the child body the pose calculated above
-        joint_obj_handle.matrix_world = t_c_p
+        joint_obj_handle.matrix_world = T_c_p
 
         self.make_obj1_parent_of_obj2(obj1=parent_obj_handle, obj2=joint_obj_handle)
 
@@ -1927,13 +1929,14 @@ class AMBF_OT_load_ambf_file(bpy.types.Operator):
         parent_obj_handle, child_obj_handle = self.get_parent_and_child_object_handles(joint_data)
         joint_obj_handle = self.get_ambf_joint_handle(joint_data)
 
-        t_c_p = self.get_child_in_parent_transform(parent_obj_handle, joint_data)
+        T_j_p = self.get_joint_in_parent_transform(parent_obj_handle, joint_data)
+        T_c_p = self.get_child_in_parent_transform(parent_obj_handle, joint_data, False)
         # Set the child body the pose calculated above
-        joint_obj_handle.matrix_world = t_c_p
-        child_obj_handle.matrix_world = t_c_p
+        joint_obj_handle.matrix_world = T_j_p
+        child_obj_handle.matrix_world = T_c_p
 
-        #self.make_obj1_parent_of_obj2(obj1=parent_obj_handle, obj2=joint_obj_handle)
-        #self.make_obj1_parent_of_obj2(obj1=parent_obj_handle, obj2=child_obj_handle)
+        self.make_obj1_parent_of_obj2(obj1=parent_obj_handle, obj2=joint_obj_handle)
+        self.make_obj1_parent_of_obj2(obj1=joint_obj_handle, obj2=child_obj_handle)
 
         self.create_ambf_constraint(joint_obj_handle, self.get_ambf_joint_type(joint_data), parent_obj_handle,
                                        child_obj_handle)
