@@ -338,10 +338,31 @@ class BodyTemplate:
         self._ambf_data['inertia'] = {'ix': 0.0, 'iy': 0.0, 'iz': 0.0}
         self._ambf_data['collision margin'] = 0.001
         self._ambf_data['scale'] = 1.0
-        self._ambf_data['location'] = {'position': {'x': 0, 'y': 0, 'z': 0},
-                                       'orientation': {'r': 0, 'p': 0, 'y': 0}}
-        self._ambf_data['inertial offset'] = {'position': {'x': 0, 'y': 0, 'z': 0},
-                                              'orientation': {'r': 0, 'p': 0, 'y': 0}}
+        loc_xyz_dict = OrderedDict()
+        loc_xyz_dict['x'] = 0
+        loc_xyz_dict['y'] = 0
+        loc_xyz_dict['z'] = 0
+        loc_rpy_dict = OrderedDict()
+        loc_rpy_dict['r'] = 0
+        loc_rpy_dict['p'] = 0
+        loc_rpy_dict['y'] = 0
+        location_dict = OrderedDict()
+        location_dict['position'] = loc_xyz_dict
+        location_dict['orientation'] = loc_rpy_dict
+        self._ambf_data['location'] = location_dict
+
+        i_off_xyz_dict = OrderedDict()
+        i_off_xyz_dict['x'] = 0
+        i_off_xyz_dict['y'] = 0
+        i_off_xyz_dict['z'] = 0
+        i_off_rpy_dict = OrderedDict()
+        i_off_rpy_dict['r'] = 0
+        i_off_rpy_dict['p'] = 0
+        i_off_rpy_dict['y'] = 0
+        i_offset_dict = OrderedDict()
+        i_offset_dict['position'] = i_off_xyz_dict
+        i_offset_dict['orientation'] = i_off_rpy_dict
+        self._ambf_data['inertial offset'] = i_offset_dict
 
         # self._ambf_data['controller'] = {'linear': {'P': 1000, 'I': 0, 'D': 1},
         #                                  'angular': {'P': 1000, 'I': 0, 'D': 1}}
@@ -362,7 +383,12 @@ class JointTemplate:
         self._ambf_data['child axis'] = {'x': 0, 'y': 0.0, 'z': 1.0}
         self._ambf_data['child pivot'] = {'x': 0, 'y': 0.0, 'z': 0}
         self._ambf_data['joint limits'] = {'low': -1.2, 'high': 1.2}
-        self._ambf_data['controller'] = {'P': 1000, 'I': 0, 'D': 1}
+
+        cont_dict = OrderedDict()
+        cont_dict['P'] = 1000
+        cont_dict['I'] = 0
+        cont_dict['D'] = 1
+        self._ambf_data['controller'] = cont_dict
 
 
 class AMBF_OT_generate_ambf_file(bpy.types.Operator):
@@ -404,7 +430,7 @@ class AMBF_OT_generate_ambf_file(bpy.types.Operator):
             center[i] = center[i] * obj.scale[i]
         return center
 
-    def generate_body_data(self, ambf_yaml, obj_handle):
+    def generate_body_data_from_blender_rigid_body(self, ambf_yaml, obj_handle):
         if obj_handle.hide is True:
             return
         body = BodyTemplate()
@@ -566,21 +592,161 @@ class AMBF_OT_generate_ambf_file(bpy.types.Operator):
         ambf_yaml[body_yaml_name] = body_data
         self._body_names_list.append(body_yaml_name)
 
-    def generate_joint_data(self, ambf_yaml, obj_handle):
+    def generate_body_data_from_ambf_rigid_body(self, ambf_yaml, obj_handle):
+
+        if obj_handle.ambf_object_type != 'RIGID_BODY':
+            return
 
         if obj_handle.hide is True:
             return
 
-        if obj_handle.rigid_body_constraint:
-            if obj_handle.rigid_body_constraint.object1:
-                if obj_handle.rigid_body_constraint.object1.hide is True:
+        body = BodyTemplate()
+        body_data = body._ambf_data
+
+        if not compare_body_namespace_with_global(obj_handle.name):
+            if get_body_namespace(obj_handle.name) != '':
+                body_data['namespace'] = get_body_namespace(obj_handle.name)
+
+        obj_handle_name = remove_namespace_prefix(obj_handle.name)
+
+        body_yaml_name = self.add_body_prefix_str(obj_handle_name)
+        output_mesh = bpy.context.scene['mesh_output_type']
+        body_data['name'] = obj_handle_name
+
+        body_data['publish children names'] = obj_handle.ambf_rigid_body_publish_children_names
+        body_data['publish joint names'] = obj_handle.ambf_rigid_body_publish_joint_names
+        body_data['publish joint positions'] = obj_handle.ambf_rigid_body_publish_joint_positions
+
+        world_pos = obj_handle.matrix_world.translation
+        world_rot = obj_handle.matrix_world.to_euler()
+        body_pos = body_data['location']['position']
+        body_rot = body_data['location']['orientation']
+        body_pos['x'] = round(world_pos.x, 3)
+        body_pos['y'] = round(world_pos.y, 3)
+        body_pos['z'] = round(world_pos.z, 3)
+        body_rot['r'] = round(world_rot[0], 3)
+        body_rot['p'] = round(world_rot[1], 3)
+        body_rot['y'] = round(world_rot[2], 3)
+
+        if obj_handle.type == 'EMPTY':
+            body_data['mesh'] = ''
+            if obj_handle_name in ['world', 'World', 'WORLD']:
+                body_data['mass'] = 0
+            else:
+                body_data['mass'] = obj_handle.ambf_rigid_body_mass
+                body_data['inertia'] = {'ix': 0.01, 'iy': 0.01, 'iz': 0.01}
+
+        elif obj_handle.type == 'MESH':
+
+            if obj_handle.ambf_rigid_body_is_static:
+                body_data['mass'] = 0.0
+            else:
+                body_data['mass'] = round(obj_handle.ambf_rigid_body_mass, 3)
+
+            body_data['friction'] = {'static': round(obj_handle.ambf_rigid_body_static_friction, 4),
+                                     'rolling': round(obj_handle.ambf_rigid_body_rolling_friction, 4)}
+
+            body_data['restitution'] = round(obj_handle.ambf_rigid_body_restitution, 4)
+
+            body_data['damping'] = {'linear': round(obj_handle.ambf_rigid_body_linear_damping, 4),
+                                    'angular': round(obj_handle.ambf_rigid_body_angular_damping, 4)}
+
+            body_data['collision groups'] = [idx for idx, chk in enumerate(obj_handle.ambf_rigid_body_collision_groups) if chk == True]
+
+            if obj_handle.ambf_rigid_body_enable_collision_margin is True:
+                body_data['collision margin'] = round(obj_handle.ambf_rigid_body_collision_margin, 4)
+
+            if obj_handle.ambf_rigid_body_collision_shape != 'CONVEX_HULL':
+                ocs = obj_handle.ambf_rigid_body_collision_shape
+                body_data['collision shape'] = ocs
+                bcg = OrderedDict()
+                dims = obj_handle.dimensions.copy()
+                od = [round(dims[0], 3), round(dims[1], 3), round(dims[2], 3)]
+                # Now we need to find out the geometry of the shape
+                if ocs == 'BOX':
+                    bcg = {'x': od[0], 'y': od[1], 'z': od[2]}
+                elif ocs == 'SPHERE':
+                    bcg = {'radius': max(od)/2.0}
+                elif ocs == 'CYLINDER':
+                    major_ax_char, major_ax_idx = get_major_axis(od)
+                    median_ax_char, median_ax_idx = get_median_axis(od)
+                    bcg = {'radius': od[median_ax_idx]/2.0, 'height': od[major_ax_idx], 'axis': major_ax_char}
+                elif ocs == 'CAPSULE':
+                    major_ax_char, major_ax_idx = get_major_axis(od)
+                    median_ax_char, median_ax_idx = get_median_axis(od)
+                    bcg = {'radius': od[median_ax_idx]/2.0, 'height': od[major_ax_idx], 'axis': major_ax_char}
+                elif ocs == 'CONE':
+                    major_ax_char, major_ax_idx = get_major_axis(od)
+                    median_ax_char, median_ax_idx = get_median_axis(od)
+                    bcg = {'radius': od[median_ax_idx]/2.0, 'height': od[major_ax_idx], 'axis': major_ax_char}
+                body_data['collision geometry'] = bcg
+
+            del body_data['inertia']
+            body_data['mesh'] = obj_handle_name + get_extension(output_mesh)
+            body_com = self.compute_local_com(obj_handle)
+            body_d_pos = body_data['inertial offset']['position']
+            body_d_pos['x'] = round(body_com[0], 3)
+            body_d_pos['y'] = round(body_com[1], 3)
+            body_d_pos['z'] = round(body_com[2], 3)
+
+            if obj_handle.data.materials:
+                del body_data['color']
+                body_data['color components'] = OrderedDict()
+                body_data['color components'] = {'diffuse': {'r': 1.0, 'g': 1.0, 'b': 1.0},
+                                                 'specular': {'r': 1.0, 'g': 1.0, 'b': 1.0},
+                                                 'ambient': {'level': 0.5},
+                                                 'transparency': 1.0}
+
+                body_data['color components']['diffuse']['r'] = round(obj_handle.data.materials[0].diffuse_color[0], 4)
+                body_data['color components']['diffuse']['g'] = round(obj_handle.data.materials[0].diffuse_color[1], 4)
+                body_data['color components']['diffuse']['b'] = round(obj_handle.data.materials[0].diffuse_color[2], 4)
+
+                body_data['color components']['specular']['r'] = round(obj_handle.data.materials[0].specular_color[0], 4)
+                body_data['color components']['specular']['g'] = round(obj_handle.data.materials[0].specular_color[1], 4)
+                body_data['color components']['specular']['b'] = round(obj_handle.data.materials[0].specular_color[2], 4)
+
+                body_data['color components']['ambient']['level'] = round(obj_handle.data.materials[0].ambient, 4)
+
+                body_data['color components']['transparency'] = round(obj_handle.data.materials[0].alpha, 4)
+
+            # Set the body controller data from the controller props
+            if obj_handle.ambf_rigid_body_enable_controllers is True:
+                _controller_gains = OrderedDict()
+                _lin_gains = OrderedDict()
+                _ang_gains = OrderedDict()
+                _lin_gains['P'] = round(obj_handle.ambf_rigid_body_linear_controller_p_gain, 4)
+                _lin_gains['I'] = 0
+                _lin_gains['D'] = round(obj_handle.ambf_rigid_body_linear_controller_d_gain, 4)
+
+                _ang_gains['P'] = round(obj_handle.ambf_rigid_body_angular_controller_p_gain, 4)
+                _ang_gains['I'] = 0
+                _ang_gains['D'] = round(obj_handle.ambf_rigid_body_angular_controller_d_gain, 4)
+
+                _controller_gains['linear'] = _lin_gains
+                _controller_gains['angular'] = _ang_gains
+                body_data['controller'] = _controller_gains
+            else:
+                if 'controller' in body_data:
+                    del body_data['controller']
+
+        ambf_yaml[body_yaml_name] = body_data
+        self._body_names_list.append(body_yaml_name)
+
+    def generate_joint_data_from_blender_constraint(self, ambf_yaml, joint_obj_handle):
+
+        if joint_obj_handle.hide is True:
+            return
+
+        if joint_obj_handle.rigid_body_constraint:
+            if joint_obj_handle.rigid_body_constraint.object1:
+                if joint_obj_handle.rigid_body_constraint.object1.hide is True:
                     return
-            if obj_handle.rigid_body_constraint.object2:
-                if obj_handle.rigid_body_constraint.object2.hide is True:
+            if joint_obj_handle.rigid_body_constraint.object2:
+                if joint_obj_handle.rigid_body_constraint.object2.hide is True:
                     return
 
-            if obj_handle.rigid_body_constraint.type in ['FIXED', 'HINGE', 'SLIDER', 'POINT', 'GENERIC', 'GENERIC_SPRING']:
-                constraint = obj_handle.rigid_body_constraint
+            if joint_obj_handle.rigid_body_constraint.type in ['FIXED', 'HINGE', 'SLIDER', 'POINT', 'GENERIC', 'GENERIC_SPRING']:
+                constraint = joint_obj_handle.rigid_body_constraint
                 joint_template = JointTemplate()
                 joint_data = joint_template._ambf_data
                 if constraint.object1:
@@ -589,11 +755,13 @@ class AMBF_OT_generate_ambf_file(bpy.types.Operator):
 
                     parent_obj_handle_name = remove_namespace_prefix(parent_obj_handle.name)
                     child_obj_handle_name = remove_namespace_prefix(child_obj_handle.name)
-                    obj_handle_name = remove_namespace_prefix(obj_handle.name)
+                    obj_handle_name = remove_namespace_prefix(joint_obj_handle.name)
 
                     joint_data['name'] = parent_obj_handle_name + "-" + child_obj_handle_name
                     joint_data['parent'] = self.add_body_prefix_str(parent_obj_handle_name)
                     joint_data['child'] = self.add_body_prefix_str(child_obj_handle_name)
+
+                    constraint_axis = self.get_default_axis_of_blender_constraint(constraint)
                     # parent_body_data = self._ambf_yaml[self.get_body_prefixed_name(parent_obj_handle_name)]
                     # child_body_data = self._ambf_yaml[self.get_body_prefixed_name(child_obj_handle_name)]
 
@@ -610,7 +778,7 @@ class AMBF_OT_generate_ambf_file(bpy.types.Operator):
                     # rotate this empty body such that the z axis / x axis is in the direction of the joint axis if
                     # the detached joint is supposed to be revolute or prismatic respectively.
                     _is_detached_joint = False
-                    if obj_handle.type == 'EMPTY':
+                    if joint_obj_handle.type == 'EMPTY':
                         # Check for a special case for defining joints for parallel linkages
                         for _detached_prefix_search_str in CommonConfig.detached_joint_prefix:
                             if obj_handle_name.rfind(_detached_prefix_search_str) == 0:
@@ -620,19 +788,19 @@ class AMBF_OT_generate_ambf_file(bpy.types.Operator):
                     if _is_detached_joint:
                         print('INFO: FOR BODY \"%s\" ADDING DETACHED JOINT' % obj_handle_name)
 
-                        parent_pivot, parent_axis = self.compute_pivot_and_axis(
-                            parent_obj_handle, obj_handle, constraint)
+                        parent_pivot, parent_axis = self.compute_body_pivot_and_axis(
+                            parent_obj_handle, joint_obj_handle, constraint_axis)
 
-                        child_pivot, child_axis = self.compute_pivot_and_axis(
-                            child_obj_handle, obj_handle, constraint)
+                        child_pivot, child_axis = self.compute_body_pivot_and_axis(
+                            child_obj_handle, joint_obj_handle, constraint_axis)
                         # Add this field to the joint data, it will come in handy for blender later
                         joint_data['detached'] = True
 
                     else:
-                        parent_pivot, parent_axis = self.compute_pivot_and_axis(
-                            parent_obj_handle, child_obj_handle, constraint)
+                        parent_pivot, parent_axis = self.compute_body_pivot_and_axis(
+                            parent_obj_handle, child_obj_handle, constraint_axis)
                         child_pivot = mathutils.Vector([0, 0, 0])
-                        child_axis, ax_idx = self.get_joint_axis(constraint)
+                        child_axis = self.get_default_axis_of_blender_constraint(constraint)
 
                     parent_pivot_data = joint_data["parent pivot"]
                     parent_axis_data = joint_data["parent axis"]
@@ -652,7 +820,7 @@ class AMBF_OT_generate_ambf_file(bpy.types.Operator):
                     child_axis_data['z'] = round(child_axis.z, 3)
 
                     # This method assigns joint limits, joint_type, joint damping and stiffness for spring joints
-                    self.assign_joint_params(constraint, joint_data)
+                    self.assign_joint_params_from_blender_constraint(constraint, joint_data)
 
                     # The use of pivot and axis does not fully define the connection and relative
                     # transform between two bodies it is very likely that we need an additional offset
@@ -709,53 +877,143 @@ class AMBF_OT_generate_ambf_file(bpy.types.Operator):
                         c_mass = child_obj_handle.rigid_body.mass
 
                     # Set the joint controller gains data from the joint controller props
-                    if obj_handle.rigid_body_constraint.type in ['HINGE', 'SLIDER', 'GENERIC']:
-                        if obj_handle.ambf_enable_joint_props is True:
+                    if joint_obj_handle.rigid_body_constraint.type in ['HINGE', 'SLIDER', 'GENERIC']:
+                        if joint_obj_handle.ambf_enable_joint_props is True:
                             _gains = OrderedDict()
-                            _gains['P'] = round(obj_handle.ambf_joint_controller_p_gain, 4)
+                            _gains['P'] = round(joint_obj_handle.ambf_joint_controller_p_gain, 4)
                             _gains['I'] = 0
-                            _gains['D'] = round(obj_handle.ambf_joint_controller_d_gain, 4)
+                            _gains['D'] = round(joint_obj_handle.ambf_joint_controller_d_gain, 4)
                             
                             joint_data['controller'] = _gains
-                            joint_data['damping'] = round(obj_handle.ambf_joint_damping, 4)
+                            joint_data['damping'] = round(joint_obj_handle.ambf_joint_damping, 4)
                         else:
                             if 'controller' in joint_data:
                                 del joint_data['controller']
 
+    def generate_joint_data_from_ambf_constraint(self, ambf_yaml, joint_obj_handle):
+
+        if joint_obj_handle.ambf_object_type != 'CONSTRAINT':
+            return
+
+        if joint_obj_handle.hide is True:
+            return
+
+        _valid_constraint = True
+        if joint_obj_handle.ambf_constraint_parent:
+            if joint_obj_handle.ambf_constraint_parent.hide is True:
+                _valid_constraint = False
+
+        if joint_obj_handle.ambf_constraint_child:
+            if joint_obj_handle.ambf_constraint_child.hide is True:
+                _valid_constraint = False
+
+        if not _valid_constraint:
+            print('ERROR! CONSTRAINT: ', joint_obj_handle.name, ' IS NOT A VALID CONSTRAINT, SKIPPING')
+            return
+
+        joint_template = JointTemplate()
+        joint_data = joint_template._ambf_data
+        parent_obj_handle = joint_obj_handle.ambf_constraint_parent
+        child_obj_handle = joint_obj_handle.ambf_constraint_child
+        parent_obj_handle_name = remove_namespace_prefix(parent_obj_handle.name)
+        child_obj_handle_name = remove_namespace_prefix(child_obj_handle.name)
+        obj_handle_name = remove_namespace_prefix(joint_obj_handle.name)
+
+        if joint_obj_handle.ambf_constraint_name == '':
+            joint_data['name'] = parent_obj_handle_name + "-" + child_obj_handle_name
+        else:
+            joint_data['name'] = joint_obj_handle.ambf_constraint_name
+
+        joint_data['parent'] = self.add_body_prefix_str(parent_obj_handle_name)
+        joint_data['child'] = self.add_body_prefix_str(child_obj_handle_name)
+        constraint_axis = self.get_default_axis_of_ambf_constraint(joint_obj_handle)
+        parent_pivot, parent_axis = self.compute_body_pivot_and_axis(
+            parent_obj_handle, joint_obj_handle, constraint_axis)
+        child_pivot, child_axis = self.compute_body_pivot_and_axis(
+            child_obj_handle, joint_obj_handle, constraint_axis)
+        # Add this field to the joint data, it will come in handy for blender later
+
+        joint_data['detached'] = True
+
+        parent_pivot_data = joint_data["parent pivot"]
+        parent_axis_data = joint_data["parent axis"]
+        parent_pivot_data['x'] = round(parent_pivot.x, 3)
+        parent_pivot_data['y'] = round(parent_pivot.y, 3)
+        parent_pivot_data['z'] = round(parent_pivot.z, 3)
+        parent_axis_data['x'] = round(parent_axis.x, 3)
+        parent_axis_data['y'] = round(parent_axis.y, 3)
+        parent_axis_data['z'] = round(parent_axis.z, 3)
+
+        child_pivot_data = joint_data["child pivot"]
+        child_axis_data = joint_data["child axis"]
+        child_pivot_data['x'] = round(child_pivot.x, 3)
+        child_pivot_data['y'] = round(child_pivot.y, 3)
+        child_pivot_data['z'] = round(child_pivot.z, 3)
+        child_axis_data['x'] = round(child_axis.x, 3)
+        child_axis_data['y'] = round(child_axis.y, 3)
+        child_axis_data['z'] = round(child_axis.z, 3)
+
+        # This method assigns joint limits, joint_type, joint damping and stiffness for spring joints
+        self.assign_joint_params_from_ambf_constraint(joint_obj_handle, joint_data)
+        # The use of pivot and axis does not fully define the connection and relative
+        # transform between two bodies it is very likely that we need an additional offset
+        # of the child body as in most of the cases of URDF's For this purpose, we calculate
+        # the offset as follows
+        r_c_p_ambf = rot_matrix_from_vecs(child_axis, parent_axis)
+        r_p_c_ambf = r_c_p_ambf.to_3x3().copy()
+        r_p_c_ambf.invert()
+        t_p_w = parent_obj_handle.matrix_world.copy()
+        r_w_p = t_p_w.to_3x3().copy()
+        r_w_p.invert()
+        r_c_w = child_obj_handle.matrix_world.to_3x3().copy()
+        r_c_p_blender = r_w_p * r_c_w
+        r_angular_offset = r_p_c_ambf * r_c_p_blender
+        offset_axis_angle = r_angular_offset.to_quaternion().to_axis_angle()
+
+        if abs(offset_axis_angle[1]) > 0.01:
+            offset_angle = round(offset_axis_angle[1], 3)
+
+            if abs(1.0 - child_axis.dot(offset_axis_angle[0])) < 0.1:
+                joint_data['offset'] = offset_angle
+                # print ': SAME DIRECTION'
+            elif abs(1.0 + child_axis.dot(offset_axis_angle[0])) < 0.1:
+                joint_data['offset'] = -offset_angle
+                # print ': OPPOSITE DIRECTION'
+            else:
+                print('ERROR: SHOULD\'NT GET HERE')
+
+        joint_yaml_name = self.add_joint_prefix_str(joint_data['name'])
+        ambf_yaml[joint_yaml_name] = joint_data
+        self._joint_names_list.append(joint_yaml_name)
+
     # Get the joints axis as a vector
-    def get_joint_axis(self, constraint):
-        if constraint.type == 'HINGE':
-            ax_idx = 2
+    def get_default_axis_of_blender_constraint(self, constraint):
+        if constraint.type in ['HINGE', 'POINT', 'FIXED']:
+            joint_axis = mathutils.Vector([0, 0, 1])
         elif constraint.type == 'SLIDER':
-            ax_idx = 0
-        elif constraint.type == 'GENERIC':
-            ax_idx = 2
+            joint_axis = mathutils.Vector([1, 0, 0])
+        elif constraint.type in ['GENERIC', 'GENERIC_SPRING']:
+            joint_axis = mathutils.Vector([0, 0, 1])
             if constraint.use_limit_lin_x or constraint.use_limit_ang_x:
-                ax_idx = 0
+                joint_axis = mathutils.Vector([1, 0, 0])
             elif constraint.use_limit_lin_y or constraint.use_limit_ang_y:
-                ax_idx = 1
+                joint_axis = mathutils.Vector([0, 1, 0])
             elif constraint.use_limit_lin_z or constraint.use_limit_ang_z:
-                ax_idx = 2
-        elif constraint.type == 'GENERIC_SPRING':
-            if constraint.use_limit_lin_x or constraint.use_limit_ang_x:
-                ax_idx = 0
-            elif constraint.use_limit_lin_y or constraint.use_limit_ang_y:
-                ax_idx = 1
-            elif constraint.use_limit_lin_z or constraint.use_limit_ang_z:
-                ax_idx = 2
-        elif constraint.type == 'POINT':
-            ax_idx = 2
-        elif constraint.type == 'FIXED':
-            ax_idx = 2
-        # The third col of rotation matrix is the z axis of child in parent
-        joint_axis = mathutils.Vector([0, 0, 0])
-        joint_axis[ax_idx] = 1.0
-        return joint_axis, ax_idx
+                joint_axis = mathutils.Vector([0, 0, 1])
+        return joint_axis
+
+    # Get the joints axis as a vector
+    def get_default_axis_of_ambf_constraint(self, joint_obj_handle):
+        if joint_obj_handle.ambf_constraint_type in ['REVOLUTE', 'TORSION_SPRING', 'P2P', 'FIXED']:
+            joint_axis = mathutils.Vector([0, 0, 1])
+        elif joint_obj_handle.ambf_constraint_type in ['PRISMATIC', 'LINEAR_SPRING']:
+            joint_axis = mathutils.Vector([1, 0, 0])
+        return joint_axis
 
     # Since changing the scale of the bodies directly impacts the rotation matrix, we have
     # to take that into account while calculating offset of child from parent using
     # transform manipulation
-    def compute_pivot_and_axis(self, parent, child, constraint):
+    def compute_body_pivot_and_axis(self, parent, child, constraint_axis):
         # Since the rotation matrix is carrying the scale, separate out just
         # the rotation component
         # Transform of Parent in World
@@ -776,13 +1034,12 @@ class AMBF_OT_generate_ambf_file(bpy.types.Operator):
         t_c_p = t_w_p * t_c_w
         pivot = t_c_p.translation
 
-        joint_axis, axis_idx = self.get_joint_axis(constraint)
         # The third col of rotation matrix is the z axis of child in parent
-        axis = mathutils.Vector(t_c_p.col[axis_idx][0:3])
+        axis = mathutils.Vector((t_c_p * constraint_axis)[0:3])
         return pivot, axis
 
     # Assign the joint parameters that include joint limits, type, damping and joint stiffness for spring joints
-    def assign_joint_params(self, constraint, joint_data):
+    def assign_joint_params_from_blender_constraint(self, constraint, joint_data):
         if constraint.type == 'HINGE':
             if constraint.use_limit_ang_z:
                 joint_data['type'] = 'revolute'
@@ -896,6 +1153,41 @@ class AMBF_OT_generate_ambf_file(bpy.types.Operator):
             joint_limit_data['low'] = round(lower_limit, 3)
             joint_limit_data['high'] = round(higher_limit, 3)
 
+    # Assign the joint parameters that include joint limits, type, damping and joint stiffness for spring joints
+    def assign_joint_params_from_ambf_constraint(self, joint_obj_handle, joint_data):
+        if joint_obj_handle.ambf_constraint_type == 'REVOLUTE':
+            joint_data['type'] = 'revolute'
+        elif joint_obj_handle.ambf_constraint_type == 'PRISMATIC':
+            joint_data['type'] = 'prismatic'
+        elif joint_obj_handle.ambf_constraint_type == 'LINEAR_SPRING':
+            joint_data['type'] = 'linear spring'
+        elif joint_obj_handle.ambf_constraint_type == 'TORSION_SPRING':
+            joint_data['type'] = 'angular spring'
+        elif joint_obj_handle.ambf_constraint_type == 'FIXED':
+            joint_data['type'] = 'fixed'
+        elif joint_obj_handle.ambf_constraint_type == 'P2P':
+            joint_data['type'] = 'p2p'
+
+        if joint_obj_handle.ambf_constraint_type in ['PRISMATIC', 'REVOLUTE', 'LINEAR_SPRING', 'TORSION_SPRING']:
+            if joint_obj_handle.ambf_constraint_limits_enable:
+                joint_data['limits'] = {'low': round(joint_obj_handle.ambf_constraint_limits_lower, 4),
+                                        'high': round(joint_obj_handle.ambf_constraint_limits_higher, 4)}
+
+        if joint_obj_handle.ambf_constraint_type in ['LINEAR_SPRING', 'TORSION_SPRING']:
+            joint_data['stiffness'] = round(joint_obj_handle.ambf_constraint_stiffness, 4)
+        else:
+            if 'stiffness' in joint_data:
+                del joint_data['stiffness']
+
+        joint_data['damping'] = round(joint_obj_handle.ambf_constraint_damping, 4)
+
+        # Set the joint controller gains data from the joint controller props
+        if joint_obj_handle.ambf_constraint_enable_controller_gains:
+            _gains = OrderedDict()
+            joint_data['controller']['P'] = round(joint_obj_handle.ambf_constraint_controller_p_gain, 4)
+            joint_data['controller']['I'] = 0
+            joint_data['controller']['D'] = round(joint_obj_handle.ambf_constraint_controller_d_gain, 4)
+
     def generate_ambf_yaml(self):
         num_objs = len(bpy.data.objects)
         save_to = bpy.path.abspath(self._context.scene.ambf_yaml_conf_path)
@@ -932,13 +1224,19 @@ class AMBF_OT_generate_ambf_file(bpy.types.Operator):
         # We want in-order processing, so make sure to
         # add bodies to ambf in a hierarchial fashion.
 
-        _heirarichal_bodies_list = populate_heirarchial_tree()
+        _heirarichal_objects_list = populate_heirarchial_tree()
 
-        for body in _heirarichal_bodies_list:
-            self.generate_body_data(self._ambf_yaml, body)
+        for obj in _heirarichal_objects_list:
+            if self._context.scene.enable_legacy_loading:
+                self.generate_body_data_from_blender_rigid_body(self._ambf_yaml, obj)
+            else:
+                self.generate_body_data_from_ambf_rigid_body(self._ambf_yaml, obj)
 
-        for body in _heirarichal_bodies_list:
-            self.generate_joint_data(self._ambf_yaml, body)
+        for obj in _heirarichal_objects_list:
+            if self._context.scene.enable_legacy_loading:
+                self.generate_joint_data_from_blender_constraint(self._ambf_yaml, obj)
+            else:
+                self.generate_joint_data_from_ambf_constraint(self._ambf_yaml, obj)
 
         # Now populate the bodies and joints tag
         self._ambf_yaml['bodies'] = self._body_names_list
@@ -1362,8 +1660,9 @@ class AMBF_OT_load_ambf_file(bpy.types.Operator):
         if obj_handle.type == 'MESH':
             obj_handle.ambf_rigid_body_enable = True
             obj_handle.ambf_rigid_body_mass = body_data['mass']
+            obj_handle.ambf_object_type = 'RIGID_BODY'
 
-            if body_data['mass'] is 0.0:
+            if body_data['mass'] == 0.0:
                 obj_handle.ambf_rigid_body_is_static = True
 
             if 'inertial offset' in body_data:
@@ -1378,7 +1677,9 @@ class AMBF_OT_load_ambf_file(bpy.types.Operator):
             # Finally add the rigid body data if defined
             if 'friction' in body_data:
                 if 'static' in body_data['friction']:
-                    obj_handle.ambf_rigid_body_friction = body_data['friction']['static']
+                    obj_handle.ambf_rigid_body_static_friction = body_data['friction']['static']
+                if 'rolling' in body_data['friction']:
+                    obj_handle.ambf_rigid_body_rolling_friction = body_data['friction']['rolling']
 
             if 'damping' in body_data:
                 if 'linear' in body_data['damping']:
@@ -2335,10 +2636,14 @@ class AMBF_PT_ambf_rigid_body(bpy.types.Panel):
     bl_context= "physics"
     
     bpy.types.Object.ambf_rigid_body_enable = bpy.props.BoolProperty(name="Enable AMBF Rigid Body", default=False)
+
+    bpy.types.Object.ambf_rigid_body_namespace = bpy.props.StringProperty(name="Namespace", default="")
     
     bpy.types.Object.ambf_rigid_body_mass = bpy.props.FloatProperty(name="mass", default=1.0, min=0.001)
     
-    bpy.types.Object.ambf_rigid_body_friction = bpy.props.FloatProperty(name="Friction", default=0.5, min=0.0, max=1.0)
+    bpy.types.Object.ambf_rigid_body_static_friction = bpy.props.FloatProperty(name="Static Friction", default=0.5, min=0.0, max=1.0)
+
+    bpy.types.Object.ambf_rigid_body_rolling_friction = bpy.props.FloatProperty(name="Rolling Friction", default=0.5, min=0.0, max=1.0)
     
     bpy.types.Object.ambf_rigid_body_restitution = bpy.props.FloatProperty(name="Restitution", default=0.1, min=0.0, max=1.0)
     
@@ -2420,6 +2725,24 @@ class AMBF_PT_ambf_rigid_body(bpy.types.Panel):
             ],
             default='NONE'
         )
+
+    bpy.types.Object.ambf_rigid_body_publish_children_names = bpy.props.BoolProperty \
+        (
+            name="Publish Children Names",
+            default=False
+        )
+
+    bpy.types.Object.ambf_rigid_body_publish_joint_names = bpy.props.BoolProperty \
+        (
+            name="Publish Joint Names",
+            default=False
+        )
+
+    bpy.types.Object.ambf_rigid_body_publish_joint_positions = bpy.props.BoolProperty \
+        (
+            name="Publish Joint Positions",
+            default=False
+        )
     
     @classmethod
     def poll(self, context):
@@ -2438,9 +2761,14 @@ class AMBF_PT_ambf_rigid_body(bpy.types.Panel):
         col.scale_y = 2
         col.operator('ambf.ambf_rigid_body_activate', text='Enable AMBF Rigid Body', icon='RNA_ADD')
         
-        if context.object.ambf_rigid_body_enable: 
+        if context.object.ambf_rigid_body_enable:
             layout.separator() 
-            layout.separator()           
+            layout.separator()   
+
+            col = layout.column()
+            col.enabled = False
+            col.prop(context.object, 'ambf_rigid_body_namespace')
+
             row = layout.row()
             row.prop(context.object, 'ambf_rigid_body_is_static', toggle=True)
             
@@ -2472,7 +2800,10 @@ class AMBF_PT_ambf_rigid_body(bpy.types.Panel):
             layout.separator()
             
             row = layout.row()
-            row.prop(context.object, 'ambf_rigid_body_friction')
+            row.prop(context.object, 'ambf_rigid_body_static_friction')
+
+            row = layout.row()
+            row.prop(context.object, 'ambf_rigid_body_rolling_friction')
             
             row = layout.row()
             row.prop(context.object, 'ambf_rigid_body_restitution')
@@ -2496,15 +2827,16 @@ class AMBF_PT_ambf_rigid_body(bpy.types.Panel):
             col.prop(context.object, 'ambf_rigid_body_angular_inertial_offset')
             
             # Rigid Body Controller Properties
-            row = layout.row()
+            box = layout.box()
+            row = box.row()
             row.alignment = 'CENTER'
             row.prop(context.object, 'ambf_rigid_body_enable_controllers', toggle=True)
             row.scale_y=2
         
-            col = layout.column()
+            col = box.column()
             col.label('Linear Gains')
             
-            col = layout.column()
+            col = box.column()
             col.enabled = context.object.ambf_rigid_body_enable_controllers
             row = col.row()
             row.prop(context.object, 'ambf_rigid_body_linear_controller_p_gain', text='P')
@@ -2512,16 +2844,27 @@ class AMBF_PT_ambf_rigid_body(bpy.types.Panel):
             row = row.row()
             row.prop(context.object, 'ambf_rigid_body_linear_controller_d_gain', text='D')
             
-            col = layout.column()
+            col = box.column()
             col.label('Angular Gains')
             
-            col = layout.column()
+            col = box.column()
             col.enabled = context.object.ambf_rigid_body_enable_controllers
             row = col.row()
             row.prop(context.object, 'ambf_rigid_body_angular_controller_p_gain', text='P')
         
             row = row.row()
             row.prop(context.object, 'ambf_rigid_body_angular_controller_d_gain', text='D')
+            
+            # Publish various children properties
+            box = layout.box()
+            col = box.column()
+            col.prop(context.object, 'ambf_rigid_body_publish_children_names')
+
+            col = box.column()
+            col.prop(context.object, 'ambf_rigid_body_publish_joint_names')
+
+            col = box.column()
+            col.prop(context.object, 'ambf_rigid_body_publish_joint_positions')
             
             
 class AMBF_OT_ambf_constraint_activate(bpy.types.Operator):
