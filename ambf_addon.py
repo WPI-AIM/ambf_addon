@@ -1033,7 +1033,9 @@ class AMBF_OT_generate_ambf_file(bpy.types.Operator):
         # t_c_p = t_w_p * t_c_w
         t_c_p = t_w_p * t_c_w
         pivot = t_c_p.translation
-
+        
+        constraint_axis.resize_4d()
+        constraint_axis[3] = 0.0
         # The third col of rotation matrix is the z axis of child in parent
         axis = mathutils.Vector((t_c_p * constraint_axis)[0:3])
         return pivot, axis
@@ -1168,9 +1170,14 @@ class AMBF_OT_generate_ambf_file(bpy.types.Operator):
         elif joint_obj_handle.ambf_constraint_type == 'P2P':
             joint_data['type'] = 'p2p'
 
-        if joint_obj_handle.ambf_constraint_type in ['PRISMATIC', 'REVOLUTE', 'LINEAR_SPRING', 'TORSION_SPRING']:
+        if joint_obj_handle.ambf_constraint_type in ['REVOLUTE', 'TORSION_SPRING']:
             if joint_obj_handle.ambf_constraint_limits_enable:
-                joint_data['limits'] = {'low': round(joint_obj_handle.ambf_constraint_limits_lower, 4),
+                joint_data['joint limits'] = {'low': round(math.radians(joint_obj_handle.ambf_constraint_limits_lower), 4),
+                                        'high': round(math.radians(joint_obj_handle.ambf_constraint_limits_higher), 4)}
+
+        if joint_obj_handle.ambf_constraint_type in ['PRISMATIC', 'LINEAR_SPRING']:
+            if joint_obj_handle.ambf_constraint_limits_enable:
+                joint_data['joint limits'] = {'low': round(joint_obj_handle.ambf_constraint_limits_lower, 4),
                                         'high': round(joint_obj_handle.ambf_constraint_limits_higher, 4)}
 
         if joint_obj_handle.ambf_constraint_type in ['LINEAR_SPRING', 'TORSION_SPRING']:
@@ -2187,10 +2194,14 @@ class AMBF_OT_load_ambf_file(bpy.types.Operator):
         joint_obj_handle.ambf_constraint_name = joint_data['name']
         joint_type = self.get_ambf_joint_type(joint_data)
         if 'joint limits' in joint_data:
-            if 'low' in joint_data['joint limits'] and 'high' in joint_data['joint limits']:
-                joint_obj_handle.ambf_constraint_limits_lower = joint_data['joint limits']['low']
-                joint_obj_handle.ambf_constraint_limits_higher = joint_data['joint limits']['high']
-                limits_defined = True
+            limits_defined = True
+            if joint_type in ['REVOLUTE', 'TORSION_SPRING']:
+                if 'low' in joint_data['joint limits'] and 'high' in joint_data['joint limits']:
+                    joint_obj_handle.ambf_constraint_limits_lower = math.degrees(joint_data['joint limits']['low'])
+                    joint_obj_handle.ambf_constraint_limits_higher = math.degrees(joint_data['joint limits']['high'])
+            elif joint_type in ['PRISMATIC', 'LINEAR_SPRING']:
+                    joint_obj_handle.ambf_constraint_limits_lower = joint_data['joint limits']['low']
+                    joint_obj_handle.ambf_constraint_limits_higher = joint_data['joint limits']['high']
                 
         self.set_default_ambf_constraint_axis(joint_obj_handle)
 
@@ -2912,8 +2923,8 @@ class AMBF_PT_ambf_constraint(bpy.types.Panel):
 
     bpy.types.Object.ambf_constraint_limits_enable = bpy.props.BoolProperty(name="Enable Limits", default=True)
 
-    bpy.types.Object.ambf_constraint_limits_lower = bpy.props.FloatProperty(name="Low", default=math.radians(-60), min=-3.14, max=3.14, unit='ROTATION')
-    bpy.types.Object.ambf_constraint_limits_higher = bpy.props.FloatProperty(name="High", default=math.radians(60), min=-3.14, max=3.14, unit='ROTATION')
+    bpy.types.Object.ambf_constraint_limits_lower = bpy.props.FloatProperty(name="Low", default=-60, min=-359, max=359)
+    bpy.types.Object.ambf_constraint_limits_higher = bpy.props.FloatProperty(name="High", default=60, min=-359, max=359)
     
     bpy.types.Object.ambf_constraint_axis = bpy.props.EnumProperty \
         (
@@ -2996,17 +3007,32 @@ class AMBF_PT_ambf_constraint(bpy.types.Panel):
                 row.prop(context.object, 'ambf_constraint_limits_enable', toggle=True)
                 row.scale_y=2
                 
-                col = layout.column()
-                col.enabled = context.object.ambf_constraint_limits_enable
-                col.prop(context.object, 'ambf_constraint_limits_lower', text='Low')
+                if context.object.ambf_constraint_type in ['REVOLUTE', 'TORSION_SPRING']:
+                    units = '(Radians)'
+                    
+                elif context.object.ambf_constraint_type in ['PRISMATIC', 'LINEAR_SPRING']:
+                    units = '(Meters)'
                 
-                col = col.column()
-                col.prop(context.object, 'ambf_constraint_limits_higher', text='High')
+                row = layout.row()
+                row.enabled = context.object.ambf_constraint_limits_enable
+                r1 = row.split(percentage=0.8)
+                r1.prop(context.object, 'ambf_constraint_limits_lower', text='Low')
+                r2 = r1.row()
+                r2.label(units)
+                
+                row = layout.row()
+                row.enabled = context.object.ambf_constraint_limits_enable
+                r1 = row.split(percentage=0.8)
+                r1.prop(context.object, 'ambf_constraint_limits_higher', text='High')
+                r2 = r1.row()
+                r2.label(units)
  
                 if context.object.ambf_constraint_type in ['PRISMATIC', 'REVOLUTE']:
                     row = layout.row()
                     row.alignment = 'CENTER'
-                    row.prop(context.object, 'ambf_constraint_enable_controller_gains', toggle=True, text='Enable Gains')
+                    row.prop(context.object, 'ambf_constraint_enable_controller_gains',
+                             toggle=True,
+                             text='Enable Gains')
                     row.scale_y=2
         
                     col = layout.column()
