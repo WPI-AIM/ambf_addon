@@ -902,10 +902,14 @@ class AMBF_OT_generate_ambf_file(bpy.types.Operator):
         if joint_obj_handle.ambf_constraint_parent:
             if joint_obj_handle.ambf_constraint_parent.hide is True:
                 _valid_constraint = False
+        else:
+            _valid_constraint = False
 
         if joint_obj_handle.ambf_constraint_child:
             if joint_obj_handle.ambf_constraint_child.hide is True:
                 _valid_constraint = False
+        else:
+            _valid_constraint = False
 
         if not _valid_constraint:
             print('ERROR! CONSTRAINT: ', joint_obj_handle.name, ' IS NOT A VALID CONSTRAINT, SKIPPING')
@@ -2990,7 +2994,9 @@ class AMBF_PT_ambf_constraint(bpy.types.Panel):
             
             for pc_obj in [pobj, cobj]:
                 if pc_obj:
-                    if pc_obj.users < 2:
+                    if context.scene.objects.get(pc_obj.name) == None:
+                        # That means that the object has been deleted from the
+                        # scene graph, therefore remove it explicitlyt
                         bpy.data.objects.remove(pc_obj)
             
             layout.separator()
