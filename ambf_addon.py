@@ -2893,7 +2893,6 @@ class AMBF_OT_ambf_constraint_activate(bpy.types.Operator):
             
         
         return {'FINISHED'}
-            
 
 class AMBF_PT_ambf_constraint(bpy.types.Panel):
     """Add Rigid Body Properties"""
@@ -2958,7 +2957,8 @@ class AMBF_PT_ambf_constraint(bpy.types.Panel):
         active = False
         if context.active_object: # Check if an object is active
             if context.active_object.type in ['EMPTY']:
-                active = True          
+                active = True
+                          
         return active
     
     def draw(self, context):
@@ -2984,6 +2984,14 @@ class AMBF_PT_ambf_constraint(bpy.types.Panel):
             
             col = layout.column()
             col.prop_search(context.object, "ambf_constraint_child", context.scene, "objects")
+            
+            pobj = context.object.ambf_constraint_parent
+            cobj = context.object.ambf_constraint_child
+            
+            for pc_obj in [pobj, cobj]:
+                if pc_obj:
+                    if pc_obj.users < 2:
+                        bpy.data.objects.remove(pc_obj)
             
             layout.separator()
             layout.separator()
