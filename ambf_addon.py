@@ -1505,6 +1505,32 @@ class AMBF_OT_auto_rename_joints(bpy.types.Operator):
         return {'FINISHED'}
 
 
+class AMBF_OT_estimate_collision_shape_geometry(bpy.types.Operator):
+    bl_idname = "ambf.estimate_collision_shape_geometry"
+    bl_label = "Estimate Collision Shape Geometry"
+    bl_description = "Estimate Collision Shape Geometry"
+
+    def execute(self, context):
+        for obj in bpy.data.objects:
+            if obj.ambf_object_type == 'RIGID_BODY':
+                dims = obj.dimensions.copy()
+                od = [round(dims[0], 3), round(dims[1], 3), round(dims[2], 3)]
+                # Now we need to find out the geometry of the shape
+                if obj.ambf_rigid_body_collision_shape == 'BOX':
+                    obj.ambf_rigid_body_collision_shape_x = od[0]
+                    obj.ambf_rigid_body_collision_shape_y = od[1]
+                    obj.ambf_rigid_body_collision_shape_z = od[2]
+                elif obj.ambf_rigid_body_collision_shape== 'SPHERE':
+                    obj.ambf_rigid_body_collision_shape_radius = max(od)/2
+                elif obj.ambf_rigid_body_collision_shape in ['CYLINDER', 'CONE', 'CAPSULE']:
+                    major_ax_char, major_ax_idx = get_major_axis(od)
+                    median_ax_char, median_ax_idx = get_median_axis(od)
+                    obj.ambf_rigid_body_collision_shape_radius = od[median_ax_idx]/2.0
+                    obj.ambf_rigid_body_collision_shape_height = od[major_ax_idx]
+                    obj.ambf_rigid_body_collision_shape_axis = major_ax_char.upper()
+        return {'FINISHED'}
+
+
 class AMBF_OT_remove_object_namespaces(bpy.types.Operator):
     bl_idname = "ambf.remove_object_namespaces"
     bl_label = "Remove Object Namespaces"
@@ -2530,7 +2556,7 @@ class AMBF_PT_create_ambf(bpy.types.Panel):
         col = split.column()
         col.alignment = 'CENTER'
         col.scale_y = 1.5
-        col.operator("ambf.create_detached_joint")
+        col.operator('ambf.estimate_collision_shape_geometry')
 
         # Add Optional Button to Remove All Modifiers
         row = box.row()
@@ -2555,6 +2581,10 @@ class AMBF_PT_create_ambf(bpy.types.Panel):
         col = split.column()
         col.scale_y = 1.5
         col.operator("ambf.auto_rename_joints")
+        
+        row = box.row()
+        row.scale_y = 1.5
+        row.operator("ambf.create_detached_joint")
 
         box = layout.box()
 
@@ -2712,15 +2742,15 @@ class AMBF_PT_ambf_rigid_body(bpy.types.Panel):
     
     bpy.types.Object.ambf_rigid_body_restitution = bpy.props.FloatProperty(name="Restitution", default=0.1, min=0.0, max=1.0)
     
-    bpy.types.Object.ambf_rigid_body_collision_radius = bpy.props.FloatProperty(name='Radius', default=1.0, min=0.0)
+    bpy.types.Object.ambf_rigid_body_collision_shape_radius = bpy.props.FloatProperty(name='Radius', default=1.0, min=0.0)
     
-    bpy.types.Object.ambf_rigid_body_collision_height = bpy.props.FloatProperty(name='Height', default=1.0, min=0.0)
+    bpy.types.Object.ambf_rigid_body_collision_shape_height = bpy.props.FloatProperty(name='Height', default=1.0, min=0.0)
     
-    bpy.types.Object.ambf_rigid_body_collision_x = bpy.props.FloatProperty(name='X Dim', default=1.0, min=0.0)
+    bpy.types.Object.ambf_rigid_body_collision_shape_x = bpy.props.FloatProperty(name='X Dim', default=1.0, min=0.0)
     
-    bpy.types.Object.ambf_rigid_body_collision_y = bpy.props.FloatProperty(name='Y Dim', default=1.0, min=0.0)
+    bpy.types.Object.ambf_rigid_body_collision_shape_y = bpy.props.FloatProperty(name='Y Dim', default=1.0, min=0.0)
     
-    bpy.types.Object.ambf_rigid_body_collision_z = bpy.props.FloatProperty(name='Z Dim', default=1.0, min=0.0)
+    bpy.types.Object.ambf_rigid_body_collision_shape_z = bpy.props.FloatProperty(name='Z Dim', default=1.0, min=0.0)
     
     bpy.types.Object.ambf_rigid_body_enable_collision_margin = bpy.props.BoolProperty(name="Collision Margin", default=False)
     
@@ -2878,24 +2908,24 @@ class AMBF_PT_ambf_rigid_body(bpy.types.Panel):
                 col.prop(context.object, 'ambf_rigid_body_collision_shape_axis')
                 
                 col = split.column()
-                col.prop(context.object, 'ambf_rigid_body_collision_radius')
+                col.prop(context.object, 'ambf_rigid_body_collision_shape_radius')
                 
                 col = split.column()
-                col.prop(context.object, 'ambf_rigid_body_collision_height')
+                col.prop(context.object, 'ambf_rigid_body_collision_shape_height')
                 
             elif context.object.ambf_rigid_body_collision_shape == 'SPHERE':
                 row = layout.row()
-                row.prop(context.object, 'ambf_rigid_body_collision_radius')
+                row.prop(context.object, 'ambf_rigid_body_collision_shape_radius')
                 
             elif context.object.ambf_rigid_body_collision_shape == 'BOX':
                 row = layout.row()
                 split = row.split()
                 col = split.column()
-                col.prop(context.object, 'ambf_rigid_body_collision_x')
+                col.prop(context.object, 'ambf_rigid_body_collision_shape_x')
                 col = split.column()
-                col.prop(context.object, 'ambf_rigid_body_collision_y')
+                col.prop(context.object, 'ambf_rigid_body_collision_shape_y')
                 col = split.column()
-                col.prop(context.object, 'ambf_rigid_body_collision_z')
+                col.prop(context.object, 'ambf_rigid_body_collision_shape_z')
                 
             
             
@@ -3170,6 +3200,7 @@ custom_classes = (AMBF_OT_toggle_low_res_mesh_modifiers_visibility,
                   AMBF_OT_estimate_inertial_offsets,
                   AMBF_OT_auto_rename_joints,
                   AMBF_OT_ambf_rigid_body_activate,
+                  AMBF_OT_estimate_collision_shape_geometry,
                   AMBF_PT_create_ambf,
                   AMBF_PT_ambf_rigid_body,
                   AMBF_PT_ambf_constraint,)
