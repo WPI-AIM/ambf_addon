@@ -2712,6 +2712,16 @@ class AMBF_PT_ambf_rigid_body(bpy.types.Panel):
     
     bpy.types.Object.ambf_rigid_body_restitution = bpy.props.FloatProperty(name="Restitution", default=0.1, min=0.0, max=1.0)
     
+    bpy.types.Object.ambf_rigid_body_collision_radius = bpy.props.FloatProperty(name='Radius', default=1.0, min=0.0)
+    
+    bpy.types.Object.ambf_rigid_body_collision_height = bpy.props.FloatProperty(name='Height', default=1.0, min=0.0)
+    
+    bpy.types.Object.ambf_rigid_body_collision_x = bpy.props.FloatProperty(name='X Dim', default=1.0, min=0.0)
+    
+    bpy.types.Object.ambf_rigid_body_collision_y = bpy.props.FloatProperty(name='Y Dim', default=1.0, min=0.0)
+    
+    bpy.types.Object.ambf_rigid_body_collision_z = bpy.props.FloatProperty(name='Z Dim', default=1.0, min=0.0)
+    
     bpy.types.Object.ambf_rigid_body_enable_collision_margin = bpy.props.BoolProperty(name="Collision Margin", default=False)
     
     bpy.types.Object.ambf_rigid_body_collision_margin = bpy.props.FloatProperty(name="Margin", default=0.001, min=-0.1, max=1.0)
@@ -2750,6 +2760,19 @@ class AMBF_PT_ambf_rigid_body(bpy.types.Panel):
             ],
             name="Collision Shape",
             default="CONVEX_HULL"
+        )
+    
+    bpy.types.Object.ambf_rigid_body_collision_shape_axis= bpy.props.EnumProperty \
+        (
+            name='Shape Axis',
+            items=
+            [
+                ('X', 'X', '', '', 0),
+                ('Y', 'Y', '', '', 1),
+                ('Z', 'Z', '', '', 2),
+            ],
+            default='Z',
+            description='The direction the collision shape is aligned. Use for Cone, Cylinder and Capsule'
         )
     
     bpy.types.Object.ambf_rigid_body_collision_groups = bpy.props.BoolVectorProperty \
@@ -2846,6 +2869,35 @@ class AMBF_PT_ambf_rigid_body(bpy.types.Panel):
             
             row = layout.row()
             row.prop(context.object, 'ambf_rigid_body_collision_shape')
+            
+            if context.object.ambf_rigid_body_collision_shape in ['CYLINDER', 'CONE', 'CAPSULE']:
+                row = layout.row()
+                split = row.split()
+                
+                col = split.column()
+                col.prop(context.object, 'ambf_rigid_body_collision_shape_axis')
+                
+                col = split.column()
+                col.prop(context.object, 'ambf_rigid_body_collision_radius')
+                
+                col = split.column()
+                col.prop(context.object, 'ambf_rigid_body_collision_height')
+                
+            elif context.object.ambf_rigid_body_collision_shape == 'SPHERE':
+                row = layout.row()
+                row.prop(context.object, 'ambf_rigid_body_collision_radius')
+                
+            elif context.object.ambf_rigid_body_collision_shape == 'BOX':
+                row = layout.row()
+                split = row.split()
+                col = split.column()
+                col.prop(context.object, 'ambf_rigid_body_collision_x')
+                col = split.column()
+                col.prop(context.object, 'ambf_rigid_body_collision_y')
+                col = split.column()
+                col.prop(context.object, 'ambf_rigid_body_collision_z')
+                
+            
             
             layout.separator()
             
