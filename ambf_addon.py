@@ -328,6 +328,18 @@ def get_minor_axis(dims):
     return axis[median_idx], median_idx
 
 
+# Courtesy of:
+# https://blender.stackexchange.com/questions/62040/get-center-of-geometry-of-an-object
+def compute_local_com(obj):
+    vcos = [ v.co for v in obj.data.vertices ]
+    find_center = lambda l: ( max(l) + min(l)) / 2
+    x, y, z = [[v[i] for v in vcos] for i in range(3)]
+    center = [find_center(axis) for axis in [x, y, z]]
+    for i in range(0, 3):
+        center[i] = center[i] * obj.scale[i]
+    return center
+
+
 # Body Template for the some commonly used of afBody's data
 class BodyTemplate:
     def __init__(self):
@@ -418,17 +430,6 @@ class AMBF_OT_generate_ambf_file(bpy.types.Operator):
     # This method add the joint prefix if set to all the joints in AMBF
     def add_joint_prefix_str(self, urdf_joint_str):
         return self.joint_name_prefix + urdf_joint_str
-
-    # Courtesy of:
-    # https://blender.stackexchange.com/questions/62040/get-center-of-geometry-of-an-object
-    def compute_local_com(self, obj):
-        vcos = [ v.co for v in obj.data.vertices ]
-        find_center = lambda l: ( max(l) + min(l)) / 2
-        x, y, z = [[v[i] for v in vcos] for i in range(3)]
-        center = [find_center(axis) for axis in [x, y, z]]
-        for i in range(0, 3):
-            center[i] = center[i] * obj.scale[i]
-        return center
 
     def generate_body_data_from_blender_rigid_body(self, ambf_yaml, obj_handle):
         if obj_handle.hide is True:
@@ -545,7 +546,7 @@ class AMBF_OT_generate_ambf_file(bpy.types.Operator):
 
             del body_data['inertia']
             body_data['mesh'] = obj_handle_name + get_extension(output_mesh)
-            body_com = self.compute_local_com(obj_handle)
+            body_com = compute_local_com(obj_handle)
             body_d_pos = body_data['inertial offset']['position']
             body_d_pos['x'] = round(body_com[0], 3)
             body_d_pos['y'] = round(body_com[1], 3)
@@ -683,7 +684,7 @@ class AMBF_OT_generate_ambf_file(bpy.types.Operator):
 
             del body_data['inertia']
             body_data['mesh'] = obj_handle_name + get_extension(output_mesh)
-            body_com = self.compute_local_com(obj_handle)
+            body_com = compute_local_com(obj_handle)
             body_d_pos = body_data['inertial offset']['position']
             body_d_pos['x'] = round(body_com[0], 3)
             body_d_pos['y'] = round(body_com[1], 3)
@@ -1469,6 +1470,38 @@ class AMBF_OT_toggle_low_res_mesh_modifiers_visibility(bpy.types.Operator):
         for obj in bpy.data.objects:
             for mod in obj.modifiers:
                 mod.show_viewport = not mod.show_viewport
+        return {'FINISHED'}
+
+
+class AMBF_OT_estimate_inertial_offsets(bpy.types.Operator):
+    bl_idname = "ambf.estimate_inertial_offsets"
+    bl_label = "Estimate Inertial Offsets"
+    bl_description = "Automatically Estimate the Inertial Offsets for the Bodies"
+
+    def execute(self, context):
+        for obj in bpy.data.objects:
+            if obj.ambf_object_type == 'RIGID_BODY':
+                local_com = compute_local_com(obj)
+                obj.ambf_rigid_body_linear_inertial_offset[0] = local_com[0]
+                obj.ambf_rigid_body_linear_inertial_offset[1] = local_com[1]
+                obj.ambf_rigid_body_linear_inertial_offset[2] = local_com[2]
+                pass
+        return {'FINISHED'}
+
+
+class AMBF_OT_auto_rename_joints(bpy.types.Operator):
+    bl_idname = "ambf.auto_rename_joints"
+    bl_label = "Automatically Rename Joints"
+    bl_description = "Automatically Rename Joints as Parent-Child name"
+
+    def execute(self, context):
+        for obj in bpy.data.objects:
+            if obj.ambf_object_type == 'CONSTRAINT':
+                parent = obj.ambf_constraint_parent
+                child = obj.ambf_constraint_child
+                if parent and child:
+                    obj.ambf_constraint_name = remove_namespace_prefix(parent.name) + '-' + remove_namespace_prefix(child.name) 
+                pass
         return {'FINISHED'}
 
 
@@ -2512,6 +2545,16 @@ class AMBF_PT_create_ambf(bpy.types.Panel):
         col.alignment = 'CENTER'
         col.scale_y = 1.5
         col.operator("ambf.toggle_low_res_mesh_modifiers_visibility")
+        
+        row = box.row()
+        split = row.split(percentage=0.5)
+        col = split.column()
+        col.scale_y = 1.5
+        col.operator("ambf.estimate_inertial_offsets")
+        
+        col = split.column()
+        col.scale_y = 1.5
+        col.operator("ambf.auto_rename_joints")
 
         box = layout.box()
 
@@ -3070,13 +3113,14 @@ custom_classes = (AMBF_OT_toggle_low_res_mesh_modifiers_visibility,
                   AMBF_OT_generate_ambf_file,
                   AMBF_OT_save_meshes,
                   AMBF_OT_load_ambf_file,
-                  AMBF_PT_create_ambf,
                   AMBF_OT_create_detached_joint,
                   AMBF_OT_remove_object_namespaces,
+                  AMBF_OT_estimate_inertial_offsets,
+                  AMBF_OT_auto_rename_joints,
                   AMBF_OT_ambf_rigid_body_activate,
+                  AMBF_PT_create_ambf,
                   AMBF_PT_ambf_rigid_body,
-                  AMBF_OT_ambf_constraint_activate,
-                  AMBF_PT_ambf_constraint)
+                  AMBF_PT_ambf_constraint,)
 
 
 def register():
