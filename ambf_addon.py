@@ -2311,7 +2311,7 @@ class AMBF_OT_load_ambf_file(bpy.types.Operator):
 
 class AMBF_PT_create_ambf(bpy.types.Panel):
     """Creates a Panel in the Tool Shelf"""
-    bl_label = "AF FILE CREATION"
+    bl_label = "LOAD, CREATE AND SAVE ADFs"
     bl_idname = "ambf.create_ambf"
     bl_space_type = 'VIEW_3D'
     bl_region_type = 'TOOLS'
@@ -2404,6 +2404,20 @@ class AMBF_PT_create_ambf(bpy.types.Panel):
 
     def draw(self, context):
         layout = self.layout
+        
+        box = layout.box()
+        row = box.row()
+        # Load AMBF File Into Blender
+        row.label(text="LOAD ADF:")
+
+        # Load
+        col = box.column()
+        col.alignment = 'CENTER'
+        col.prop(context.scene, 'external_ambf_yaml_filepath')
+        
+        col = box.column()
+        col.alignment = 'CENTER'
+        col.operator("ambf.load_ambf_file")
 
         box = layout.box()
         row = box.row()
@@ -2473,38 +2487,31 @@ class AMBF_PT_create_ambf(bpy.types.Panel):
 
         row = box.row()
         # Column for creating detached joint
-        col = box.column()
+        split = row.split(percentage=0.5)
+        col = split.column()
         col.alignment = 'CENTER'
+        col.scale_y = 1.5
         col.operator("ambf.remove_object_namespaces")
 
         # Column for creating detached joint
-        col = box.column()
+        col = split.column()
         col.alignment = 'CENTER'
+        col.scale_y = 1.5
         col.operator("ambf.create_detached_joint")
 
         # Add Optional Button to Remove All Modifiers
-        col = box.column()
+        row = box.row()
+        split = row.split(percentage=0.5)
+        col = split.column()
         col.alignment = 'CENTER'
+        col.scale_y = 1.5
         col.operator("ambf.remove_low_res_mesh_modifiers")
 
         # Add Optional Button to Toggle the Visibility of Low-Res Modifiers
-        col = box.column()
+        col = split.column()
         col.alignment = 'CENTER'
+        col.scale_y = 1.5
         col.operator("ambf.toggle_low_res_mesh_modifiers_visibility")
-
-        box = layout.box()
-        row = box.row()
-        # Load AMBF File Into Blender
-        row.label(text="LOAD AMBF FILE :")
-
-        # Load
-        col = box.column()
-        col.alignment = 'CENTER'
-        col.prop(context.scene, 'external_ambf_yaml_filepath')
-        
-        col = box.column()
-        col.alignment = 'CENTER'
-        col.operator("ambf.load_ambf_file")
 
         box = layout.box()
 
@@ -3022,7 +3029,7 @@ class AMBF_PT_ambf_constraint(bpy.types.Panel):
                 row.scale_y=2
                 
                 if context.object.ambf_constraint_type in ['REVOLUTE', 'TORSION_SPRING']:
-                    units = '(Radians)'
+                    units = '(Degrees)'
                     
                 elif context.object.ambf_constraint_type in ['PRISMATIC', 'LINEAR_SPRING']:
                     units = '(Meters)'
