@@ -394,7 +394,7 @@ def inertia_of_cone(mass, r, h, axis):
 def inertia_of_capsule(mass, r, h_total, axis):
     I = mathutils.Vector((0, 0, 0))
     h = h_total - (r * 2) # Get the length of main cylinder
-    if h == 0:
+    if h <= 0.001:
         # This means that this obj shape is essentially a sphere, not a capsule
         I = inertia_of_sphere(mass, r)
     else:
@@ -1651,6 +1651,23 @@ class AMBF_OT_estimate_collision_shape_geometry(bpy.types.Operator):
         return {'FINISHED'}
 
 
+class AMBF_OT_estimate_inertias(bpy.types.Operator):
+    bl_idname = "ambf.estimate_inertias"
+    bl_label = "Estimate Body Inertias"
+    bl_description = "Estimate Body Inertias"
+
+    def execute(self, context):
+        for obj in bpy.data.objects:
+            if obj.ambf_object_type == 'RIGID_BODY':
+                if not obj.ambf_rigid_body_is_static:
+                    I = calculate_principal_inertia(obj)
+                    obj.ambf_rigid_body_inertia_x = I[0]
+                    obj.ambf_rigid_body_inertia_y = I[1]
+                    obj.ambf_rigid_body_inertia_z = I[2]
+                    obj.ambf_rigid_body_specify_inertia = True
+        return {'FINISHED'}
+
+
 class AMBF_OT_remove_object_namespaces(bpy.types.Operator):
     bl_idname = "ambf.remove_object_namespaces"
     bl_label = "Remove Object Namespaces"
@@ -2705,6 +2722,10 @@ class AMBF_PT_create_ambf(bpy.types.Panel):
         row = box.row()
         row.scale_y = 1.5
         row.operator("ambf.create_detached_joint")
+        
+        row = box.row()
+        row.scale_y = 1.5
+        row.operator("ambf.estimate_inertias")
 
         box = layout.box()
 
@@ -2903,9 +2924,9 @@ class AMBF_PT_ambf_rigid_body(bpy.types.Panel):
             description="Is this object dynamic or static (mass = 0.0 Kg)"
         )
 
-    bpy.types.Object.ambf_rigid_body_manually_set_inertia = bpy.props.BoolProperty \
+    bpy.types.Object.ambf_rigid_body_specify_inertia = bpy.props.BoolProperty \
         (
-            name="Set Inertia",
+            name="Specify Inertia",
             default=False,
             description="If not set explicitly, it is calculated automatically by AMBF"
         )
@@ -3033,10 +3054,10 @@ class AMBF_PT_ambf_rigid_body(bpy.types.Panel):
             row = split.row()
             row.scale_y = 3
             row.enabled = not context.object.ambf_rigid_body_is_static
-            row.prop(context.object, 'ambf_rigid_body_manually_set_inertia', toggle=True)
+            row.prop(context.object, 'ambf_rigid_body_specify_inertia', toggle=True)
             
             row = split.row()
-            row.enabled = context.object.ambf_rigid_body_manually_set_inertia and not context.object.ambf_rigid_body_is_static
+            row.enabled = context.object.ambf_rigid_body_specify_inertia and not context.object.ambf_rigid_body_is_static
             col = row.column()
             col.prop(context.object, 'ambf_rigid_body_inertia_x')
             
@@ -3352,6 +3373,7 @@ custom_classes = (AMBF_OT_toggle_low_res_mesh_modifiers_visibility,
                   AMBF_OT_auto_rename_joints,
                   AMBF_OT_ambf_rigid_body_activate,
                   AMBF_OT_estimate_collision_shape_geometry,
+                  AMBF_OT_estimate_inertias,
                   AMBF_PT_create_ambf,
                   AMBF_PT_ambf_rigid_body,
                   AMBF_PT_ambf_constraint,)
