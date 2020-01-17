@@ -2605,7 +2605,7 @@ class AMBF_PT_create_ambf(bpy.types.Panel):
         row = box.row()
         # Load AMBF File Into Blender
         row.alignment = 'CENTER'
-        row.label(text="LOAD ADF:")
+        row.label(text="LOAD ADF:", icon='IMPORT')
 
         # Load
         col = box.column()
@@ -2623,13 +2623,12 @@ class AMBF_PT_create_ambf(bpy.types.Panel):
         
         row = box.row()
         row.alignment = 'CENTER'
-        row.label(text='CREATE ADF:')
+        row.label(text='CREATE ADF:', icon='EXPORT')
         
         # Panel Label
         sbox = box.box()
         row = sbox.row()
-        row.alignment = 'CENTER'
-        row.label(text="(1) ONLY FOR CONVEX HULL COLL.")
+        row.label(text="A. ONLY FOR CONVEX HULL COLL.")
 
         # Mesh Reduction Ratio Properties
         row = sbox.row(align=True)
@@ -2647,8 +2646,7 @@ class AMBF_PT_create_ambf(bpy.types.Panel):
 
         sbox = box.box()
         row = sbox.row()
-        row.alignment = 'CENTER'
-        row.label(text="(2) OPTIONAL (ALL BODIES)")
+        row.label(text="B. OPTIONAL (ALL BODIES)")
         
         # Column for creating detached joint
         col = sbox.column()
@@ -2663,8 +2661,7 @@ class AMBF_PT_create_ambf(bpy.types.Panel):
         # Panel Label
         sbox = box.box()
         row = sbox.row()
-        row.alignment = 'CENTER'
-        row.label(text="(3) SAVE MESHES")
+        row.label(text="C. SAVE MESHES")
 
         # Meshes Save Location
         col = sbox.column()
@@ -2683,8 +2680,7 @@ class AMBF_PT_create_ambf(bpy.types.Panel):
         # Panel Label
         sbox = box.box()
         row = sbox.row()
-        row.alignment = 'CENTER'
-        row.label(text="(4) SAVE ADF")
+        row.label(text="D. SAVE ADF")
         
         # Ignore Inter Collision Button
         col = sbox.column()
@@ -2710,7 +2706,7 @@ class AMBF_PT_create_ambf(bpy.types.Panel):
         box = layout.box()
         row = box.row()
         row.alignment = 'CENTER'
-        row.label(text="OPTIONAL HELPERS:")
+        row.label(text="OPTIONAL HELPERS:", icon='SCRIPTWIN')
 
         # Column for creating detached joint
         col = box.column()
@@ -2742,7 +2738,7 @@ class AMBF_PT_create_ambf(bpy.types.Panel):
         
         row = box.row()
         row.alignment = 'CENTER'
-        row.label(text="LEGACY:")
+        row.label(text="LEGACY:", icon='CONSOLE')
 
         # Enable Legacy Loading
         col = box.column()
