@@ -3046,13 +3046,15 @@ class AMBF_PT_ambf_rigid_body(bpy.types.Panel):
         
         if context.object.ambf_rigid_body_enable:
             layout.separator() 
-            layout.separator()   
+            layout.separator()
 
             col = layout.column()
             col.enabled = False
             col.prop(context.object, 'ambf_rigid_body_namespace')
+            
+            box = layout.box()
 
-            row = layout.row()
+            row = box.row()
             row.prop(context.object, 'ambf_rigid_body_is_static', toggle=True)
             
             col = row.row()
@@ -3060,7 +3062,7 @@ class AMBF_PT_ambf_rigid_body(bpy.types.Panel):
             col.alignment = 'EXPAND'
             col.prop(context.object, 'ambf_rigid_body_mass')
             
-            row = layout.row()
+            row = box.row()
             split = row.split()
             row = split.row()
             row.scale_y = 3
@@ -3078,13 +3080,26 @@ class AMBF_PT_ambf_rigid_body(bpy.types.Panel):
             col = col.column()
             col.prop(context.object, 'ambf_rigid_body_inertia_z')
             
+            # Inertial Offsets
+            col = box.column()
+            col = col.split(percentage=0.5)
+            col.alignment = 'EXPAND'
+            col.prop(context.object, 'ambf_rigid_body_linear_inertial_offset')
+            
+            col = col.column()
+            col.enabled = False
+            col.alignment = 'EXPAND'
+            col.prop(context.object, 'ambf_rigid_body_angular_inertial_offset')
+            
             layout.separator()
             
-            row = layout.row()
+            box = layout.box()
+            
+            row = box.row()
             row.prop(context.object, 'ambf_rigid_body_collision_shape')
             
             if context.object.ambf_rigid_body_collision_shape in ['CYLINDER', 'CONE', 'CAPSULE']:
-                row = layout.row()
+                row = box.row()
                 split = row.split()
                 
                 col = split.column()
@@ -3097,11 +3112,11 @@ class AMBF_PT_ambf_rigid_body(bpy.types.Panel):
                 col.prop(context.object, 'ambf_rigid_body_collision_shape_height')
                 
             elif context.object.ambf_rigid_body_collision_shape == 'SPHERE':
-                row = layout.row()
+                row = box.row()
                 row.prop(context.object, 'ambf_rigid_body_collision_shape_radius')
                 
             elif context.object.ambf_rigid_body_collision_shape == 'BOX':
-                row = layout.row()
+                row = box.row()
                 split = row.split()
                 col = split.column()
                 col.prop(context.object, 'ambf_rigid_body_collision_shape_x')
@@ -3109,52 +3124,44 @@ class AMBF_PT_ambf_rigid_body(bpy.types.Panel):
                 col.prop(context.object, 'ambf_rigid_body_collision_shape_y')
                 col = split.column()
                 col.prop(context.object, 'ambf_rigid_body_collision_shape_z')
-                
             
+            box.separator()
             
-            layout.separator()
-            
-            row = layout.row()
+            row = box.row()
             row.prop(context.object, 'ambf_rigid_body_enable_collision_margin', toggle=True)
             
             row = row.row()
             row.enabled = context.object.ambf_rigid_body_enable_collision_margin
             row.prop(context.object, 'ambf_rigid_body_collision_margin')
             
-            layout.separator()
-            
-            row = layout.column()
+            row = box.column()
             row.alignment = 'EXPAND'
             row.prop(context.object, 'ambf_rigid_body_collision_groups', toggle=True)
             
             layout.separator()
             
-            row = layout.row()
+            box = layout.box()
+            
+            row = box.row()
             row.prop(context.object, 'ambf_rigid_body_static_friction')
 
-            row = layout.row()
+            row = box.row()
             row.prop(context.object, 'ambf_rigid_body_rolling_friction')
             
-            row = layout.row()
+            box.separator()
+            
+            row = box.row()
+            row.prop(context.object, 'ambf_rigid_body_linear_damping')
+            
+            row = box.row()
+            row.prop(context.object, 'ambf_rigid_body_angular_damping')
+            
+            box.separator()
+            
+            row = box.row()
             row.prop(context.object, 'ambf_rigid_body_restitution')
             
             layout.separator()
-            
-            row = layout.row()
-            row.prop(context.object, 'ambf_rigid_body_linear_damping')
-            
-            row = layout.row()
-            row.prop(context.object, 'ambf_rigid_body_angular_damping')
-            
-            col = layout.column()
-            col = col.split(percentage=0.5)
-            col.alignment = 'EXPAND'
-            col.prop(context.object, 'ambf_rigid_body_linear_inertial_offset')
-            
-            col = col.column()
-            col.enabled = False
-            col.alignment = 'EXPAND'
-            col.prop(context.object, 'ambf_rigid_body_angular_inertial_offset')
             
             # Rigid Body Controller Properties
             box = layout.box()
@@ -3184,6 +3191,8 @@ class AMBF_PT_ambf_rigid_body(bpy.types.Panel):
         
             row = row.row()
             row.prop(context.object, 'ambf_rigid_body_angular_controller_d_gain', text='D')
+            
+            layout.separator()
             
             # Publish various children properties
             box = layout.box()
@@ -3383,11 +3392,12 @@ custom_classes = (AMBF_OT_toggle_low_res_mesh_modifiers_visibility,
                   AMBF_OT_estimate_inertial_offsets,
                   AMBF_OT_auto_rename_joints,
                   AMBF_OT_ambf_rigid_body_activate,
+                  AMBF_OT_ambf_constraint_activate,
                   AMBF_OT_estimate_collision_shapes_geometry,
                   AMBF_OT_estimate_inertias,
                   AMBF_PT_create_ambf,
                   AMBF_PT_ambf_rigid_body,
-                  AMBF_PT_ambf_constraint,)
+                  AMBF_PT_ambf_constraint)
 
 
 def register():
