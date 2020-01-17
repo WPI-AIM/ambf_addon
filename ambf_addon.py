@@ -1625,10 +1625,10 @@ class AMBF_OT_auto_rename_joints(bpy.types.Operator):
         return {'FINISHED'}
 
 
-class AMBF_OT_estimate_collision_shape_geometry(bpy.types.Operator):
-    bl_idname = "ambf.estimate_collision_shape_geometry"
-    bl_label = "Estimate Collision Shape Geometry"
-    bl_description = "Estimate Collision Shape Geometry"
+class AMBF_OT_estimate_collision_shapes_geometry(bpy.types.Operator):
+    bl_idname = "ambf.estimate_collision_shapes_geometry"
+    bl_label = "Estimate Collision Shapes Geometry"
+    bl_description = "Estimate Collision Shapes Geometry"
 
     def execute(self, context):
         for obj in bpy.data.objects:
@@ -2604,6 +2604,7 @@ class AMBF_PT_create_ambf(bpy.types.Panel):
         box = layout.box()
         row = box.row()
         # Load AMBF File Into Blender
+        row.alignment = 'CENTER'
         row.label(text="LOAD ADF:")
 
         # Load
@@ -2614,120 +2615,134 @@ class AMBF_PT_create_ambf(bpy.types.Panel):
         col = box.column()
         col.alignment = 'CENTER'
         col.operator("ambf.load_ambf_file")
+        
+        ### SEPERATOR
+        layout.separator()
 
         box = layout.box()
+        
         row = box.row()
+        row.alignment = 'CENTER'
+        row.label(text='CREATE ADF:')
+        
         # Panel Label
-        row.label(text="Step 1: GENERATE LOW-RES MESH MODIFIERS FOR COLLISION")
+        sbox = box.box()
+        row = sbox.row()
+        row.alignment = 'CENTER'
+        row.label(text="(1) ONLY FOR CONVEX HULL COLL.")
 
         # Mesh Reduction Ratio Properties
-        row = box.row(align=True)
+        row = sbox.row(align=True)
         row.alignment = 'LEFT'
         split = row.split(percentage=0.7)
         row = split.row()
         row.label('Coll Mesh Max Verts: ')
         row = split.row()
         row.prop(context.scene, 'mesh_max_vertices')
-
+        
         # Low Res Mesh Modifier Button
-        col = box.column()
+        col = sbox.column()
         col.alignment = 'CENTER'
         col.operator("ambf.generate_low_res_mesh_modifiers")
 
+        sbox = box.box()
+        row = sbox.row()
+        row.alignment = 'CENTER'
+        row.label(text="(2) OPTIONAL (ALL BODIES)")
+        
+        # Column for creating detached joint
+        col = sbox.column()
+        col.operator('ambf.estimate_collision_shapes_geometry')
+        
+        col = sbox.column()
+        col.operator("ambf.estimate_inertial_offsets")
+        
+        col = sbox.column()
+        col.operator("ambf.estimate_inertias")
+
         # Panel Label
-        row = box.row()
-        box.label(text="Step 2: SELECT LOCATION AND SAVE MESHES")
+        sbox = box.box()
+        row = sbox.row()
+        row.alignment = 'CENTER'
+        row.label(text="(3) SAVE MESHES")
 
         # Meshes Save Location
-        col = box.column()
+        col = sbox.column()
         col.prop(context.scene, 'ambf_yaml_mesh_path')
 
         # Select the Mesh-Type for saving the meshes
-        col = box.column()
+        col = sbox.column()
         col.alignment = 'CENTER'
         col.prop(context.scene, 'mesh_output_type')
 
         # Meshes Save Button
-        col = box.column()
+        col = sbox.column()
         col.alignment = 'CENTER'
         col.operator("ambf.save_meshes")
 
-        row = box.row()
-        row.label(text="Step 3: GENERATE ADF")
-
-        row = box.row()
-        row.label(text="Step 3a: ADF PATH")
-        # Config File Save Location
-        col = box.column()
-        col.prop(context.scene, 'ambf_yaml_conf_path')
-        # AMBF Namespace
-        col = box.column()
-        col.alignment = 'CENTER'
-        col.prop(context.scene, 'ambf_namespace')
-        # Config File Save Button
-        row = box.row()
-        row.label(text="Step 3a: SAVE ADF")
-
+        # Panel Label
+        sbox = box.box()
+        row = sbox.row()
+        row.alignment = 'CENTER'
+        row.label(text="(4) SAVE ADF")
+        
         # Ignore Inter Collision Button
-        col = box.column()
+        col = sbox.column()
         col.alignment = 'CENTER'
         col.prop(context.scene, "ignore_inter_collision")
+        
+        # AMBF Namespace
+        col = sbox.column()
+        col.alignment = 'CENTER'
+        col.prop(context.scene, 'ambf_namespace', text='Global NS')
+        
+        # Config File Save Location
+        col = sbox.column()
+        col.prop(context.scene, 'ambf_yaml_conf_path', text='Save As')
 
-        col = box.column()
+        col = sbox.column()
         col.alignment = 'CENTER'
         col.operator("ambf.add_generate_ambf_file")
+        
+        ### SEPERATOR
+        layout.separator()
 
         box = layout.box()
         row = box.row()
-        row.label(text="OPTIONAL :")
+        row.alignment = 'CENTER'
+        row.label(text="OPTIONAL HELPERS:")
 
-        row = box.row()
         # Column for creating detached joint
-        split = row.split(percentage=0.5)
-        col = split.column()
+        col = box.column()
         col.alignment = 'CENTER'
-        col.scale_y = 1.5
         col.operator("ambf.remove_object_namespaces")
 
-        # Column for creating detached joint
-        col = split.column()
-        col.alignment = 'CENTER'
-        col.scale_y = 1.5
-        col.operator('ambf.estimate_collision_shape_geometry')
-
         # Add Optional Button to Remove All Modifiers
-        row = box.row()
-        split = row.split(percentage=0.5)
-        col = split.column()
+        col = box.column()
         col.alignment = 'CENTER'
-        col.scale_y = 1.5
         col.operator("ambf.remove_low_res_mesh_modifiers")
 
         # Add Optional Button to Toggle the Visibility of Low-Res Modifiers
-        col = split.column()
+        col = box.column()
         col.alignment = 'CENTER'
-        col.scale_y = 1.5
         col.operator("ambf.toggle_low_res_mesh_modifiers_visibility")
         
-        row = box.row()
-        split = row.split(percentage=0.5)
-        col = split.column()
-        col.scale_y = 1.5
-        col.operator("ambf.estimate_inertial_offsets")
-        
-        col = split.column()
-        col.scale_y = 1.5
+        col = box.column()
         col.operator("ambf.auto_rename_joints")
         
         row = box.row()
         row.scale_y = 1.5
         row.operator("ambf.create_detached_joint")
         
-        row = box.row()
-        row.scale_y = 1.5
-        row.operator("ambf.estimate_inertias")
+        
+        ### SEPERATOR
+        layout.separator()
 
         box = layout.box()
+        
+        row = box.row()
+        row.alignment = 'CENTER'
+        row.label(text="LEGACY:")
 
         # Enable Legacy Loading
         col = box.column()
@@ -3372,7 +3387,7 @@ custom_classes = (AMBF_OT_toggle_low_res_mesh_modifiers_visibility,
                   AMBF_OT_estimate_inertial_offsets,
                   AMBF_OT_auto_rename_joints,
                   AMBF_OT_ambf_rigid_body_activate,
-                  AMBF_OT_estimate_collision_shape_geometry,
+                  AMBF_OT_estimate_collision_shapes_geometry,
                   AMBF_OT_estimate_inertias,
                   AMBF_PT_create_ambf,
                   AMBF_PT_ambf_rigid_body,
