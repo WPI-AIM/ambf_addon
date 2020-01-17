@@ -340,6 +340,126 @@ def compute_local_com(obj):
     return center
 
 
+def inertia_of_convex_hull(obj, mass=None):
+    if mass == None:
+        mass = obj.ambf_rigid_body_mass
+    num_vertices = len(obj.data.vertices)
+    dm = mass / num_vertices
+    I = mathutils.Vector((0, 0, 0))
+    # Tripple Summation or Integral
+    for v in obj.data.vertices:
+        I[0] = I[0] + dm * (v.co[1]*v.co[1] + v.co[2] * v.co[2])
+        I[1] = I[1] + dm * (v.co[0]*v.co[0] + v.co[2] * v.co[2])
+        I[2] = I[2] + dm * (v.co[0]*v.co[0] + v.co[1] * v.co[1])
+    return I
+
+
+def inertia_of_box(mass, lx, ly, lz):
+    I = mathutils.Vector((0, 0, 0))
+    I[0] = (1.0 / 12.0) * mass * (ly*ly + lz*lz)
+    I[1] = (1.0 / 12.0) * mass * (lx*lx + lz*lz)
+    I[2] = (1.0 / 12.0) * mass * (lx*lx + ly*ly)
+    return I
+
+
+def inertia_of_sphere(mass, r):
+    I = mathutils.Vector((0, 0, 0))
+    r2 = r * r
+    I[0] = (2.0 / 5.0) * mass * r2
+    I[1] = (2.0 / 5.0) * mass * r2
+    I[2] = (2.0 / 5.0) * mass * r2
+    return I
+
+
+def inertia_of_cylinder(mass, r, h, axis):
+    I = mathutils.Vector((0, 0, 0))
+    r2 = r * r
+    h2 = h * h
+    I[axis] = (1/2) * mass * r2
+    I[(axis + 1) % 3] = (1/4) * mass * r2 + (1/12) * mass * h2
+    I[(axis + 2) % 3] = (1/4) * mass * r2 + (1/12) * mass * h2
+    return I
+
+
+def inertia_of_cone(mass, r, h, axis):
+    I = mathutils.Vector((0, 0, 0))
+    r2 = r * r
+    h2 = h * h
+    I[axis] = (3/10) * mass * r2
+    I[(axis + 1) % 3] = (3/20) * mass * r2 + (3/5) * mass * h2
+    I[(axis + 2) % 3] = (3/20) * mass * r2 + (3/5) * mass * h2
+    return I
+
+
+def inertia_of_capsule(mass, r, h_total, axis):
+    I = mathutils.Vector((0, 0, 0))
+    h = h_total - (r * 2) # Get the length of main cylinder
+    if h == 0:
+        # This means that this obj shape is essentially a sphere, not a capsule
+        I = inertia_of_sphere(mass, r)
+    else:
+        r2 = r * r
+        h2 = h * h
+        # Factor the mass: (mass of hemisphere) / (mass of cylinder)
+        mass_factor = (2 * r) / (3 * h)
+        m_hs = mass * mass_factor
+        m_cy = mass * (1 - mass_factor)
+        I[axis] = (1/2) * m_cy * r2 + (4 / 5) * m_hs * r2
+        I[(axis + 1) % 3] = (1 / 12) * m_cy * (h2 + (3 * r2)) + 2 * m_hs * ((2 * r2 / 5) + (h2 / 2) + ((3/8) * h * r))
+        I[(axis + 2) % 3] = (1 / 12) * m_cy * (h2 + (3 * r2)) + 2 * m_hs * ((2 * r2 / 5) + (h2 / 2) + ((3/8) * h * r))
+    return I
+
+
+def calculate_principal_inertia(obj):    
+    # Calculate Ixx, Iyy and Izz
+    mass = obj.ambf_rigid_body_mass
+    lx = obj.dimensions[0]
+    ly = obj.dimensions[1]
+    lz = obj.dimensions[2]
+    axis = 2
+    if obj.ambf_rigid_body_collision_shape in ['CYLINDER', 'CONE', 'CAPSULE']:
+            if obj.ambf_rigid_body_collision_shape_axis == 'X':
+                axis = 0
+            elif obj.ambf_rigid_body_collision_shape_axis == 'Y':
+                axis = 1
+            elif obj.ambf_rigid_body_collision_shape_axis == 'Z':
+                axis = 2
+    if obj.ambf_rigid_body_collision_shape == 'CONVEX_HULL':
+        I = inertia_of_convex_hull(obj)
+    elif obj.ambf_rigid_body_collision_shape == 'BOX':
+        I = inertia_of_box(mass, lx, ly, lz)
+    elif obj.ambf_rigid_body_collision_shape == 'SPHERE':
+        r = max(obj.dimensions) / 2
+        I = inertia_of_sphere(mass, r)
+    elif obj.ambf_rigid_body_collision_shape == 'CYLINDER':
+        h = obj.dimensions[axis]
+        d = obj.dimensions[(axis + 1) % 3] # Add one, then take the mod for the next axis
+        r = d / 2
+        I = inertia_of_cylinder(mass, r, h, axis)
+    elif obj.ambf_rigid_body_collision_shape == 'CONE':
+        h = obj.dimensions[axis]
+        d = obj.dimensions[(axis + 1) % 3] # Add one, then take the mod for the next axis
+        r = d/2
+        I = inertia_of_cone(mass, r, h, axis)
+    elif obj.ambf_rigid_body_collision_shape == 'CAPSULE':
+        h_total = obj.dimensions[axis]
+        d = obj.dimensions[(axis + 1) % 3] # Add one, then take the mod for the next axis
+        r = d/2
+        I = inertia_of_capsule(mass, r, h_total, axis)
+    else:
+        print('ERROR!, Not an understood shape or mesh')
+    # Parallel Axis Theorem
+    off = obj.ambf_rigid_body_linear_inertial_offset
+    I[0] = I[0] + mass * (off[1] * off[1] + off[2] + off[2])
+    I[1] = I[1] + mass * (off[0] * off[0] + off[2] + off[2])
+    I[2] = I[2] + mass * (off[0] * off[0] + off[1] + off[1])
+    ix = round(I[0], 4)
+    iy = round(I[1], 4)
+    iz = round(I[2], 4)
+    print(ix, iy, iz)
+    return I
+
+
 # Body Template for the some commonly used of afBody's data
 class BodyTemplate:
     def __init__(self):
@@ -2736,6 +2856,12 @@ class AMBF_PT_ambf_rigid_body(bpy.types.Panel):
     
     bpy.types.Object.ambf_rigid_body_mass = bpy.props.FloatProperty(name="mass", default=1.0, min=0.001)
     
+    bpy.types.Object.ambf_rigid_body_inertia_x = bpy.props.FloatProperty(name='Ix', default=1.0, min=0.0)
+    
+    bpy.types.Object.ambf_rigid_body_inertia_y = bpy.props.FloatProperty(name='Iy', default=1.0, min=0.0)
+    
+    bpy.types.Object.ambf_rigid_body_inertia_z = bpy.props.FloatProperty(name='Iz', default=1.0, min=0.0)
+    
     bpy.types.Object.ambf_rigid_body_static_friction = bpy.props.FloatProperty(name="Static Friction", default=0.5, min=0.0, max=1.0)
 
     bpy.types.Object.ambf_rigid_body_rolling_friction = bpy.props.FloatProperty(name="Rolling Friction", default=0.5, min=0.0, max=1.0)
@@ -2775,6 +2901,13 @@ class AMBF_PT_ambf_rigid_body(bpy.types.Panel):
             name="Static",
             default=False,
             description="Is this object dynamic or static (mass = 0.0 Kg)"
+        )
+
+    bpy.types.Object.ambf_rigid_body_manually_set_inertia = bpy.props.BoolProperty \
+        (
+            name="Set Inertia",
+            default=False,
+            description="If not set explicitly, it is calculated automatically by AMBF"
         )
 
     bpy.types.Object.ambf_rigid_body_collision_shape = bpy.props.EnumProperty \
@@ -2894,6 +3027,24 @@ class AMBF_PT_ambf_rigid_body(bpy.types.Panel):
             col.enabled = not context.object.ambf_rigid_body_is_static
             col.alignment = 'EXPAND'
             col.prop(context.object, 'ambf_rigid_body_mass')
+            
+            row = layout.row()
+            split = row.split()
+            row = split.row()
+            row.scale_y = 3
+            row.enabled = not context.object.ambf_rigid_body_is_static
+            row.prop(context.object, 'ambf_rigid_body_manually_set_inertia', toggle=True)
+            
+            row = split.row()
+            row.enabled = context.object.ambf_rigid_body_manually_set_inertia and not context.object.ambf_rigid_body_is_static
+            col = row.column()
+            col.prop(context.object, 'ambf_rigid_body_inertia_x')
+            
+            col = col.column()
+            col.prop(context.object, 'ambf_rigid_body_inertia_y')
+            
+            col = col.column()
+            col.prop(context.object, 'ambf_rigid_body_inertia_z')
             
             layout.separator()
             
