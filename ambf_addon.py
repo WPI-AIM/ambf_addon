@@ -2505,10 +2505,10 @@ class AMBF_OT_load_ambf_file(bpy.types.Operator):
         return {'FINISHED'}
 
 
-class AMBF_PT_create_ambf(bpy.types.Panel):
+class AMBF_PT_create_adf(bpy.types.Panel):
     """Creates a Panel in the Tool Shelf"""
     bl_label = "LOAD, CREATE AND SAVE ADFs"
-    bl_idname = "ambf.create_ambf"
+    bl_idname = "AMBF_PT_create_adf"
     bl_space_type = 'VIEW_3D'
     bl_region_type = 'TOOLS'
     bl_category = "AMBF"
@@ -2635,7 +2635,7 @@ class AMBF_PT_create_ambf(bpy.types.Panel):
         row.alignment = 'LEFT'
         split = row.split(percentage=0.7)
         row = split.row()
-        row.label('Coll Mesh Max Verts: ')
+        row.label(text='Coll Mesh Max Verts: ')
         row = split.row()
         row.prop(context.scene, 'mesh_max_vertices')
         
@@ -2706,7 +2706,7 @@ class AMBF_PT_create_ambf(bpy.types.Panel):
         box = layout.box()
         row = box.row()
         row.alignment = 'CENTER'
-        row.label(text="OPTIONAL HELPERS:", icon='SCRIPTWIN')
+        row.label(text="OPTIONAL HELPERS:", icon='OUTLINER_DATA_ARMATURE')
 
         # Column for creating detached joint
         col = box.column()
@@ -2761,7 +2761,7 @@ class AMBF_PT_create_ambf(bpy.types.Panel):
 class AMBF_PT_rigid_body_props(bpy.types.Panel):
     """Add Rigid Body Properties"""
     bl_label = "AMBF RIGID BODY ADDITIONAL PROPERTIES"
-    bl_idname = "ambf.rigid_body_props"
+    bl_idname = "AMBF_PT_rigid_body_props"
     bl_space_type = 'PROPERTIES'
     bl_region_type = 'WINDOW'
     bl_context= "physics"
@@ -2818,7 +2818,7 @@ class AMBF_PT_rigid_body_props(bpy.types.Panel):
 class AMBF_PT_joint_props(bpy.types.Panel):
     """Add Rigid Body Properties"""
     bl_label = "AMBF JOINT ADDITIONAL PROPERTIES"
-    bl_idname = "ambf.joint_props"
+    bl_idname = "AMBF_PT_joint_props"
     bl_space_type = 'PROPERTIES'
     bl_region_type = 'WINDOW'
     bl_context= "physics"
@@ -2877,7 +2877,7 @@ class AMBF_OT_ambf_rigid_body_activate(bpy.types.Operator):
 class AMBF_PT_ambf_rigid_body(bpy.types.Panel):
     """Add Rigid Body Properties"""
     bl_label = "AMBF RIGID BODY PROPERTIES"
-    bl_idname = "ambf.ambf_rigid_body"
+    bl_idname = "AMBF_PT_ambf_rigid_body"
     bl_space_type = 'PROPERTIES'
     bl_region_type = 'WINDOW'
     bl_context= "physics"
@@ -3171,7 +3171,7 @@ class AMBF_PT_ambf_rigid_body(bpy.types.Panel):
             row.scale_y=2
         
             col = box.column()
-            col.label('Linear Gains')
+            col.label(text='Linear Gains')
             
             col = box.column()
             col.enabled = context.object.ambf_rigid_body_enable_controllers
@@ -3182,7 +3182,7 @@ class AMBF_PT_ambf_rigid_body(bpy.types.Panel):
             row.prop(context.object, 'ambf_rigid_body_linear_controller_d_gain', text='D')
             
             col = box.column()
-            col.label('Angular Gains')
+            col.label(text='Angular Gains')
             
             col = box.column()
             col.enabled = context.object.ambf_rigid_body_enable_controllers
@@ -3225,7 +3225,7 @@ class AMBF_OT_ambf_constraint_activate(bpy.types.Operator):
 class AMBF_PT_ambf_constraint(bpy.types.Panel):
     """Add Rigid Body Properties"""
     bl_label = "AMBF CONSTRAINT PROPERTIES"
-    bl_idname = "ambf.ambf_constraint"
+    bl_idname = "AMBF_PT_ambf_constraint"
     bl_space_type = 'PROPERTIES'
     bl_region_type = 'WINDOW'
     bl_context= "physics"
@@ -3395,7 +3395,7 @@ custom_classes = (AMBF_OT_toggle_low_res_mesh_modifiers_visibility,
                   AMBF_OT_ambf_constraint_activate,
                   AMBF_OT_estimate_collision_shapes_geometry,
                   AMBF_OT_estimate_inertias,
-                  AMBF_PT_create_ambf,
+                  AMBF_PT_create_adf,
                   AMBF_PT_ambf_rigid_body,
                   AMBF_PT_ambf_constraint)
 
