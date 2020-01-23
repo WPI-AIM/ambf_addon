@@ -3155,6 +3155,11 @@ class AMBF_PT_ambf_rigid_body(bpy.types.Panel):
             col.alignment = 'EXPAND'
             col.prop(context.object, 'ambf_rigid_body_mass')
             
+            # Inertias
+            box.separator()
+            col = box.column()
+            col.operator("ambf.estimate_inertia_per_obj")
+            
             row = box.row()
             split = row.split()
             row = split.row()
@@ -3174,6 +3179,10 @@ class AMBF_PT_ambf_rigid_body(bpy.types.Panel):
             col.prop(context.object, 'ambf_rigid_body_inertia_z')
             
             # Inertial Offsets
+            box.separator()
+            col = box.column()
+            col.operator("ambf.estimate_inertial_offset_per_obj")
+            
             col = box.column()
             col = col.split(percentage=0.5)
             col.alignment = 'EXPAND'
@@ -3188,14 +3197,7 @@ class AMBF_PT_ambf_rigid_body(bpy.types.Panel):
 
             sbox = layout.box()
             row = sbox.row()
-            row.label(text="B. OPTIONAL")
-
-            # Column for creating detached joint
-            col = sbox.column()
-            col.operator("ambf.estimate_inertial_offset_per_obj")
-
-            col = sbox.column()
-            col.operator("ambf.estimate_inertia_per_obj")
+            row.label(text="HELPERS")
             
             box = layout.box()
             
@@ -3411,18 +3413,13 @@ class AMBF_PT_ambf_constraint(bpy.types.Panel):
         row.scale_y = 2
         
         if context.object.ambf_constraint_enable:
+            layout.separator()
+            col = layout.column()
+            col.operator('ambf.auto_rename_joint_per_obj')
             
             col = layout.column()
             col.alignment = 'CENTER'
             col.prop(context.object, 'ambf_constraint_name')
-
-            sbox = layout.box()
-            row = sbox.row()
-            row.label(text="B. OPTIONAL")
-
-            # Column for creating detached joint
-            col = sbox.column()
-            col.operator('ambf.auto_rename_joint_per_obj')
             
             col = layout.column()
             col.prop(context.object, 'ambf_constraint_type')
