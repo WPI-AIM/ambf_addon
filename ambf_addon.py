@@ -273,10 +273,23 @@ def prepend_comment_to_file(filename, comment):
     os.rename(temp_filename, filename)
 
 
-def select_all_objects(select=True):
+def select_object(obj, select=True):
+    obj.select = select
+
+
+def select_all_objects(select):
     # First deselect all objects
     for obj in bpy.data.objects:
-        obj.select = select
+        select_object(obj, select)
+
+
+def get_active_object():
+    active_object = bpy.context.active_object
+    return active_object
+
+
+def set_active_object(active_object):
+    bpy.context.scene.objects.active = active_object
 
 
 # For shapes such as Cylinder, Cone and Ellipse, this function returns
@@ -1458,7 +1471,7 @@ class AMBF_OT_save_meshes(bpy.types.Operator):
         mesh_name_mat_list = self.set_all_meshes_to_origin()
         for obj_handle in bpy.data.objects:
             # Mesh Type is .stl
-            obj_handle.select = True
+            select_object(obj_handle)
 
             obj_handle_name = remove_namespace_prefix(obj_handle.name)
 
@@ -1516,13 +1529,13 @@ class AMBF_OT_save_meshes(bpy.types.Operator):
                     obj_name = obj_handle_name + '.PLY'
                     filename_high_res = os.path.join(high_res_path, obj_name)
                     filename_low_res = os.path.join(low_res_path, obj_name)
-                    bpy.context.scene.objects.active = obj_handle
+                    set_active_object(obj_handle)
                     bpy.ops.export_mesh.ply(filepath=filename_high_res, use_mesh_modifiers=False)
                     bpy.ops.export_mesh.ply(filepath=filename_low_res, use_mesh_modifiers=True)
                     # Make sure to deselect the mesh
-                    bpy.context.scene.objects.active = None
+                    set_active_object(None)
 
-            obj_handle.select = False
+            select_object(obj_handle, False)
         self.reset_meshes_to_original_position(mesh_name_mat_list)
 
 
@@ -1539,7 +1552,7 @@ class AMBF_OT_generate_low_res_mesh_modifiers(bpy.types.Operator):
 
         # Now deselect all objects
         for obj in bpy.data.objects:
-            obj.select = False
+            select_object(obj, False)
 
         vertices_max = context.scene.mesh_max_vertices
         # Select each object iteratively and generate its low-res mesh
@@ -1565,7 +1578,8 @@ class AMBF_OT_create_detached_joint(bpy.types.Operator):
     def execute(self, context):
         select_all_objects(False)
         bpy.ops.object.empty_add(type='PLAIN_AXES')
-        context.active_object.name = CommonConfig.detached_joint_prefix[0] + ' joint'
+        active_object = get_active_object()
+        active_object.name = CommonConfig.detached_joint_prefix[0] + ' joint'
         return {'FINISHED'}
 
 
@@ -1736,7 +1750,7 @@ class AMBF_OT_load_ambf_file(bpy.types.Operator):
             bpy.ops.import_scene.obj(filepath=str(mesh_filepath.resolve()), axis_up='Z', axis_forward='Y')
             # Hack, .3ds and .obj imports do not make the imported object active. A hack is
             # to capture the selected objects in this case.
-            self._context.scene.objects.active = self._context.selected_objects[0]
+            set_active_object(self._context.selected_objects[0])
 
         elif mesh_filepath.suffix in ['.dae', '.DAE']:
             bpy.ops.wm.collada_import(filepath=str(mesh_filepath.resolve()))
@@ -1745,16 +1759,16 @@ class AMBF_OT_load_ambf_file(bpy.types.Operator):
             for temp_obj_handle in self._context.selected_objects:
                 if temp_obj_handle.type == 'MESH':
                     obj_handle = temp_obj_handle
-                    # self._context.scene.objects.active = obj_handle
+                    # set_active_object(obj_handle)
                 else:
                     bpy.data.objects.remove(temp_obj_handle)
 
             so = bpy.context.selected_objects
             if len(so) > 1:
-                self._context.scene.objects.active = so[0]
+                set_active_object(so[0])
                 bpy.ops.object.join()
-                self._context.active_object.name = af_name
-                obj_handle = self._context.active_object
+                so[0].name = af_name
+                obj_handle = get_active_object()
 
                 # The lines below are essential in joint the multiple meshes
                 # defined in the .dae into one mesh, secondly, making sure that
@@ -1770,19 +1784,19 @@ class AMBF_OT_load_ambf_file(bpy.types.Operator):
                 r_x = mathutils.Matrix.Rotation(-1.57, 4, 'X')
                 obj_handle.data.transform(r_x)
             else:
-                self._context.scene.objects.active = so[0]
+                set_active_object(so[0])
 
         elif mesh_filepath.suffix in ['.3ds', '.3DS']:
             _manually_select_obj = True
             bpy.ops.import_scene.autodesk_3ds(filepath=str(mesh_filepath.resolve()))
             # Hack, .3ds and .obj imports do not make the imported object active. A hack is
             # to capture the selected objects in this case.
-            self._context.scene.objects.active = self._context.selected_objects[0]
+            set_active_object(self._context.selected_objects[0])
 
         elif mesh_filepath.suffix == '':
             bpy.ops.object.empty_add(type='PLAIN_AXES')
 
-        return self._context.active_object
+        return get_active_object()
 
     def load_material(self, body_data, obj_handle):
 
@@ -2278,7 +2292,7 @@ class AMBF_OT_load_ambf_file(bpy.types.Operator):
         # as the joint obj handle
         if self.is_detached_joint(joint_data):
             bpy.ops.object.empty_add(type='PLAIN_AXES')
-            joint_obj_handle = bpy.context.active_object
+            joint_obj_handle = get_active_object()
             joint_name = str(joint_data['name'])
 
             if self.has_detached_prefix(joint_name):
@@ -2292,7 +2306,7 @@ class AMBF_OT_load_ambf_file(bpy.types.Operator):
 
     def get_ambf_joint_handle(self, joint_data):
         bpy.ops.object.empty_add(type='PLAIN_AXES')
-        joint_obj_handle = bpy.context.active_object
+        joint_obj_handle = get_active_object()
         joint_name = str(joint_data['name'])
 
         joint_obj_handle.name = joint_name
@@ -2304,22 +2318,22 @@ class AMBF_OT_load_ambf_file(bpy.types.Operator):
     def make_obj1_parent_of_obj2(self, obj1, obj2):
         select_all_objects(False)
         if obj2.parent is None:
-            obj2.select = True
-            obj1.select = True
-            self._context.scene.objects.active = obj1
+            select_object(obj2)
+            select_object(obj1)
+            set_active_object(obj1)
             bpy.ops.object.parent_set(keep_transform=True)
 
     def create_blender_constraint(self, joint_obj_handle, joint_type, parent_obj_handle, child_obj_handle):
-        self._context.scene.objects.active = joint_obj_handle
-        joint_obj_handle.select = True
+        set_active_object(joint_obj_handle)
+        select_object(joint_obj_handle)
         bpy.ops.rigidbody.constraint_add(type=joint_type)
 
         joint_obj_handle.rigid_body_constraint.object1 = parent_obj_handle
         joint_obj_handle.rigid_body_constraint.object2 = child_obj_handle
 
     def create_ambf_constraint(self, joint_obj_handle, joint_type, parent_obj_handle, child_obj_handle):
-        self._context.scene.objects.active = joint_obj_handle
-        joint_obj_handle.select = True
+        set_active_object(joint_obj_handle)
+        select_object(joint_obj_handle)
 
         joint_obj_handle.ambf_constraint_enable = True
         joint_obj_handle.ambf_object_type = 'CONSTRAINT'
@@ -2425,7 +2439,7 @@ class AMBF_OT_load_ambf_file(bpy.types.Operator):
     def load_blender_joint(self, joint_name):
         joint_data = self._ambf_data[joint_name]
         select_all_objects(False)
-        self._context.scene.objects.active = None
+        set_active_object(None)
         # Set joint type to blender appropriate name
 
         parent_obj_handle, child_obj_handle = self.get_parent_and_child_object_handles(joint_data)
@@ -2446,7 +2460,7 @@ class AMBF_OT_load_ambf_file(bpy.types.Operator):
     def load_ambf_joint(self, joint_name):
         joint_data = self._ambf_data[joint_name]
         select_all_objects(False)
-        self._context.scene.objects.active = None
+        set_active_object(None)
         # Set joint type to blender appropriate name
 
         parent_obj_handle, child_obj_handle = self.get_parent_and_child_object_handles(joint_data)
@@ -2777,10 +2791,11 @@ class AMBF_PT_rigid_body_props(bpy.types.Panel):
     @classmethod
     def poll(self, context):
         active = False
-        if context.active_object:
-            if context.active_object.type == 'MESH':
-                if context.active_object.rigid_body:
-                    active=True
+        active_object = get_active_object()
+        if active_object:
+            if active_object.type == 'MESH':
+                if active_object.rigid_body:
+                    active = True
         return active
     
     def draw(self, context):
@@ -2831,10 +2846,11 @@ class AMBF_PT_joint_props(bpy.types.Panel):
     @classmethod
     def poll(self, context):
         has_detached_prefix = False
-        if context.active_object: # Check if an object is active
-            if context.active_object.type in ['EMPTY', 'MESH']: # Check if the object is a mesh or an empty axis
-                if context.active_object.rigid_body_constraint: # Check if the object has a constraint
-                    if context.active_object.rigid_body_constraint.type in ['HINGE', 'SLIDER', 'GENERIC']: # Check if a valid constraint
+        active_object = get_active_object()
+        if active_object: # Check if an object is active
+            if active_object.type in ['EMPTY', 'MESH']: # Check if the object is a mesh or an empty axis
+                if active_object.rigid_body_constraint: # Check if the object has a constraint
+                    if active_object.rigid_body_constraint.type in ['HINGE', 'SLIDER', 'GENERIC']: # Check if a valid constraint
                         has_detached_prefix = True
         return has_detached_prefix
     
@@ -3030,8 +3046,9 @@ class AMBF_PT_ambf_rigid_body(bpy.types.Panel):
     @classmethod
     def poll(self, context):
         active = False
-        if context.active_object: # Check if an object is active
-            if context.active_object.type in ['EMPTY', 'MESH']:
+        active_object = get_active_object()
+        if active_object: # Check if an object is active
+            if active_object.type in ['EMPTY', 'MESH']:
                 active = True
                 
         return active
@@ -3283,8 +3300,9 @@ class AMBF_PT_ambf_constraint(bpy.types.Panel):
     @classmethod
     def poll(self, context):
         active = False
-        if context.active_object: # Check if an object is active
-            if context.active_object.type in ['EMPTY']:
+        active_object = get_active_object()
+        if active_object: # Check if an object is active
+            if active_object.type in ['EMPTY']:
                 active = True
                           
         return active
