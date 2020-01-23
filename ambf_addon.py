@@ -1623,22 +1623,6 @@ class AMBF_OT_estimate_inertial_offsets(bpy.types.Operator):
         return {'FINISHED'}
 
 
-class AMBF_OT_auto_rename_joints(bpy.types.Operator):
-    bl_idname = "ambf.auto_rename_joints"
-    bl_label = "Automatically Rename Joints"
-    bl_description = "Automatically Rename Joints as Parent-Child name"
-
-    def execute(self, context):
-        for obj in bpy.data.objects:
-            if obj.ambf_object_type == 'CONSTRAINT':
-                parent = obj.ambf_constraint_parent
-                child = obj.ambf_constraint_child
-                if parent and child:
-                    obj.ambf_constraint_name = remove_namespace_prefix(parent.name) + '-' + remove_namespace_prefix(child.name) 
-                pass
-        return {'FINISHED'}
-
-
 class AMBF_OT_estimate_collision_shapes_geometry(bpy.types.Operator):
     bl_idname = "ambf.estimate_collision_shapes_geometry"
     bl_label = "Estimate Collision Shapes Geometry"
@@ -1679,6 +1663,97 @@ class AMBF_OT_estimate_inertias(bpy.types.Operator):
                     obj.ambf_rigid_body_inertia_y = I[1]
                     obj.ambf_rigid_body_inertia_z = I[2]
                     obj.ambf_rigid_body_specify_inertia = True
+        return {'FINISHED'}
+
+
+class AMBF_OT_auto_rename_joints(bpy.types.Operator):
+    bl_idname = "ambf.auto_rename_joints"
+    bl_label = "Automatically Rename Joints"
+    bl_description = "Automatically Rename Joints as Parent-Child name"
+
+    def execute(self, context):
+        for obj in bpy.data.objects:
+            if obj.ambf_object_type == 'CONSTRAINT':
+                parent = obj.ambf_constraint_parent
+                child = obj.ambf_constraint_child
+                if parent and child:
+                    obj.ambf_constraint_name = remove_namespace_prefix(parent.name) + '-' + remove_namespace_prefix(child.name)
+                pass
+        return {'FINISHED'}
+
+
+class AMBF_OT_estimate_inertial_offset_per_obj(bpy.types.Operator):
+    bl_idname = "ambf.estimate_inertial_offset_per_obj"
+    bl_label = "Estimate Inertial Offset"
+    bl_description = "Automatically Estimate the Inertial Offsets for the Bodies"
+
+    def execute(self, context):
+        obj = context.object
+        if obj.ambf_object_type == 'RIGID_BODY':
+            local_com = compute_local_com(obj)
+            obj.ambf_rigid_body_linear_inertial_offset[0] = local_com[0]
+            obj.ambf_rigid_body_linear_inertial_offset[1] = local_com[1]
+            obj.ambf_rigid_body_linear_inertial_offset[2] = local_com[2]
+            pass
+        return {'FINISHED'}
+
+
+class AMBF_OT_estimate_collision_shape_geometry_per_obj(bpy.types.Operator):
+    bl_idname = "ambf.estimate_collision_shape_geometry_per_obj"
+    bl_label = "Estimate Collision Shape Geometry"
+    bl_description = "Estimate Collision Shape Geometry"
+
+    def execute(self, context):
+        obj = context.object
+        if obj.ambf_object_type == 'RIGID_BODY':
+            dims = obj.dimensions.copy()
+            od = [round(dims[0], 3), round(dims[1], 3), round(dims[2], 3)]
+            # Now we need to find out the geometry of the shape
+            if obj.ambf_rigid_body_collision_shape == 'BOX':
+                obj.ambf_rigid_body_collision_shape_x = od[0]
+                obj.ambf_rigid_body_collision_shape_y = od[1]
+                obj.ambf_rigid_body_collision_shape_z = od[2]
+            elif obj.ambf_rigid_body_collision_shape== 'SPHERE':
+                obj.ambf_rigid_body_collision_shape_radius = max(od)/2
+            elif obj.ambf_rigid_body_collision_shape in ['CYLINDER', 'CONE', 'CAPSULE']:
+                major_ax_char, major_ax_idx = get_major_axis(od)
+                median_ax_char, median_ax_idx = get_median_axis(od)
+                obj.ambf_rigid_body_collision_shape_radius = od[median_ax_idx]/2.0
+                obj.ambf_rigid_body_collision_shape_height = od[major_ax_idx]
+                obj.ambf_rigid_body_collision_shape_axis = major_ax_char.upper()
+        return {'FINISHED'}
+
+
+class AMBF_OT_estimate_inertia_per_obj(bpy.types.Operator):
+    bl_idname = "ambf.estimate_inertia_per_obj"
+    bl_label = "Estimate Body Inertia"
+    bl_description = "Estimate Body Inertia"
+
+    def execute(self, context):
+        obj = context.object
+        if obj.ambf_object_type == 'RIGID_BODY':
+            if not obj.ambf_rigid_body_is_static:
+                I = calculate_principal_inertia(obj)
+                obj.ambf_rigid_body_inertia_x = I[0]
+                obj.ambf_rigid_body_inertia_y = I[1]
+                obj.ambf_rigid_body_inertia_z = I[2]
+                obj.ambf_rigid_body_specify_inertia = True
+        return {'FINISHED'}
+
+
+class AMBF_OT_auto_rename_joint_per_obj(bpy.types.Operator):
+    bl_idname = "ambf.auto_rename_joint_per_obj"
+    bl_label = "Automatically Rename Joint"
+    bl_description = "Automatically Rename Joint as Parent-Child name"
+
+    def execute(self, context):
+        obj = context.object
+        if obj.ambf_object_type == 'CONSTRAINT':
+            parent = obj.ambf_constraint_parent
+            child = obj.ambf_constraint_child
+            if parent and child:
+                obj.ambf_constraint_name = remove_namespace_prefix(parent.name) + '-' + remove_namespace_prefix(child.name)
+            pass
         return {'FINISHED'}
 
 
@@ -3060,8 +3135,9 @@ class AMBF_PT_ambf_rigid_body(bpy.types.Panel):
         col.alignment = 'EXPAND'
         col.scale_y = 2
         col.operator('ambf.ambf_rigid_body_activate', text='Enable AMBF Rigid Body', icon='RNA_ADD')
-        
-        if context.object.ambf_rigid_body_enable:
+        col.enabled = not context.object.ambf_constraint_enable
+
+        if context.object.ambf_rigid_body_enable and not context.object.ambf_constraint_enable:
             layout.separator() 
             layout.separator()
 
@@ -3109,11 +3185,29 @@ class AMBF_PT_ambf_rigid_body(bpy.types.Panel):
             col.prop(context.object, 'ambf_rigid_body_angular_inertial_offset')
             
             layout.separator()
+
+            sbox = layout.box()
+            row = sbox.row()
+            row.label(text="B. OPTIONAL")
+
+            # Column for creating detached joint
+            col = sbox.column()
+            col.operator("ambf.estimate_inertial_offset_per_obj")
+
+            col = sbox.column()
+            col.operator("ambf.estimate_inertia_per_obj")
             
             box = layout.box()
             
             row = box.row()
             row.prop(context.object, 'ambf_rigid_body_collision_shape')
+
+            if context.object.ambf_rigid_body_collision_shape in ['CYLINDER', 'CONE', 'CAPSULE', 'BOX', 'SPHERE']:
+                layout.separator()
+                col = box.column()
+                col.operator('ambf.estimate_collision_shape_geometry_per_obj')
+                col.scale_y = 1.5
+                layout.separator()
             
             if context.object.ambf_rigid_body_collision_shape in ['CYLINDER', 'CONE', 'CAPSULE']:
                 row = box.row()
@@ -3321,6 +3415,14 @@ class AMBF_PT_ambf_constraint(bpy.types.Panel):
             col = layout.column()
             col.alignment = 'CENTER'
             col.prop(context.object, 'ambf_constraint_name')
+
+            sbox = layout.box()
+            row = sbox.row()
+            row.label(text="B. OPTIONAL")
+
+            # Column for creating detached joint
+            col = sbox.column()
+            col.operator('ambf.auto_rename_joint_per_obj')
             
             col = layout.column()
             col.prop(context.object, 'ambf_constraint_type')
@@ -3408,11 +3510,15 @@ custom_classes = (AMBF_OT_toggle_low_res_mesh_modifiers_visibility,
                   AMBF_OT_create_detached_joint,
                   AMBF_OT_remove_object_namespaces,
                   AMBF_OT_estimate_inertial_offsets,
-                  AMBF_OT_auto_rename_joints,
-                  AMBF_OT_ambf_rigid_body_activate,
-                  AMBF_OT_ambf_constraint_activate,
                   AMBF_OT_estimate_collision_shapes_geometry,
                   AMBF_OT_estimate_inertias,
+                  AMBF_OT_auto_rename_joints,
+                  AMBF_OT_estimate_inertial_offset_per_obj,
+                  AMBF_OT_estimate_collision_shape_geometry_per_obj,
+                  AMBF_OT_estimate_inertia_per_obj,
+                  AMBF_OT_auto_rename_joint_per_obj,
+                  AMBF_OT_ambf_rigid_body_activate,
+                  AMBF_OT_ambf_constraint_activate,
                   AMBF_PT_create_adf,
                   AMBF_PT_ambf_rigid_body,
                   AMBF_PT_ambf_constraint)
