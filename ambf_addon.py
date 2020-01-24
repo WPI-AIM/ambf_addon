@@ -473,6 +473,27 @@ def calculate_principal_inertia(obj):
     return I
 
 
+def estimate_collision_shape(obj):
+    if obj.ambf_object_type == 'RIGID_BODY':
+        if obj.ambf_rigid_body_collision_type == 'SINGULAR_SHAPE':
+            dims = obj.dimensions.copy()
+            od = [round(dims[0], 3), round(dims[1], 3), round(dims[2], 3)]
+            prop_group = obj.ambf_collision_shape_prop_collection.items()[0][1]
+            # Now we need to find out the geometry of the shape
+            if prop_group.ambf_rigid_body_collision_shape == 'BOX':
+                prop_group.ambf_rigid_body_collision_shape_x = od[0]
+                prop_group.ambf_rigid_body_collision_shape_y = od[1]
+                prop_group.ambf_rigid_body_collision_shape_z = od[2]
+            elif prop_group.ambf_rigid_body_collision_shape == 'SPHERE':
+                prop_group.ambf_rigid_body_collision_shape_radius = max(od) / 2
+            elif prop_group.ambf_rigid_body_collision_shape in ['CYLINDER', 'CONE', 'CAPSULE']:
+                major_ax_char, major_ax_idx = get_major_axis(od)
+                median_ax_char, median_ax_idx = get_median_axis(od)
+                prop_group.ambf_rigid_body_collision_shape_radius = od[median_ax_idx] / 2.0
+                prop_group.ambf_rigid_body_collision_shape_height = od[major_ax_idx]
+                prop_group.ambf_rigid_body_collision_shape_axis = major_ax_char.upper()
+
+
 # Body Template for the some commonly used of afBody's data
 class BodyTemplate:
     def __init__(self):
@@ -1630,22 +1651,7 @@ class AMBF_OT_estimate_collision_shapes_geometry(bpy.types.Operator):
 
     def execute(self, context):
         for obj in bpy.data.objects:
-            if obj.ambf_object_type == 'RIGID_BODY':
-                dims = obj.dimensions.copy()
-                od = [round(dims[0], 3), round(dims[1], 3), round(dims[2], 3)]
-                # Now we need to find out the geometry of the shape
-                if obj.ambf_rigid_body_collision_shape == 'BOX':
-                    obj.ambf_rigid_body_collision_shape_x = od[0]
-                    obj.ambf_rigid_body_collision_shape_y = od[1]
-                    obj.ambf_rigid_body_collision_shape_z = od[2]
-                elif obj.ambf_rigid_body_collision_shape== 'SPHERE':
-                    obj.ambf_rigid_body_collision_shape_radius = max(od)/2
-                elif obj.ambf_rigid_body_collision_shape in ['CYLINDER', 'CONE', 'CAPSULE']:
-                    major_ax_char, major_ax_idx = get_major_axis(od)
-                    median_ax_char, median_ax_idx = get_median_axis(od)
-                    obj.ambf_rigid_body_collision_shape_radius = od[median_ax_idx]/2.0
-                    obj.ambf_rigid_body_collision_shape_height = od[major_ax_idx]
-                    obj.ambf_rigid_body_collision_shape_axis = major_ax_char.upper()
+            estimate_collision_shape(obj)
         return {'FINISHED'}
 
 
@@ -1704,23 +1710,7 @@ class AMBF_OT_estimate_collision_shape_geometry_per_obj(bpy.types.Operator):
     bl_description = "Estimate Collision Shape Geometry"
 
     def execute(self, context):
-        obj = context.object
-        if obj.ambf_object_type == 'RIGID_BODY':
-            dims = obj.dimensions.copy()
-            od = [round(dims[0], 3), round(dims[1], 3), round(dims[2], 3)]
-            # Now we need to find out the geometry of the shape
-            if obj.ambf_rigid_body_collision_shape == 'BOX':
-                obj.ambf_rigid_body_collision_shape_x = od[0]
-                obj.ambf_rigid_body_collision_shape_y = od[1]
-                obj.ambf_rigid_body_collision_shape_z = od[2]
-            elif obj.ambf_rigid_body_collision_shape== 'SPHERE':
-                obj.ambf_rigid_body_collision_shape_radius = max(od)/2
-            elif obj.ambf_rigid_body_collision_shape in ['CYLINDER', 'CONE', 'CAPSULE']:
-                major_ax_char, major_ax_idx = get_major_axis(od)
-                median_ax_char, median_ax_idx = get_median_axis(od)
-                obj.ambf_rigid_body_collision_shape_radius = od[median_ax_idx]/2.0
-                obj.ambf_rigid_body_collision_shape_height = od[major_ax_idx]
-                obj.ambf_rigid_body_collision_shape_axis = major_ax_char.upper()
+        estimate_collision_shape(context.object)
         return {'FINISHED'}
 
 
