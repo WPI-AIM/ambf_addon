@@ -475,7 +475,13 @@ def calculate_principal_inertia(obj):
 
 def estimate_collision_shape(obj):
     if obj.ambf_object_type == 'RIGID_BODY':
-        if obj.ambf_rigid_body_collision_type == 'SINGULAR_SHAPE':
+
+        if len(obj.ambf_collision_shape_prop_collection.items()) == 0:
+            obj.ambf_collision_shape_prop_collection.add()
+
+        # Don't bother if the shape is a compound shape for now. Let the
+        # user calculate the geometries. 
+        if obj.ambf_rigid_body_collision_type in ['CONVEX_HULL', 'SINGULAR_SHAPE']:
             dims = obj.dimensions.copy()
             od = [round(dims[0], 3), round(dims[1], 3), round(dims[2], 3)]
             prop_group = obj.ambf_collision_shape_prop_collection.items()[0][1]
