@@ -2963,6 +2963,33 @@ class AMBF_OT_ambf_rigid_body_activate(bpy.types.Operator):
             context.object.ambf_object_type = 'NONE'
             
         return {'FINISHED'}
+
+
+class AMBF_OT_ambf_rigid_body_add_collision_shape(bpy.types.Operator):
+    """Add Rigid Body Properties"""
+    bl_label = "ADD COLLISION SHAPE"
+    bl_idname = "ambf.ambf_rigid_body_add_collision_shape"
+    
+    def execute(self, context):
+        cnt = context.object.ambf_rigid_body_compound_collision_shape_count
+        context.object.ambf_rigid_body_compound_collision_shape_count = cnt + 1
+            
+        return {'FINISHED'}
+
+
+class AMBF_OT_ambf_rigid_body_remove_collision_shape(bpy.types.Operator):
+    """Add Rigid Body Properties"""
+    bl_label = "REMOVE COLLISION SHAPE"
+    bl_idname = "ambf.ambf_rigid_body_remove_collision_shape"
+    
+    def execute(self, context):
+        cnt = context.object.ambf_rigid_body_compound_collision_shape_count
+        if cnt > 1:
+            context.object.ambf_rigid_body_compound_collision_shape_count = cnt - 1
+        else:
+            print('WARNING, CANNOT HAVE LESS THAN 1 COLLISION SHAPE FOR COMPOUND COLLISION')
+            
+        return {'FINISHED'}
     
         
 class AMBF_PT_ambf_rigid_body(bpy.types.Panel):
@@ -3005,6 +3032,8 @@ class AMBF_PT_ambf_rigid_body(bpy.types.Panel):
     
     bpy.types.Object.ambf_rigid_body_collision_margin = bpy.props.FloatProperty(name="Margin", default=0.001, min=-0.1, max=1.0)
     
+    bpy.types.Object.ambf_rigid_body_compound_collision_shape_count = bpy.props.IntProperty(name="Compound Count", default=1)
+    
     bpy.types.Object.ambf_rigid_body_linear_damping = bpy.props.FloatProperty(name="Linear Damping", default=0.5, min=0.0, max=1.0)
     
     bpy.types.Object.ambf_rigid_body_angular_damping = bpy.props.FloatProperty(name="Angular Damping", default=0.1, min=0.0, max=1.0)
@@ -3032,23 +3061,35 @@ class AMBF_PT_ambf_rigid_body(bpy.types.Panel):
             default=False,
             description="If not set explicitly, it is calculated automatically by AMBF"
         )
+    
+    bpy.types.Object.ambf_rigid_body_collision_type = bpy.props.EnumProperty \
+        (
+            name='Collision Type',
+            items=
+            [
+                ('CONVEX_HULL', 'Convex Hull', '', 'MESH_ICOSPHERE', 0),
+                ('SINGULAR_SHAPE', 'Singular Shape', '', 'MESH_CUBE', 1),
+                ('COMPOUND_SHAPE', 'Compound Shape', '', 'OUTLINER_OB_GROUP_INSTANCE', 2),
+            ],
+            default='CONVEX_HULL',
+            description='Choose between a singular or a compound collision that consists of multiple shapes'
+        )
 
     bpy.types.Object.ambf_rigid_body_collision_shape = bpy.props.EnumProperty \
         (
             items=
             [
-                ('CONVEX_HULL', 'Convex Hull', '', 'MESH_ICOSPHERE', 0),
-                ('CONE', 'Cone', '', 'MESH_CONE', 1),
-                ('CYLINDER', 'Cylinder', '', 'MESH_CYLINDER', 2),
-                ('CAPSULE', 'Capsule', '', 'MESH_CAPSULE', 3),
-                ('SPHERE', 'Sphere', '', 'MESH_UVSPHERE', 4),
-                ('BOX', 'Box', '', 'MESH_CUBE', 5),
+                ('CONE', 'Cone', '', 'MESH_CONE', 0),
+                ('CYLINDER', 'Cylinder', '', 'MESH_CYLINDER', 1),
+                ('CAPSULE', 'Capsule', '', 'MESH_CAPSULE', 2),
+                ('SPHERE', 'Sphere', '', 'MESH_UVSPHERE', 3),
+                ('BOX', 'Box', '', 'MESH_CUBE', 4),
             ],
             name="Collision Shape",
-            default="CONVEX_HULL"
+            default="BOX"
         )
     
-    bpy.types.Object.ambf_rigid_body_collision_shape_axis= bpy.props.EnumProperty \
+    bpy.types.Object.ambf_rigid_body_collision_shape_axis = bpy.props.EnumProperty \
         (
             name='Shape Axis',
             items=
@@ -3155,17 +3196,16 @@ class AMBF_PT_ambf_rigid_body(bpy.types.Panel):
             col.alignment = 'EXPAND'
             col.prop(context.object, 'ambf_rigid_body_mass')
             
-            # Inertias
-            box.separator()
-            col = box.column()
-            col.operator("ambf.estimate_inertia_per_obj")
-            
             row = box.row()
             split = row.split()
             row = split.row()
-            row.scale_y = 3
             row.enabled = not context.object.ambf_rigid_body_is_static
-            row.prop(context.object, 'ambf_rigid_body_specify_inertia', toggle=True)
+            col = row.column()
+            col.scale_y = 1.5
+            col.operator("ambf.estimate_inertia_per_obj")
+            col = col.column()
+            col.scale_y = 1.5
+            col.prop(context.object, 'ambf_rigid_body_specify_inertia', toggle=True)
             
             row = split.row()
             row.enabled = context.object.ambf_rigid_body_specify_inertia and not context.object.ambf_rigid_body_is_static
@@ -3195,51 +3235,24 @@ class AMBF_PT_ambf_rigid_body(bpy.types.Panel):
             
             layout.separator()
 
-            sbox = layout.box()
-            row = sbox.row()
-            row.label(text="HELPERS")
-            
             box = layout.box()
-            
             row = box.row()
-            row.prop(context.object, 'ambf_rigid_body_collision_shape')
+            row.prop(context.object, 'ambf_rigid_body_collision_type')
 
-            if context.object.ambf_rigid_body_collision_shape in ['CYLINDER', 'CONE', 'CAPSULE', 'BOX', 'SPHERE']:
-                layout.separator()
-                col = box.column()
-                col.operator('ambf.estimate_collision_shape_geometry_per_obj')
-                col.scale_y = 1.5
-                layout.separator()
-            
-            if context.object.ambf_rigid_body_collision_shape in ['CYLINDER', 'CONE', 'CAPSULE']:
+            if context.object.ambf_rigid_body_collision_type == 'SINGULAR_SHAPE':
+                self.draw_collision_shape_props(context, box)
+            elif context.object.ambf_rigid_body_collision_type == 'COMPOUND_SHAPE':
+                cnt = context.object.ambf_rigid_body_compound_collision_shape_count
+                for i in range(cnt):
+                    self.draw_collision_shape_props(context, box)
                 row = box.row()
-                split = row.split()
-                
-                col = split.column()
-                col.prop(context.object, 'ambf_rigid_body_collision_shape_axis')
-                
-                col = split.column()
-                col.prop(context.object, 'ambf_rigid_body_collision_shape_radius')
-                
-                col = split.column()
-                col.prop(context.object, 'ambf_rigid_body_collision_shape_height')
-                
-            elif context.object.ambf_rigid_body_collision_shape == 'SPHERE':
-                row = box.row()
-                row.prop(context.object, 'ambf_rigid_body_collision_shape_radius')
-                
-            elif context.object.ambf_rigid_body_collision_shape == 'BOX':
-                row = box.row()
-                split = row.split()
-                col = split.column()
-                col.prop(context.object, 'ambf_rigid_body_collision_shape_x')
-                col = split.column()
-                col.prop(context.object, 'ambf_rigid_body_collision_shape_y')
-                col = split.column()
-                col.prop(context.object, 'ambf_rigid_body_collision_shape_z')
+                row.operator('ambf.ambf_rigid_body_add_collision_shape',  text='ADD SHAPE')
+                row = row.column()
+                row.operator('ambf.ambf_rigid_body_remove_collision_shape', text='REMOVE SHAPE')
+                if cnt == 1:
+                    row.enabled = False
             
             box.separator()
-            
             row = box.row()
             row.prop(context.object, 'ambf_rigid_body_enable_collision_margin', toggle=True)
             
@@ -3317,6 +3330,41 @@ class AMBF_PT_ambf_rigid_body(bpy.types.Panel):
 
             col = box.column()
             col.prop(context.object, 'ambf_rigid_body_publish_joint_positions')
+            
+    def draw_collision_shape_props(self, context, box):
+        sbox = box.box()
+        col = sbox.column()
+        col.prop(context.object, 'ambf_rigid_body_collision_shape')
+        col = sbox.column()
+        col.operator('ambf.estimate_collision_shape_geometry_per_obj')
+        col.scale_y = 1.5
+            
+        if context.object.ambf_rigid_body_collision_shape in ['CYLINDER', 'CONE', 'CAPSULE']:
+            row = sbox.row()
+            split = row.split()
+
+            col = split.column()
+            col.prop(context.object, 'ambf_rigid_body_collision_shape_axis')
+
+            col = split.column()
+            col.prop(context.object, 'ambf_rigid_body_collision_shape_radius')
+
+            col = split.column()
+            col.prop(context.object, 'ambf_rigid_body_collision_shape_height')
+
+        elif context.object.ambf_rigid_body_collision_shape == 'SPHERE':
+            row = sbox.row()
+            row.prop(context.object, 'ambf_rigid_body_collision_shape_radius')
+
+        elif context.object.ambf_rigid_body_collision_shape == 'BOX':
+            row = sbox.row()
+            split = row.split()
+            col = split.column()
+            col.prop(context.object, 'ambf_rigid_body_collision_shape_x')
+            col = split.column()
+            col.prop(context.object, 'ambf_rigid_body_collision_shape_y')
+            col = split.column()
+            col.prop(context.object, 'ambf_rigid_body_collision_shape_z')
             
             
 class AMBF_OT_ambf_constraint_activate(bpy.types.Operator):
@@ -3507,6 +3555,8 @@ custom_classes = (AMBF_OT_toggle_low_res_mesh_modifiers_visibility,
                   AMBF_OT_create_detached_joint,
                   AMBF_OT_remove_object_namespaces,
                   AMBF_OT_estimate_inertial_offsets,
+                  AMBF_OT_ambf_rigid_body_add_collision_shape,
+                  AMBF_OT_ambf_rigid_body_remove_collision_shape,
                   AMBF_OT_estimate_collision_shapes_geometry,
                   AMBF_OT_estimate_inertias,
                   AMBF_OT_auto_rename_joints,
