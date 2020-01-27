@@ -292,6 +292,29 @@ def set_active_object(active_object):
     bpy.context.scene.objects.active = active_object
 
 
+def get_xyz_ordered_dict():
+    xyz = OrderedDict()
+    xyz['x'] = 0
+    xyz['y'] = 0
+    xyz['z'] = 0
+    return xyz
+
+
+def get_rpy_ordered_dict():
+    rpy = OrderedDict()
+    rpy['r'] = 0
+    rpy['p'] = 0
+    rpy['y'] = 0
+    return rpy
+
+
+def get_pose_ordered_dict():
+    pose = OrderedDict()
+    pose['position'] = get_xyz_ordered_dict()
+    pose['orientation'] = get_rpy_ordered_dict()
+    return pose
+
+
 # For shapes such as Cylinder, Cone and Ellipse, this function returns
 # the major axis by comparing the dimensions of the bounding box
 def get_major_axis(dims):
@@ -480,7 +503,7 @@ def estimate_collision_shape(obj):
             obj.ambf_collision_shape_prop_collection.add()
 
         # Don't bother if the shape is a compound shape for now. Let the
-        # user calculate the geometries. 
+        # user calculate the geometries.
         if obj.ambf_rigid_body_collision_type in ['CONVEX_HULL', 'SINGULAR_SHAPE']:
             dims = obj.dimensions.copy()
             od = [round(dims[0], 3), round(dims[1], 3), round(dims[2], 3)]
@@ -510,31 +533,8 @@ class BodyTemplate:
         self._ambf_data['inertia'] = {'ix': 0.0, 'iy': 0.0, 'iz': 0.0}
         self._ambf_data['collision margin'] = 0.001
         self._ambf_data['scale'] = 1.0
-        loc_xyz_dict = OrderedDict()
-        loc_xyz_dict['x'] = 0
-        loc_xyz_dict['y'] = 0
-        loc_xyz_dict['z'] = 0
-        loc_rpy_dict = OrderedDict()
-        loc_rpy_dict['r'] = 0
-        loc_rpy_dict['p'] = 0
-        loc_rpy_dict['y'] = 0
-        location_dict = OrderedDict()
-        location_dict['position'] = loc_xyz_dict
-        location_dict['orientation'] = loc_rpy_dict
-        self._ambf_data['location'] = location_dict
-
-        i_off_xyz_dict = OrderedDict()
-        i_off_xyz_dict['x'] = 0
-        i_off_xyz_dict['y'] = 0
-        i_off_xyz_dict['z'] = 0
-        i_off_rpy_dict = OrderedDict()
-        i_off_rpy_dict['r'] = 0
-        i_off_rpy_dict['p'] = 0
-        i_off_rpy_dict['y'] = 0
-        i_offset_dict = OrderedDict()
-        i_offset_dict['position'] = i_off_xyz_dict
-        i_offset_dict['orientation'] = i_off_rpy_dict
-        self._ambf_data['inertial offset'] = i_offset_dict
+        self._ambf_data['location'] = get_pose_ordered_dict()
+        self._ambf_data['inertial offset'] = get_pose_ordered_dict()
 
         # self._ambf_data['controller'] = {'linear': {'P': 1000, 'I': 0, 'D': 1},
         #                                  'angular': {'P': 1000, 'I': 0, 'D': 1}}
@@ -550,10 +550,10 @@ class JointTemplate:
         self._ambf_data['name'] = ''
         self._ambf_data['parent'] = ''
         self._ambf_data['child'] = ''
-        self._ambf_data['parent axis'] = {'x': 0, 'y': 0.0, 'z': 1.0}
-        self._ambf_data['parent pivot'] = {'x': 0, 'y': 0.0, 'z': 0}
-        self._ambf_data['child axis'] = {'x': 0, 'y': 0.0, 'z': 1.0}
-        self._ambf_data['child pivot'] = {'x': 0, 'y': 0.0, 'z': 0}
+        self._ambf_data['parent axis'] = get_xyz_ordered_dict()
+        self._ambf_data['parent pivot'] = get_xyz_ordered_dict()
+        self._ambf_data['child axis'] = get_xyz_ordered_dict()
+        self._ambf_data['child pivot'] = get_xyz_ordered_dict()
         self._ambf_data['joint limits'] = {'low': -1.2, 'high': 1.2}
 
         cont_dict = OrderedDict()
@@ -817,30 +817,57 @@ class AMBF_OT_generate_ambf_file(bpy.types.Operator):
             if obj_handle.ambf_rigid_body_enable_collision_margin is True:
                 body_data['collision margin'] = round(obj_handle.ambf_rigid_body_collision_margin, 4)
 
-            if obj_handle.ambf_rigid_body_collision_shape != 'CONVEX_HULL':
-                ocs = obj_handle.ambf_rigid_body_collision_shape
-                body_data['collision shape'] = ocs
+            if obj_handle.ambf_rigid_body_collision_type == 'SINGULAR_SHAPE':
+                ocs = obj_handle.ambf_collision_shape_prop_collection.items()[0][1]
+                body_data['collision shape'] = ocs.ambf_rigid_body_collision_shape
                 bcg = OrderedDict()
                 dims = obj_handle.dimensions.copy()
                 od = [round(dims[0], 3), round(dims[1], 3), round(dims[2], 3)]
                 # Now we need to find out the geometry of the shape
-                if ocs == 'BOX':
+                if ocs.ambf_rigid_body_collision_shape == 'BOX':
                     bcg = {'x': od[0], 'y': od[1], 'z': od[2]}
-                elif ocs == 'SPHERE':
+                elif ocs.ambf_rigid_body_collision_shape == 'SPHERE':
                     bcg = {'radius': max(od)/2.0}
-                elif ocs == 'CYLINDER':
-                    major_ax_char, major_ax_idx = get_major_axis(od)
-                    median_ax_char, median_ax_idx = get_median_axis(od)
-                    bcg = {'radius': od[median_ax_idx]/2.0, 'height': od[major_ax_idx], 'axis': major_ax_char}
-                elif ocs == 'CAPSULE':
-                    major_ax_char, major_ax_idx = get_major_axis(od)
-                    median_ax_char, median_ax_idx = get_median_axis(od)
-                    bcg = {'radius': od[median_ax_idx]/2.0, 'height': od[major_ax_idx], 'axis': major_ax_char}
-                elif ocs == 'CONE':
+                elif ocs.ambf_rigid_body_collision_shape in ['CONE', 'CYLINDER', 'CAPSULE']:
                     major_ax_char, major_ax_idx = get_major_axis(od)
                     median_ax_char, median_ax_idx = get_median_axis(od)
                     bcg = {'radius': od[median_ax_idx]/2.0, 'height': od[major_ax_idx], 'axis': major_ax_char}
                 body_data['collision geometry'] = bcg
+
+            if obj_handle.ambf_rigid_body_collision_type == 'COMPOUND_SHAPE':
+                if 'collision shape' in body_data:
+                    del body_data['collision shape']
+                compound_shape = []
+                shape_count = 0
+                for pg in obj_handle.ambf_collision_shape_prop_collection.items():
+                    ocs = pg[1]
+                    bcg = OrderedDict()
+                    bcg['name'] = str(shape_count + 1)
+                    bcg['shape'] = ocs.ambf_rigid_body_collision_shape
+                    bcg['geometry'] = OrderedDict()
+                    # Now we need to find out the geometry of the shape
+                    if ocs.ambf_rigid_body_collision_shape == 'BOX':
+                        bcg['geometry'] = {'x': round(ocs.ambf_rigid_body_collision_shape_x, 3),
+                                           'y': round(ocs.ambf_rigid_body_collision_shape_y, 3),
+                                           'z': round(ocs.ambf_rigid_body_collision_shape_z, 3)}
+                    elif ocs.ambf_rigid_body_collision_shape == 'SPHERE':
+                        bcg['geometry'] = {'radius': round(ocs.ambf_rigid_body_collision_shape_radius, 3)}
+                    elif ocs.ambf_rigid_body_collision_shape in ['CONE', 'CYLINDER', 'CAPSULE']:
+                        bcg['geometry'] = {'radius': round(ocs.ambf_rigid_body_collision_shape_radius, 3)}
+                        bcg['geometry'] = {'height': round(ocs.ambf_rigid_body_collision_shape_height, 3)}
+
+                    offset = get_pose_ordered_dict()
+                    offset['position']['x'] = ocs.ambf_rigid_body_linear_shape_offset[0]
+                    offset['position']['y'] = ocs.ambf_rigid_body_linear_shape_offset[1]
+                    offset['position']['z'] = ocs.ambf_rigid_body_linear_shape_offset[2]
+                    offset['orientation']['r'] = ocs.ambf_rigid_body_angular_shape_offset[0]
+                    offset['orientation']['p'] = ocs.ambf_rigid_body_angular_shape_offset[1]
+                    offset['orientation']['y'] = ocs.ambf_rigid_body_angular_shape_offset[2]
+                    bcg['offset'] = offset
+                    compound_shape.append(bcg)
+                    shape_count = shape_count + 1
+
+                body_data['compound collision shape'] = compound_shape
 
             del body_data['inertia']
             body_data['mesh'] = obj_handle_name + get_extension(output_mesh)
@@ -1987,7 +2014,47 @@ class AMBF_OT_load_ambf_file(bpy.types.Operator):
                 obj_handle.ambf_rigid_body_enable_collision_margin = True
 
             if 'collision shape' in body_data:
-                obj_handle.ambf_rigid_body_collision_shape = body_data['collision shape']
+                obj_handle.ambf_collision_shape_prop_collection.add()
+                ocs = obj_handle.ambf_collision_shape_prop_collection.items()[0][1]
+                ocs.ambf_rigid_body_collision_shape = body_data['collision shape']
+                if ocs.ambf_rigid_body_collision_shape == 'BOX':
+                    ocs.ambf_rigid_body_collision_shape_x = body_data['collision geometry']['x']
+                    ocs.ambf_rigid_body_collision_shape_y = body_data['collision geometry']['y']
+                    ocs.ambf_rigid_body_collision_shape_z = body_data['collision geometry']['z']
+                elif ocs.ambf_rigid_body_collision_shape == 'SPHERE':
+                    ocs.ambf_rigid_body_collision_shape_radius = body_data['collision geometry']['radius']
+                elif ocs.ambf_rigid_body_collision_shape in ['CYLINDER', 'CONE', 'CAPSULE']:
+                    ocs.ambf_rigid_body_collision_shape_radius = body_data['collision geometry']['radius']
+                    ocs.ambf_rigid_body_collision_shape_height = body_data['collision geometry']['height']
+                    ocs.ambf_rigid_body_collision_shape_axis = str.upper(body_data['collision geometry']['axis'])
+                
+                obj_handle.ambf_rigid_body_collision_type = 'SINGULAR_SHAPE'
+            elif 'compound collision shape' in body_data:
+                shape_count = 0
+                for shape_item in body_data['compound collision shape']:
+                    obj_handle.ambf_collision_shape_prop_collection.add()
+                    ocs = obj_handle.ambf_collision_shape_prop_collection.items()[shape_count][1]
+                    ocs.ambf_rigid_body_collision_shape = shape_item['shape']
+                    shape_count = shape_count + 1
+                    if ocs.ambf_rigid_body_collision_shape == 'BOX':
+                        ocs.ambf_rigid_body_collision_shape_x = shape_item['geometry']['x']
+                        ocs.ambf_rigid_body_collision_shape_y = shape_item['geometry']['y']
+                        ocs.ambf_rigid_body_collision_shape_z = shape_item['geometry']['z']
+                    elif ocs.ambf_rigid_body_collision_shape == 'SPHERE':
+                        ocs.ambf_rigid_body_collision_shape_radius = shape_item['geometry']['radius']
+                    elif ocs.ambf_rigid_body_collision_shape in ['CYLINDER', 'CONE', 'CAPSULE']:
+                        ocs.ambf_rigid_body_collision_shape_radius = shape_item['geometry']['radius']
+                        ocs.ambf_rigid_body_collision_shape_height = shape_item['geometry']['height']
+                        ocs.ambf_rigid_body_collision_shape_axis = str.upper(shape_item['geometry']['axis'])
+
+                    ocs.ambf_rigid_body_linear_shape_offset[0] = shape_item['offset']['position']['x']
+                    ocs.ambf_rigid_body_linear_shape_offset[1] = shape_item['offset']['position']['y']
+                    ocs.ambf_rigid_body_linear_shape_offset[2] = shape_item['offset']['position']['z']
+                    ocs.ambf_rigid_body_angular_shape_offset[0] = shape_item['offset']['orientation']['r']
+                    ocs.ambf_rigid_body_angular_shape_offset[1] = shape_item['offset']['orientation']['p']
+                    ocs.ambf_rigid_body_angular_shape_offset[2] = shape_item['offset']['orientation']['y']
+                    
+                obj_handle.ambf_rigid_body_collision_type = 'COMPOUND_SHAPE'
 
             if 'collision groups' in body_data:
                 col_groups = body_data['collision groups']
@@ -2557,7 +2624,7 @@ class AMBF_OT_load_ambf_file(bpy.types.Operator):
         self._yaml_filepath = str(bpy.path.abspath(context.scene['external_ambf_yaml_filepath']))
         print(self._yaml_filepath)
         yaml_file = open(self._yaml_filepath)
-        self._ambf_data = yaml.load(yaml_file)
+        self._ambf_data = yaml.load(yaml_file, Loader=yaml.FullLoader)
         self._context = context
 
         bodies_list = self._ambf_data['bodies']
@@ -2955,10 +3022,9 @@ class AMBF_OT_ambf_rigid_body_activate(bpy.types.Operator):
         
         if context.object.ambf_rigid_body_enable:
             context.object.ambf_object_type = 'RIGID_BODY'
-            cnt = context.object.ambf_rigid_body_collision_shape_count
+            cnt = len(context.object.ambf_collision_shape_prop_collection.items())
             if cnt == 0:
                 context.object.ambf_collision_shape_prop_collection.add()
-                context.object.ambf_rigid_body_collision_shape_count = 1
         else:
             context.object.ambf_object_type = 'NONE'
             
@@ -2971,8 +3037,6 @@ class AMBF_OT_ambf_rigid_body_add_collision_shape(bpy.types.Operator):
     bl_idname = "ambf.ambf_rigid_body_add_collision_shape"
     
     def execute(self, context):
-        cnt = context.object.ambf_rigid_body_collision_shape_count
-        context.object.ambf_rigid_body_collision_shape_count = cnt + 1
         context.object.ambf_collision_shape_prop_collection.add()
         return {'FINISHED'}
 
@@ -2983,9 +3047,8 @@ class AMBF_OT_ambf_rigid_body_remove_collision_shape(bpy.types.Operator):
     bl_idname = "ambf.ambf_rigid_body_remove_collision_shape"
     
     def execute(self, context):
-        cnt = context.object.ambf_rigid_body_collision_shape_count
+        cnt = len(context.object.ambf_collision_shape_prop_collection.items())
         if cnt > 1:
-            context.object.ambf_rigid_body_collision_shape_count = cnt - 1
             context.object.ambf_collision_shape_prop_collection.remove(cnt - 1)
         else:
             print('WARNING, CANNOT HAVE LESS THAN 1 COLLISION SHAPE FOR COMPOUND COLLISION')
@@ -3031,6 +3094,22 @@ class AMBF_PG_CollisionShapePropGroup(bpy.types.PropertyGroup):
             description='The direction the collision shape is aligned. Use for Cone, Cylinder and Capsule'
         )
 
+    ambf_rigid_body_linear_shape_offset = bpy.props.FloatVectorProperty \
+        (
+            name='Linear Shape Offset',
+            default=(0.0, 0.0, 0.0),
+            options={'PROPORTIONAL'},
+            subtype='XYZ',
+        )
+
+    ambf_rigid_body_angular_shape_offset = bpy.props.FloatVectorProperty \
+        (
+            name='Angular Shape Offset',
+            default=(0.0, 0.0, 0.0),
+            options={'PROPORTIONAL'},
+            subtype='EULER',
+        )
+
 
 class AMBF_PT_ambf_rigid_body(bpy.types.Panel):
     """Add Rigid Body Properties"""
@@ -3061,8 +3140,6 @@ class AMBF_PT_ambf_rigid_body(bpy.types.Panel):
     bpy.types.Object.ambf_rigid_body_enable_collision_margin = bpy.props.BoolProperty(name="Collision Margin", default=False)
     
     bpy.types.Object.ambf_rigid_body_collision_margin = bpy.props.FloatProperty(name="Margin", default=0.001, min=-0.1, max=1.0)
-
-    bpy.types.Object.ambf_rigid_body_collision_shape_count = bpy.props.IntProperty(name="Compound Count", default=0)
     
     bpy.types.Object.ambf_rigid_body_linear_damping = bpy.props.FloatProperty(name="Linear Damping", default=0.5, min=0.0, max=1.0)
     
@@ -3120,7 +3197,6 @@ class AMBF_PT_ambf_rigid_body(bpy.types.Panel):
             default=(0.0, 0.0, 0.0),
             options={'PROPORTIONAL'},
             subtype='XYZ',
-            min=0.0
         )
     
     bpy.types.Object.ambf_rigid_body_angular_inertial_offset = bpy.props.FloatVectorProperty \
@@ -3129,7 +3205,6 @@ class AMBF_PT_ambf_rigid_body(bpy.types.Panel):
             default=(0.0, 0.0, 0.0),
             options={'PROPORTIONAL'},
             subtype='EULER',
-            min=0.0
         )
     
     bpy.types.Object.ambf_object_type = bpy.props.EnumProperty \
@@ -3247,14 +3322,14 @@ class AMBF_PT_ambf_rigid_body(bpy.types.Panel):
                 col = box.column()
                 col.operator('ambf.estimate_collision_shape_geometry_per_obj')
                 propgroup = context.object.ambf_collision_shape_prop_collection.items()[0][1]
-                self.draw_collision_shape_props(context, propgroup, box)
+                self.draw_collision_shape_prop(context, propgroup, box)
                 
             elif context.object.ambf_rigid_body_collision_type == 'COMPOUND_SHAPE':
                 
-                cnt = context.object.ambf_rigid_body_collision_shape_count
+                cnt = len(context.object.ambf_collision_shape_prop_collection.items())
                 for i in range(cnt):
                     propgroup = context.object.ambf_collision_shape_prop_collection.items()[i][1]
-                    self.draw_collision_shape_props(context, propgroup, box)
+                    self.draw_collision_shape_prop(context, propgroup, box)
                 row = box.row()
                 row.operator('ambf.ambf_rigid_body_add_collision_shape',  text='ADD SHAPE')
                 row = row.column()
@@ -3341,7 +3416,7 @@ class AMBF_PT_ambf_rigid_body(bpy.types.Panel):
             col = box.column()
             col.prop(context.object, 'ambf_rigid_body_publish_joint_positions')
             
-    def draw_collision_shape_props(self, context, prop, box):
+    def draw_collision_shape_prop(self, context, prop, box):
         sbox = box.box()
         col = sbox.column()
         col.prop(prop, 'ambf_rigid_body_collision_shape')
@@ -3374,6 +3449,18 @@ class AMBF_PT_ambf_rigid_body(bpy.types.Panel):
             col.prop(prop, 'ambf_rigid_body_collision_shape_y')
             col = split.column()
             col.prop(prop, 'ambf_rigid_body_collision_shape_z')
+
+        if context.object.ambf_rigid_body_collision_type == 'COMPOUND_SHAPE':
+            sbox.separator()
+            col = sbox.column()
+            col = col.split(percentage=0.5)
+            col.alignment = 'EXPAND'
+            col.prop(prop, 'ambf_rigid_body_linear_shape_offset')
+
+            col = col.column()
+            col.alignment = 'EXPAND'
+            col.prop(prop, 'ambf_rigid_body_angular_shape_offset')
+
             
             
 class AMBF_OT_ambf_constraint_activate(bpy.types.Operator):
