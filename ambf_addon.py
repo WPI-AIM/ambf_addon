@@ -2832,6 +2832,14 @@ class AMBF_PT_create_adf(bpy.types.Panel):
     setup_yaml()
 
     def draw(self, context):
+
+        # Sanity check, if there are any objects
+        # that have been unlinked from the scene. Delete them
+        for o in bpy.data.objects:
+            if o.ambf_object_type in ['RIGID_BODY', 'CONSTRAINT', 'COMPOUND_SHAPE']:
+                if context.scene.objects.get(o.name) is None:
+                    bpy.data.objects.remove(o)
+
         layout = self.layout
         
         box = layout.box()
@@ -3218,13 +3226,18 @@ class AMBF_PG_CollisionShapePropGroup(bpy.types.PropertyGroup):
         )
 
 
+def collision_type_update_cb(self, context):
+    if len(context.object.ambf_collision_shape_prop_collection.items()) == 0:
+        context.object.ambf_collision_shape_prop_collection.add()
+
+
 class AMBF_PT_ambf_rigid_body(bpy.types.Panel):
     """Add Rigid Body Properties"""
     bl_label = "AMBF RIGID BODY PROPERTIES"
     bl_idname = "AMBF_PT_ambf_rigid_body"
     bl_space_type = 'PROPERTIES'
     bl_region_type = 'WINDOW'
-    bl_context= "physics"
+    bl_context = "physics"
     
     bpy.types.Object.ambf_rigid_body_enable = bpy.props.BoolProperty(name="Enable AMBF Rigid Body", default=False)
 
@@ -3286,6 +3299,7 @@ class AMBF_PT_ambf_rigid_body(bpy.types.Panel):
                 ('COMPOUND_SHAPE', 'Compound Shape', '', 'OUTLINER_OB_GROUP_INSTANCE', 2),
             ],
             default='CONVEX_HULL',
+            update=collision_type_update_cb,
             description='Choose between a singular or a compound collision that consists of multiple shapes'
         )
     
@@ -3693,7 +3707,7 @@ class AMBF_PT_ambf_constraint(bpy.types.Panel):
             
             for pc_obj in [pobj, cobj]:
                 if pc_obj:
-                    if context.scene.objects.get(pc_obj.name) == None:
+                    if context.scene.objects.get(pc_obj.name) is None:
                         # That means that the object has been deleted from the
                         # scene graph, therefore remove it explicitlyt
                         bpy.data.objects.remove(pc_obj)
