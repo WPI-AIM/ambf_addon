@@ -517,11 +517,11 @@ def estimate_collision_shape_geometry(obj):
             prop_group = obj.ambf_collision_shape_prop_collection.items()[0][1]
             # Now we need to find out the geometry of the shape
             if prop_group.ambf_rigid_body_collision_shape == 'BOX':
-                prop_group.disable_dimension_update = True
+                prop_group.disable_update_cbs = True
                 prop_group.ambf_rigid_body_collision_shape_xyz_dims[0] = dims[0]
                 prop_group.ambf_rigid_body_collision_shape_xyz_dims[1] = dims[1]
                 prop_group.ambf_rigid_body_collision_shape_xyz_dims[2] = dims[2]
-                prop_group.disable_dimension_update = False
+                prop_group.disable_update_cbs = False
                 collision_shape_update_dimensions(prop_group)
             elif prop_group.ambf_rigid_body_collision_shape == 'SPHERE':
                 prop_group.ambf_rigid_body_collision_shape_radius = max(dims) / 2
@@ -534,11 +534,13 @@ def estimate_collision_shape_geometry(obj):
                 
 
 def collision_shape_update_dimensions(shape_prop):
-    if shape_prop.disable_dimension_update:
+    if shape_prop.disable_update_cbs:
         return
+
     coll_shape_obj = shape_prop.ambf_rigid_body_collision_shape_pointer
     if coll_shape_obj is None:
         return
+
     height = shape_prop.ambf_rigid_body_collision_shape_height
     radius = shape_prop.ambf_rigid_body_collision_shape_radius
 
@@ -578,7 +580,13 @@ def collision_shape_update_dimensions(shape_prop):
 
 
 def collision_shape_update_local_offset(object, shape_prop):
+    if shape_prop.disable_update_cbs:
+        return
+
     coll_shape_obj = shape_prop.ambf_rigid_body_collision_shape_pointer
+    if coll_shape_obj is None:
+        return
+
     T_p_w = object.matrix_world.copy()
     coll_shape_obj.matrix_world = T_p_w
 
@@ -596,7 +604,7 @@ def collision_shape_update_local_offset(object, shape_prop):
     coll_shape_obj.matrix_world = T_p_w * T_c_p
 
 
-def collision_shape_create_visual(context, object, shape_prop):
+def collision_shape_create_visual(object, shape_prop):
     cur_active_object = get_active_object()
     select_all_objects(False)
     if shape_prop.ambf_rigid_body_collision_shape_pointer is None:
@@ -660,6 +668,7 @@ def collision_shape_create_visual(context, object, shape_prop):
 
         coll_shape_obj.draw_type = 'WIRE'
         coll_shape_obj.hide_select = True
+        coll_shape_obj.hide = object.ambf_rigid_body_show_collision_shapes
         set_active_object(cur_active_object)
 
 
@@ -2214,6 +2223,11 @@ class AMBF_OT_load_ambf_file(bpy.types.Operator):
                 obj_handle.ambf_rigid_body_angular_controller_d_gain = body_data['controller']['angular']['D']
                 obj_handle.ambf_rigid_body_enable_controllers = True
 
+            # Now lets add a collision shape for each collision_property_group
+            for prop_group in obj_handle.ambf_collision_shape_prop_collection.items():
+                shape_prop = prop_group[1]
+                collision_shape_create_visual(obj_handle, shape_prop)
+
     def load_rigid_body_name(self, body_data, obj_handle):
 
         af_name = body_data['name']
@@ -2887,9 +2901,12 @@ class AMBF_PT_create_adf(bpy.types.Panel):
         # Sanity check, if there are any objects
         # that have been unlinked from the scene. Delete them
         for o in bpy.data.objects:
-            if o.ambf_object_type in ['RIGID_BODY', 'CONSTRAINT', 'COMPOUND_SHAPE']:
+            if o.ambf_object_type in ['RIGID_BODY', 'CONSTRAINT', 'COLLISION_SHAPE']:
                 if context.scene.objects.get(o.name) is None:
                     bpy.data.objects.remove(o)
+                if o.ambf_object_type == 'COLLISION_SHAPE':
+                    if o.parent is None:
+                        bpy.data.objects.remove(o)
 
         layout = self.layout
         
@@ -3178,6 +3195,9 @@ class AMBF_OT_ambf_rigid_body_add_collision_shape(bpy.types.Operator):
     
     def execute(self, context):
         context.object.ambf_collision_shape_prop_collection.add()
+        cnt = len(context.object.ambf_collision_shape_prop_collection.items())
+        shape_prop = context.object.ambf_collision_shape_prop_collection.items()[cnt - 1][1]
+        collision_shape_create_visual(context.object, shape_prop)
         return {'FINISHED'}
 
 
@@ -3189,37 +3209,13 @@ class AMBF_OT_ambf_rigid_body_remove_collision_shape(bpy.types.Operator):
     def execute(self, context):
         cnt = len(context.object.ambf_collision_shape_prop_collection.items())
         if cnt > 1:
+            shape_prop = context.object.ambf_collision_shape_prop_collection.items()[cnt - 1][1]
+            coll_shape_obj = shape_prop.ambf_rigid_body_collision_shape_pointer
+            bpy.data.objects.remove(coll_shape_obj)
             context.object.ambf_collision_shape_prop_collection.remove(cnt - 1)
         else:
             print('WARNING, CANNOT HAVE LESS THAN 1 COLLISION SHAPE FOR COMPOUND COLLISION')
             
-        return {'FINISHED'}
-
-
-class AMBF_OT_ambf_show_collision_shapes(bpy.types.Operator):
-    """Add Rigid Body Properties"""
-    bl_label = "AMBF VISUALIZE COLLISION SHAPES"
-    bl_idname = "ambf.ambf_rigid_body_show_collision_shapes"
-
-    def execute(self, context):
-        obj = context.object
-        if obj.ambf_rigid_body_collision_type in ['SINGULAR_SHAPE', 'COMPOUND_SHAPE']:
-            for shape_item in obj.ambf_collision_shape_prop_collection.items():
-                collision_shape_create_visual(context, obj, shape_item[1])
-        return {'FINISHED'}
-
-
-class AMBF_OT_ambf_hide_collision_shapes(bpy.types.Operator):
-    """Add Rigid Body Properties"""
-    bl_label = "AMBF VISUALIZE COLLISION SHAPES"
-    bl_idname = "ambf.ambf_rigid_body_hide_collision_shapes"
-
-    def execute(self, context):
-        obj = context.object
-        for shape_item in obj.ambf_collision_shape_prop_collection.items():
-            item = shape_item[1]
-            if item.ambf_rigid_body_collision_shape_pointer:
-                bpy.data.objects.remove(item.ambf_rigid_body_collision_shape_pointer)
         return {'FINISHED'}
 
 
@@ -3232,15 +3228,7 @@ def collision_shape_dims_update_cb(self, context):
 
 
 def collision_shape_axis_update_cb(self, context):
-    obj = context.object
-    for shape_item in obj.ambf_collision_shape_prop_collection.items():
-        item = shape_item[1]
-        if item.ambf_rigid_body_collision_shape_pointer:
-            bpy.data.objects.remove(item.ambf_rigid_body_collision_shape_pointer)
-
-    if obj.ambf_rigid_body_collision_type in ['SINGULAR_SHAPE', 'COMPOUND_SHAPE']:
-        for shape_item in obj.ambf_collision_shape_prop_collection.items():
-            collision_shape_create_visual(context, obj, shape_item[1])
+    collision_shape_type_update_cb(self, context)
 
 
 def collision_shape_type_update_cb(self, context):
@@ -3252,7 +3240,7 @@ def collision_shape_type_update_cb(self, context):
 
     if obj.ambf_rigid_body_collision_type in ['SINGULAR_SHAPE', 'COMPOUND_SHAPE']:
         for shape_item in obj.ambf_collision_shape_prop_collection.items():
-            collision_shape_create_visual(context, obj, shape_item[1])
+            collision_shape_create_visual(obj, shape_item[1])
 
 
 def collision_shape_offset_update_cb(self, context):
@@ -3290,7 +3278,7 @@ class AMBF_PG_CollisionShapePropGroup(bpy.types.PropertyGroup):
             subtype='XYZ',
         )
         
-    disable_dimension_update = bpy.props.BoolProperty(default=False)
+    disable_update_cbs = bpy.props.BoolProperty(default=False)
 
     ambf_rigid_body_collision_shape_pointer = bpy.props.PointerProperty(name="Collision Shape", type=bpy.types.Object)
 
@@ -3347,6 +3335,14 @@ class AMBF_PG_CollisionShapePropGroup(bpy.types.PropertyGroup):
 def rigid_body_collision_type_update_cb(self, context):
     if len(context.object.ambf_collision_shape_prop_collection.items()) == 0:
         context.object.ambf_collision_shape_prop_collection.add()
+
+
+def collision_shape_show_update_cb(self, context):
+    obj = context.object
+    if obj.ambf_rigid_body_collision_type in ['SINGULAR_SHAPE', 'COMPOUND_SHAPE']:
+        for shape_item in obj.ambf_collision_shape_prop_collection.items():
+            prop = shape_item[1]
+            prop.ambf_rigid_body_collision_shape_pointer.hide = obj.ambf_rigid_body_show_collision_shapes
 #
 ##
 
@@ -3377,6 +3373,8 @@ class AMBF_PT_ambf_rigid_body(bpy.types.Panel):
     bpy.types.Object.ambf_rigid_body_restitution = bpy.props.FloatProperty(name="Restitution", default=0.1, min=0.0, max=1.0)
     
     bpy.types.Object.ambf_rigid_body_enable_collision_margin = bpy.props.BoolProperty(name="Collision Margin", default=False)
+
+    bpy.types.Object.ambf_rigid_body_show_collision_shapes = bpy.props.BoolProperty(name="Show Collision Shapes", default=True, update=collision_shape_show_update_cb)
     
     bpy.types.Object.ambf_rigid_body_collision_margin = bpy.props.FloatProperty(name="Margin", default=0.001, min=-0.1, max=1.0)
     
@@ -3591,10 +3589,7 @@ class AMBF_PT_ambf_rigid_body(bpy.types.Panel):
             row.prop(context.object, 'ambf_rigid_body_collision_groups', toggle=True)
 
             col = box.column()
-            col.operator('ambf.ambf_rigid_body_show_collision_shapes')
-            col.scale_y = 1.5
-            col = box.column()
-            col.operator('ambf.ambf_rigid_body_hide_collision_shapes')
+            col.prop(context.object, 'ambf_rigid_body_show_collision_shapes', toggle=True)
             col.scale_y = 1.5
             
             layout.separator()
@@ -3701,7 +3696,6 @@ class AMBF_PT_ambf_rigid_body(bpy.types.Panel):
             col = col.column()
             col.alignment = 'EXPAND'
             col.prop(prop, 'ambf_rigid_body_angular_shape_offset')
-
             
             
 class AMBF_OT_ambf_constraint_activate(bpy.types.Operator):
@@ -3895,8 +3889,6 @@ custom_classes = (AMBF_OT_toggle_low_res_mesh_modifiers_visibility,
                   AMBF_OT_estimate_inertial_offsets,
                   AMBF_OT_ambf_rigid_body_add_collision_shape,
                   AMBF_OT_ambf_rigid_body_remove_collision_shape,
-                  AMBF_OT_ambf_show_collision_shapes,
-                  AMBF_OT_ambf_hide_collision_shapes,
                   AMBF_OT_estimate_collision_shapes_geometry,
                   AMBF_OT_estimate_inertias,
                   AMBF_OT_auto_rename_joints,
