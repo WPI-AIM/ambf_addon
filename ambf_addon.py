@@ -509,16 +509,39 @@ def calculate_principal_inertia(obj):
     return I
 
 
-def estimate_collision_shape_geometry(obj):
-    if obj.ambf_object_type == 'RIGID_BODY':
+def add_collision_shape_property(obj_handle):
+    obj_handle.ambf_collision_shape_prop_collection.add()
+    cnt = len(obj_handle.ambf_collision_shape_prop_collection.items())
+    prop_group = obj_handle.ambf_collision_shape_prop_collection.items()[cnt - 1]
+    collision_shape_create_visual(obj_handle, prop_group[1])
 
-        if len(obj.ambf_collision_shape_prop_collection.items()) == 0:
-            obj.ambf_collision_shape_prop_collection.add()
+
+def remove_collision_shape_property(obj_handle, idx=None):
+    cnt = len(obj_handle.ambf_collision_shape_prop_collection.items())
+    if idx is None:
+        idx = cnt - 1
+
+    if idx < 0 or idx >= cnt:
+        print('ERROR! Object ', obj_handle.name, ' has only ', cnt, ' collision props')
+        print('ERROR! Cannot remove at Idx: ', idx)
+        return
+
+    shape_prop = obj_handle.ambf_collision_shape_prop_collection.items()[cnt - 1][1]
+    coll_shape_obj = shape_prop.ambf_rigid_body_collision_shape_pointer
+    bpy.data.objects.remove(coll_shape_obj)
+    obj_handle.ambf_collision_shape_prop_collection.remove(cnt - 1)
+
+
+def estimate_collision_shape_geometry(obj_handle):
+    if obj_handle.ambf_object_type == 'RIGID_BODY':
+
+        if len(obj_handle.ambf_collision_shape_prop_collection.items()) == 0:
+            add_collision_shape_property(obj_handle)
         # Don't bother if the shape is a compound shape for now. Let the
         # user calculate the geometries.
-        if obj.ambf_rigid_body_collision_type in ['CONVEX_HULL', 'SINGULAR_SHAPE']:
-            dims = obj.dimensions.copy()
-            prop_group = obj.ambf_collision_shape_prop_collection.items()[0][1]
+        if obj_handle.ambf_rigid_body_collision_type in ['CONVEX_HULL', 'SINGULAR_SHAPE']:
+            dims = obj_handle.dimensions.copy()
+            prop_group = obj_handle.ambf_collision_shape_prop_collection.items()[0][1]
             # Now we need to find out the geometry of the shape
             if prop_group.ambf_rigid_body_collision_shape == 'BOX':
                 prop_group.disable_update_cbs = True
@@ -583,7 +606,7 @@ def collision_shape_update_dimensions(shape_prop):
             coll_shape_obj.scale[(dir_axis + 2) % 3] = scale_old[(dir_axis + 2) % 3] * radius / radius_old * 2
 
 
-def collision_shape_update_local_offset(object, shape_prop):
+def collision_shape_update_local_offset(obj_handle, shape_prop):
     if shape_prop.disable_update_cbs:
         return
 
@@ -591,21 +614,27 @@ def collision_shape_update_local_offset(object, shape_prop):
     if coll_shape_obj is None:
         return
     scale_old = coll_shape_obj.scale.copy()
-    T_p_w = object.matrix_world.copy()
+    T_p_w = obj_handle.matrix_world.copy()
     coll_shape_obj.matrix_world = T_p_w
 
-    ori_r = shape_prop.ambf_rigid_body_angular_shape_offset[0]
-    ori_p = shape_prop.ambf_rigid_body_angular_shape_offset[1]
-    ori_y = shape_prop.ambf_rigid_body_angular_shape_offset[2]
+    # Inertial Offset in the Body Frame
+    T_inertial_p = mathutils.Matrix()
+    T_inertial_p.translation.x = obj_handle.ambf_rigid_body_linear_inertial_offset[0]
+    T_inertial_p.translation.y = obj_handle.ambf_rigid_body_linear_inertial_offset[1]
+    T_inertial_p.translation.z = obj_handle.ambf_rigid_body_linear_inertial_offset[2]
 
-    euler_rot = mathutils.Euler((ori_r, ori_p, ori_y), 'ZYX')
-    R_c_p = euler_rot.to_matrix()
-    T_c_p = R_c_p.to_4x4()
-    T_c_p.translation.x = shape_prop.ambf_rigid_body_linear_shape_offset[0]
-    T_c_p.translation.y = shape_prop.ambf_rigid_body_linear_shape_offset[1]
-    T_c_p.translation.z = shape_prop.ambf_rigid_body_linear_shape_offset[2]
+    euler_rot = mathutils.Euler((shape_prop.ambf_rigid_body_angular_shape_offset[0],
+                                 shape_prop.ambf_rigid_body_angular_shape_offset[1],
+                                 shape_prop.ambf_rigid_body_angular_shape_offset[2]), 'ZYX')
 
-    coll_shape_obj.matrix_world = T_p_w * T_c_p
+    # Shape Offset in Inertial Frame
+    R_c_inertial = euler_rot.to_matrix()
+    T_c_inertial = R_c_inertial.to_4x4()
+    T_c_inertial.translation.x = shape_prop.ambf_rigid_body_linear_shape_offset[0]
+    T_c_inertial.translation.y = shape_prop.ambf_rigid_body_linear_shape_offset[1]
+    T_c_inertial.translation.z = shape_prop.ambf_rigid_body_linear_shape_offset[2]
+
+    coll_shape_obj.matrix_world = T_p_w * T_inertial_p * T_c_inertial
     coll_shape_obj.scale = scale_old
 
 
@@ -1040,11 +1069,10 @@ class AMBF_OT_generate_ambf_file(bpy.types.Operator):
 
             del body_data['inertia']
             body_data['mesh'] = obj_handle_name + get_extension(output_mesh)
-            body_com = compute_local_com(obj_handle)
             body_d_pos = body_data['inertial offset']['position']
-            body_d_pos['x'] = round(body_com[0], 3)
-            body_d_pos['y'] = round(body_com[1], 3)
-            body_d_pos['z'] = round(body_com[2], 3)
+            body_d_pos['x'] = round(obj_handle.ambf_rigid_body_linear_inertial_offset[0], 3)
+            body_d_pos['y'] = round(obj_handle.ambf_rigid_body_linear_inertial_offset[1], 3)
+            body_d_pos['z'] = round(obj_handle.ambf_rigid_body_linear_inertial_offset[2], 3)
 
             if obj_handle.data.materials:
                 del body_data['color']
@@ -3201,7 +3229,7 @@ class AMBF_OT_ambf_rigid_body_activate(bpy.types.Operator):
             context.object.ambf_object_type = 'RIGID_BODY'
             cnt = len(context.object.ambf_collision_shape_prop_collection.items())
             if cnt == 0:
-                context.object.ambf_collision_shape_prop_collection.add()
+                add_collision_shape_property(context.object)
         else:
             context.object.ambf_object_type = 'NONE'
 
@@ -3214,10 +3242,7 @@ class AMBF_OT_ambf_rigid_body_add_collision_shape(bpy.types.Operator):
     bl_idname = "ambf.ambf_rigid_body_add_collision_shape"
     
     def execute(self, context):
-        context.object.ambf_collision_shape_prop_collection.add()
-        cnt = len(context.object.ambf_collision_shape_prop_collection.items())
-        shape_prop = context.object.ambf_collision_shape_prop_collection.items()[cnt - 1][1]
-        collision_shape_create_visual(context.object, shape_prop)
+        add_collision_shape_property(context.object)
         return {'FINISHED'}
 
 
@@ -3229,10 +3254,7 @@ class AMBF_OT_ambf_rigid_body_remove_collision_shape(bpy.types.Operator):
     def execute(self, context):
         cnt = len(context.object.ambf_collision_shape_prop_collection.items())
         if cnt > 1:
-            shape_prop = context.object.ambf_collision_shape_prop_collection.items()[cnt - 1][1]
-            coll_shape_obj = shape_prop.ambf_rigid_body_collision_shape_pointer
-            bpy.data.objects.remove(coll_shape_obj)
-            context.object.ambf_collision_shape_prop_collection.remove(cnt - 1)
+            remove_collision_shape_property(context.object, idx=cnt-1)
         else:
             print('WARNING, CANNOT HAVE LESS THAN 1 COLLISION SHAPE FOR COMPOUND COLLISION')
             
@@ -3354,7 +3376,7 @@ class AMBF_PG_CollisionShapePropGroup(bpy.types.PropertyGroup):
 # Rigid Body Update Callbacks
 def rigid_body_collision_type_update_cb(self, context):
     if len(context.object.ambf_collision_shape_prop_collection.items()) == 0:
-        context.object.ambf_collision_shape_prop_collection.add()
+        add_collision_shape_property(context.object)
 
 
 def collision_shape_show_update_cb(self, context):
@@ -3454,6 +3476,7 @@ class AMBF_PT_ambf_rigid_body(bpy.types.Panel):
             name='Linear Inertial Offset',
             default=(0.0, 0.0, 0.0),
             options={'PROPORTIONAL'},
+            update=collision_shape_offset_update_cb,
             subtype='XYZ',
         )
     
