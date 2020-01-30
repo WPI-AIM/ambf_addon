@@ -149,6 +149,10 @@ class CommonConfig:
     # them into consideration before re saving the AMBF File so we don't reset those values
     loaded_body_map = {}
     loaded_joint_map = {}
+    collision_shape_material = None
+    collision_shape_material_name = 'collision_shape_material'
+    collision_shape_material_color = mathutils.Vector((0.8, 0.775, 0.0)) # Pick a random color
+    collision_shape_material_transparency = 0.4 # Pick a random transparency
 
 
 def update_global_namespace(context):
@@ -586,7 +590,7 @@ def collision_shape_update_local_offset(object, shape_prop):
     coll_shape_obj = shape_prop.ambf_rigid_body_collision_shape_pointer
     if coll_shape_obj is None:
         return
-
+    scale_old = coll_shape_obj.scale.copy()
     T_p_w = object.matrix_world.copy()
     coll_shape_obj.matrix_world = T_p_w
 
@@ -602,6 +606,7 @@ def collision_shape_update_local_offset(object, shape_prop):
     T_c_p.translation.z = shape_prop.ambf_rigid_body_linear_shape_offset[2]
 
     coll_shape_obj.matrix_world = T_p_w * T_c_p
+    coll_shape_obj.scale = scale_old
 
 
 def collision_shape_create_visual(object, shape_prop):
@@ -666,8 +671,21 @@ def collision_shape_create_visual(object, shape_prop):
         # Update the collision shape transform
         collision_shape_update_local_offset(object, shape_prop)
 
-        coll_shape_obj.draw_type = 'WIRE'
+        # Create a use a material only for the first instance
+        if CommonConfig.collision_shape_material is None:
+            if bpy.data.materials.find(CommonConfig.collision_shape_material_name) == -1:
+                CommonConfig.collision_shape_material = bpy.data.materials.new(CommonConfig.collision_shape_material_name)
+            else:
+                CommonConfig.collision_shape_material = bpy.data.materials[CommonConfig.collision_shape_material_name]
+
+            CommonConfig.collision_shape_material.diffuse_color = CommonConfig.collision_shape_material_color
+            CommonConfig.collision_shape_material.use_transparency = True
+            CommonConfig.collision_shape_material.alpha = CommonConfig.collision_shape_material_transparency
+
+        # coll_shape_obj.draw_type = 'WIRE'
         coll_shape_obj.hide_select = True
+        coll_shape_obj.show_transparent = True
+        coll_shape_obj.data.materials.append(CommonConfig.collision_shape_material)
         coll_shape_obj.hide = object.ambf_rigid_body_show_collision_shapes
         set_active_object(cur_active_object)
 
