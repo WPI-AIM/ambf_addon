@@ -1020,8 +1020,10 @@ class AMBF_OT_generate_ambf_file(bpy.types.Operator):
                     elif ocs.ambf_rigid_body_collision_shape == 'SPHERE':
                         bcg['geometry'] = {'radius': round(ocs.ambf_rigid_body_collision_shape_radius, 3)}
                     elif ocs.ambf_rigid_body_collision_shape in ['CONE', 'CYLINDER', 'CAPSULE']:
-                        bcg['geometry'] = {'radius': round(ocs.ambf_rigid_body_collision_shape_radius, 3)}
-                        bcg['geometry'] = {'height': round(ocs.ambf_rigid_body_collision_shape_height, 3)}
+                        geometry = dict({'radius': 0, 'height': 0})
+                        geometry['radius'] = round(ocs.ambf_rigid_body_collision_shape_radius, 3)
+                        geometry['height'] = round(ocs.ambf_rigid_body_collision_shape_height, 3)
+                        bcg['geometry'] = geometry
 
                     offset = get_pose_ordered_dict()
                     offset['position']['x'] = ocs.ambf_rigid_body_linear_shape_offset[0]
