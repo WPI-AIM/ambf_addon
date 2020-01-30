@@ -345,6 +345,30 @@ def get_major_axis(dims):
     return axis[axis_idx], axis_idx
 
 
+def get_axis_str(axis_idx):
+    axis_str = None
+    if axis_idx == 0:
+        axis_str = 'X'
+    elif axis_idx == 1:
+        axis_str = 'Y'
+    elif axis_idx == 2:
+        axis_str = 'Z'
+
+    return axis_str
+
+
+def get_axis_idx(axis_str):
+    axis_idx = None
+    if axis_str == 'X':
+        axis_idx = 0
+    elif axis_str == 'Y':
+        axis_idx = 1
+    elif axis_str == 'Z':
+        axis_idx = 2
+
+    return axis_idx
+
+
 # For shapes such as Cylinder, Cone and Ellipse, this function returns
 # the median axis (not-major and non-minor or the middle axis) by comparing
 # the dimensions of the bounding box
@@ -459,46 +483,40 @@ def inertia_of_capsule(mass, r, h_total, axis):
     return I
 
 
-def calculate_principal_inertia(obj):    
+def calculate_principal_inertia(obj_handle):
     # Calculate Ixx, Iyy and Izz
-    mass = obj.ambf_rigid_body_mass
-    lx = obj.dimensions[0]
-    ly = obj.dimensions[1]
-    lz = obj.dimensions[2]
-    axis = 2
-    if obj.ambf_rigid_body_collision_shape in ['CYLINDER', 'CONE', 'CAPSULE']:
-            if obj.ambf_rigid_body_collision_shape_axis == 'X':
-                axis = 0
-            elif obj.ambf_rigid_body_collision_shape_axis == 'Y':
-                axis = 1
-            elif obj.ambf_rigid_body_collision_shape_axis == 'Z':
-                axis = 2
-    if obj.ambf_rigid_body_collision_shape == 'CONVEX_HULL':
-        I = inertia_of_convex_hull(obj)
-    elif obj.ambf_rigid_body_collision_shape == 'BOX':
-        I = inertia_of_box(mass, lx, ly, lz)
-    elif obj.ambf_rigid_body_collision_shape == 'SPHERE':
-        r = max(obj.dimensions) / 2
-        I = inertia_of_sphere(mass, r)
-    elif obj.ambf_rigid_body_collision_shape == 'CYLINDER':
-        h = obj.dimensions[axis]
-        d = obj.dimensions[(axis + 1) % 3] # Add one, then take the mod for the next axis
-        r = d / 2
-        I = inertia_of_cylinder(mass, r, h, axis)
-    elif obj.ambf_rigid_body_collision_shape == 'CONE':
-        h = obj.dimensions[axis]
-        d = obj.dimensions[(axis + 1) % 3] # Add one, then take the mod for the next axis
-        r = d/2
-        I = inertia_of_cone(mass, r, h, axis)
-    elif obj.ambf_rigid_body_collision_shape == 'CAPSULE':
-        h_total = obj.dimensions[axis]
-        d = obj.dimensions[(axis + 1) % 3] # Add one, then take the mod for the next axis
-        r = d/2
-        I = inertia_of_capsule(mass, r, h_total, axis)
+    mass = obj_handle.ambf_rigid_body_mass
+    # For now, handle the calculation of the compound shape inertia as the convex hull's inertia
+    if obj_handle.ambf_rigid_body_collision_type in ['CONVEX_HULL', 'COMPOUND_SHAPE']:
+        I = inertia_of_convex_hull(obj_handle)
+
+    elif obj_handle.ambf_rigid_body_collision_type == 'SINGULAR_SHAPE':
+        prop_group = obj_handle.ambf_collision_shape_prop_collection.items()[0]
+        coll_shape_obj = prop_group[1]
+
+        lx = coll_shape_obj.ambf_rigid_body_collision_shape_xyz_dims[0]
+        ly = coll_shape_obj.ambf_rigid_body_collision_shape_xyz_dims[1]
+        lz = coll_shape_obj.ambf_rigid_body_collision_shape_xyz_dims[2]
+        radius = coll_shape_obj.ambf_rigid_body_collision_shape_radius
+        height = coll_shape_obj.ambf_rigid_body_collision_shape_height
+        axis = get_axis_idx(coll_shape_obj.ambf_rigid_body_collision_shape_axis.upper())
+
+        if coll_shape_obj.ambf_rigid_body_collision_shape == 'BOX':
+            I = inertia_of_box(mass, lx, ly, lz)
+        elif coll_shape_obj.ambf_rigid_body_collision_shape == 'SPHERE':
+            I = inertia_of_sphere(mass, radius)
+        elif coll_shape_obj.ambf_rigid_body_collision_shape == 'CYLINDER':
+            I = inertia_of_cylinder(mass, radius, height, axis)
+        elif coll_shape_obj.ambf_rigid_body_collision_shape == 'CONE':
+            I = inertia_of_cone(mass, radius, height, axis)
+        elif coll_shape_obj.ambf_rigid_body_collision_shape == 'CAPSULE':
+            I = inertia_of_capsule(mass, radius, height, axis)
     else:
         print('ERROR!, Not an understood shape or mesh')
+        return
+
     # Parallel Axis Theorem
-    off = obj.ambf_rigid_body_linear_inertial_offset
+    off = obj_handle.ambf_rigid_body_linear_inertial_offset
     I[0] = I[0] + mass * (off[1] * off[1] + off[2] + off[2])
     I[1] = I[1] + mass * (off[0] * off[0] + off[2] + off[2])
     I[2] = I[2] + mass * (off[0] * off[0] + off[1] + off[1])
@@ -513,7 +531,8 @@ def add_collision_shape_property(obj_handle):
     obj_handle.ambf_collision_shape_prop_collection.add()
     cnt = len(obj_handle.ambf_collision_shape_prop_collection.items())
     prop_group = obj_handle.ambf_collision_shape_prop_collection.items()[cnt - 1]
-    collision_shape_create_visual(obj_handle, prop_group[1])
+    coll_shape_obj = collision_shape_create_visual(obj_handle, prop_group[1])
+    coll_shape_obj.name = obj_handle.name + '_coll_shape_' + str(cnt)
 
 
 def remove_collision_shape_property(obj_handle, idx=None):
@@ -588,12 +607,7 @@ def collision_shape_update_dimensions(shape_prop):
         coll_shape_obj.scale[2] = scale_old[2] * lz / dim_old[2]
 
     elif shape_prop.ambf_rigid_body_collision_shape in ['CONE', 'CYLINDER', 'CAPSULE', 'SPHERE']:
-        if shape_prop.ambf_rigid_body_collision_shape_axis == 'X':
-            dir_axis = 0
-        elif shape_prop.ambf_rigid_body_collision_shape_axis == 'Y':
-            dir_axis = 1
-        else:
-            dir_axis = 2
+        dir_axis = get_axis_idx(shape_prop.ambf_rigid_body_collision_shape_axis.upper())
 
         height_old = coll_shape_obj.dimensions[dir_axis]
         radius_old = coll_shape_obj.dimensions[(dir_axis + 1) % 3]
@@ -638,7 +652,7 @@ def collision_shape_update_local_offset(obj_handle, shape_prop):
     coll_shape_obj.scale = scale_old
 
 
-def collision_shape_create_visual(object, shape_prop):
+def collision_shape_create_visual(obj_handle, shape_prop):
     cur_active_object = get_active_object()
     select_all_objects(False)
     if shape_prop.ambf_rigid_body_collision_shape_pointer is None:
@@ -694,11 +708,11 @@ def collision_shape_create_visual(object, shape_prop):
         coll_shape_obj = get_active_object()
         coll_shape_obj.ambf_object_type = 'COLLISION_SHAPE'
         bpy.ops.object.transform_apply(scale=True, rotation=True)
-        make_obj1_parent_of_obj2(object, coll_shape_obj)
+        make_obj1_parent_of_obj2(obj_handle, coll_shape_obj)
         shape_prop.ambf_rigid_body_collision_shape_pointer = coll_shape_obj
 
         # Update the collision shape transform
-        collision_shape_update_local_offset(object, shape_prop)
+        collision_shape_update_local_offset(obj_handle, shape_prop)
 
         # Create a use a material only for the first instance
         if CommonConfig.collision_shape_material is None:
@@ -715,8 +729,13 @@ def collision_shape_create_visual(object, shape_prop):
         coll_shape_obj.hide_select = True
         coll_shape_obj.show_transparent = True
         coll_shape_obj.data.materials.append(CommonConfig.collision_shape_material)
-        coll_shape_obj.hide = object.ambf_rigid_body_show_collision_shapes
+        coll_shape_obj.hide = not obj_handle.ambf_rigid_body_show_collision_shapes_per_obj
+
         set_active_object(cur_active_object)
+    else:
+        coll_shape_obj = shape_prop.ambf_rigid_body_collision_shape_pointer
+
+    return coll_shape_obj
 
 
 # Body Template for the some commonly used of afBody's data
@@ -2851,6 +2870,16 @@ class AMBF_OT_load_ambf_file(bpy.types.Operator):
         return {'FINISHED'}
 
 
+##
+def collision_shape_show_update_cb(self, context):
+    for obj_handle in bpy.data.objects:
+        if obj_handle.ambf_rigid_body_collision_type in ['SINGULAR_SHAPE', 'COMPOUND_SHAPE']:
+            for shape_item in obj_handle.ambf_collision_shape_prop_collection.items():
+                prop = shape_item[1]
+                prop.ambf_rigid_body_collision_shape_pointer.hide = not context.scene.ambf_rigid_body_show_collision_shapes
+##
+
+
 class AMBF_PT_create_adf(bpy.types.Panel):
     """Creates a Panel in the Tool Shelf"""
     bl_label = "LOAD, CREATE AND SAVE ADFs"
@@ -2942,6 +2971,13 @@ class AMBF_PT_create_adf(bpy.types.Panel):
             description="The namespace for all bodies in this scene"
         )
 
+    bpy.types.Scene.ambf_rigid_body_show_collision_shapes = bpy.props.BoolProperty \
+        (
+            name="Show Collision Shapes",
+            default=False,
+            update=collision_shape_show_update_cb
+        )
+
     setup_yaml()
 
     def draw(self, context):
@@ -3014,6 +3050,9 @@ class AMBF_PT_create_adf(bpy.types.Panel):
         
         col = sbox.column()
         col.operator("ambf.estimate_inertias")
+
+        col = sbox.column()
+        col.prop(context.scene, "ambf_rigid_body_show_collision_shapes", toggle=True)
 
         # Panel Label
         sbox = box.box()
@@ -3379,12 +3418,12 @@ def rigid_body_collision_type_update_cb(self, context):
         add_collision_shape_property(context.object)
 
 
-def collision_shape_show_update_cb(self, context):
+def collision_shape_show_per_obj_update_cb(self, context):
     obj = context.object
     if obj.ambf_rigid_body_collision_type in ['SINGULAR_SHAPE', 'COMPOUND_SHAPE']:
         for shape_item in obj.ambf_collision_shape_prop_collection.items():
             prop = shape_item[1]
-            prop.ambf_rigid_body_collision_shape_pointer.hide = obj.ambf_rigid_body_show_collision_shapes
+            prop.ambf_rigid_body_collision_shape_pointer.hide = not obj.ambf_rigid_body_show_collision_shapes_per_obj
 #
 ##
 
@@ -3416,7 +3455,7 @@ class AMBF_PT_ambf_rigid_body(bpy.types.Panel):
     
     bpy.types.Object.ambf_rigid_body_enable_collision_margin = bpy.props.BoolProperty(name="Collision Margin", default=False)
 
-    bpy.types.Object.ambf_rigid_body_show_collision_shapes = bpy.props.BoolProperty(name="Show Collision Shapes", default=True, update=collision_shape_show_update_cb)
+    bpy.types.Object.ambf_rigid_body_show_collision_shapes_per_obj = bpy.props.BoolProperty(name="Show Collision Shapes", default=False, update=collision_shape_show_per_obj_update_cb)
     
     bpy.types.Object.ambf_rigid_body_collision_margin = bpy.props.FloatProperty(name="Margin", default=0.001, min=-0.1, max=1.0)
     
@@ -3632,7 +3671,7 @@ class AMBF_PT_ambf_rigid_body(bpy.types.Panel):
             row.prop(context.object, 'ambf_rigid_body_collision_groups', toggle=True)
 
             col = box.column()
-            col.prop(context.object, 'ambf_rigid_body_show_collision_shapes', toggle=True)
+            col.prop(context.object, 'ambf_rigid_body_show_collision_shapes_per_obj', toggle=True)
             col.scale_y = 1.5
             
             layout.separator()
