@@ -191,9 +191,9 @@ def remove_namespace_prefix(full_name):
     return _name
 
 
-def replace_dot_from_obj_names(char_subs = '_'):
-    for obj in bpy.data.objects:
-        obj.name = obj.name.replace('.', char_subs)
+def replace_dot_from_object_names(char_subs ='_'):
+    for obj_handle in bpy.data.objects:
+        obj_handle.name = obj_handle.name.replace('.', char_subs)
 
 
 def compare_body_namespace_with_global(fullname):
@@ -253,11 +253,11 @@ def populate_heirarchial_tree():
     _added_bodies_list = {}
     _heirarchial_bodies_list = []
 
-    for obj in bpy.data.objects:
-        _added_bodies_list[obj] = False
+    for obj_handle in bpy.data.objects:
+        _added_bodies_list[obj_handle] = False
 
-    for obj in bpy.data.objects:
-        grand_parent = get_grand_parent(obj)
+    for obj_handle in bpy.data.objects:
+        grand_parent = get_grand_parent(obj_handle)
         # print('CALLING DOWNWARD TREE PASS FOR: ', grand_parent.name)
         downward_tree_pass(grand_parent, _heirarchial_bodies_list, _added_bodies_list)
 
@@ -277,19 +277,19 @@ def prepend_comment_to_file(filename, comment):
     os.rename(temp_filename, filename)
 
 
-def select_object(obj, select=True):
-    obj.select = select
+def select_object(obj_handle, select=True):
+    obj_handle.select = select
 
 
 def select_all_objects(select):
     # First deselect all objects
-    for obj in bpy.data.objects:
-        select_object(obj, select)
+    for obj_handle in bpy.data.objects:
+        select_object(obj_handle, select)
 
 
 def get_active_object():
-    active_object = bpy.context.active_object
-    return active_object
+    active_obj_handle = bpy.context.active_object
+    return active_obj_handle
 
 
 def set_active_object(active_object):
@@ -403,24 +403,24 @@ def get_minor_axis(dims):
 
 # Courtesy of:
 # https://blender.stackexchange.com/questions/62040/get-center-of-geometry-of-an-object
-def compute_local_com(obj):
-    vcos = [ v.co for v in obj.data.vertices ]
+def compute_local_com(obj_handle):
+    vcos = [v.co for v in obj_handle.data.vertices]
     find_center = lambda l: ( max(l) + min(l)) / 2
     x, y, z = [[v[i] for v in vcos] for i in range(3)]
     center = [find_center(axis) for axis in [x, y, z]]
     for i in range(0, 3):
-        center[i] = center[i] * obj.scale[i]
+        center[i] = center[i] * obj_handle.scale[i]
     return center
 
 
-def inertia_of_convex_hull(obj, mass=None):
+def inertia_of_convex_hull(obj_handle, mass=None):
     if mass == None:
-        mass = obj.ambf_rigid_body_mass
-    num_vertices = len(obj.data.vertices)
+        mass = obj_handle.ambf_rigid_body_mass
+    num_vertices = len(obj_handle.data.vertices)
     dm = mass / num_vertices
     I = mathutils.Vector((0, 0, 0))
     # Tripple Summation or Integral
-    for v in obj.data.vertices:
+    for v in obj_handle.data.vertices:
         I[0] = I[0] + dm * (v.co[1]*v.co[1] + v.co[2] * v.co[2])
         I[1] = I[1] + dm * (v.co[0]*v.co[0] + v.co[2] * v.co[2])
         I[2] = I[2] + dm * (v.co[0]*v.co[0] + v.co[1] * v.co[1])
@@ -468,7 +468,7 @@ def inertia_of_capsule(mass, r, h_total, axis):
     I = mathutils.Vector((0, 0, 0))
     h = h_total - (r * 2) # Get the length of main cylinder
     if h <= 0.001:
-        # This means that this obj shape is essentially a sphere, not a capsule
+        # This means that this obj_handle shape is essentially a sphere, not a capsule
         I = inertia_of_sphere(mass, r)
     else:
         r2 = r * r
@@ -492,24 +492,24 @@ def calculate_principal_inertia(obj_handle):
 
     elif obj_handle.ambf_rigid_body_collision_type == 'SINGULAR_SHAPE':
         prop_group = obj_handle.ambf_collision_shape_prop_collection.items()[0]
-        coll_shape_obj = prop_group[1]
+        coll_shape_obj_handle = prop_group[1]
 
-        lx = coll_shape_obj.ambf_rigid_body_collision_shape_xyz_dims[0]
-        ly = coll_shape_obj.ambf_rigid_body_collision_shape_xyz_dims[1]
-        lz = coll_shape_obj.ambf_rigid_body_collision_shape_xyz_dims[2]
-        radius = coll_shape_obj.ambf_rigid_body_collision_shape_radius
-        height = coll_shape_obj.ambf_rigid_body_collision_shape_height
-        axis = get_axis_idx(coll_shape_obj.ambf_rigid_body_collision_shape_axis.upper())
+        lx = coll_shape_obj_handle.ambf_rigid_body_collision_shape_xyz_dims[0]
+        ly = coll_shape_obj_handle.ambf_rigid_body_collision_shape_xyz_dims[1]
+        lz = coll_shape_obj_handle.ambf_rigid_body_collision_shape_xyz_dims[2]
+        radius = coll_shape_obj_handle.ambf_rigid_body_collision_shape_radius
+        height = coll_shape_obj_handle.ambf_rigid_body_collision_shape_height
+        axis = get_axis_idx(coll_shape_obj_handle.ambf_rigid_body_collision_shape_axis.upper())
 
-        if coll_shape_obj.ambf_rigid_body_collision_shape == 'BOX':
+        if coll_shape_obj_handle.ambf_rigid_body_collision_shape == 'BOX':
             I = inertia_of_box(mass, lx, ly, lz)
-        elif coll_shape_obj.ambf_rigid_body_collision_shape == 'SPHERE':
+        elif coll_shape_obj_handle.ambf_rigid_body_collision_shape == 'SPHERE':
             I = inertia_of_sphere(mass, radius)
-        elif coll_shape_obj.ambf_rigid_body_collision_shape == 'CYLINDER':
+        elif coll_shape_obj_handle.ambf_rigid_body_collision_shape == 'CYLINDER':
             I = inertia_of_cylinder(mass, radius, height, axis)
-        elif coll_shape_obj.ambf_rigid_body_collision_shape == 'CONE':
+        elif coll_shape_obj_handle.ambf_rigid_body_collision_shape == 'CONE':
             I = inertia_of_cone(mass, radius, height, axis)
-        elif coll_shape_obj.ambf_rigid_body_collision_shape == 'CAPSULE':
+        elif coll_shape_obj_handle.ambf_rigid_body_collision_shape == 'CAPSULE':
             I = inertia_of_capsule(mass, radius, height, axis)
     else:
         print('ERROR!, Not an understood shape or mesh')
@@ -531,8 +531,8 @@ def add_collision_shape_property(obj_handle):
     obj_handle.ambf_collision_shape_prop_collection.add()
     cnt = len(obj_handle.ambf_collision_shape_prop_collection.items())
     prop_group = obj_handle.ambf_collision_shape_prop_collection.items()[cnt - 1]
-    coll_shape_obj = collision_shape_create_visual(obj_handle, prop_group[1])
-    coll_shape_obj.name = obj_handle.name + '_coll_shape_' + str(cnt)
+    coll_shape_obj_handle = collision_shape_create_visual(obj_handle, prop_group[1])
+    coll_shape_obj_handle.name = obj_handle.name + '_coll_shape_' + str(cnt)
 
 
 def remove_collision_shape_property(obj_handle, idx=None):
@@ -546,8 +546,8 @@ def remove_collision_shape_property(obj_handle, idx=None):
         return
 
     shape_prop = obj_handle.ambf_collision_shape_prop_collection.items()[cnt - 1][1]
-    coll_shape_obj = shape_prop.ambf_rigid_body_collision_shape_pointer
-    bpy.data.objects.remove(coll_shape_obj)
+    coll_shape_obj_handle = shape_prop.ambf_rigid_body_collision_shape_pointer
+    bpy.data.objects.remove(coll_shape_obj_handle)
     obj_handle.ambf_collision_shape_prop_collection.remove(cnt - 1)
 
 
@@ -583,8 +583,8 @@ def collision_shape_update_dimensions(shape_prop):
     if shape_prop.disable_update_cbs:
         return
 
-    coll_shape_obj = shape_prop.ambf_rigid_body_collision_shape_pointer
-    if coll_shape_obj is None:
+    coll_shape_obj_handle = shape_prop.ambf_rigid_body_collision_shape_pointer
+    if coll_shape_obj_handle is None:
         return
 
     height = shape_prop.ambf_rigid_body_collision_shape_height
@@ -598,38 +598,38 @@ def collision_shape_update_dimensions(shape_prop):
     ly = round(ly, 3)
     lz = round(lz, 3)
 
-    dim_old = coll_shape_obj.dimensions.copy()
-    scale_old = coll_shape_obj.scale.copy()
+    dim_old = coll_shape_obj_handle.dimensions.copy()
+    scale_old = coll_shape_obj_handle.scale.copy()
 
     if shape_prop.ambf_rigid_body_collision_shape == 'BOX':
-        coll_shape_obj.scale[0] = scale_old[0] * lx / dim_old[0]
-        coll_shape_obj.scale[1] = scale_old[1] * ly / dim_old[1]
-        coll_shape_obj.scale[2] = scale_old[2] * lz / dim_old[2]
+        coll_shape_obj_handle.scale[0] = scale_old[0] * lx / dim_old[0]
+        coll_shape_obj_handle.scale[1] = scale_old[1] * ly / dim_old[1]
+        coll_shape_obj_handle.scale[2] = scale_old[2] * lz / dim_old[2]
 
     elif shape_prop.ambf_rigid_body_collision_shape in ['CONE', 'CYLINDER', 'CAPSULE', 'SPHERE']:
         dir_axis = get_axis_idx(shape_prop.ambf_rigid_body_collision_shape_axis.upper())
 
-        height_old = coll_shape_obj.dimensions[dir_axis]
-        radius_old = coll_shape_obj.dimensions[(dir_axis + 1) % 3]
+        height_old = coll_shape_obj_handle.dimensions[dir_axis]
+        radius_old = coll_shape_obj_handle.dimensions[(dir_axis + 1) % 3]
 
         if shape_prop.ambf_rigid_body_collision_shape == 'SPHERE':
-            coll_shape_obj.scale = scale_old * radius / radius_old * 2
+            coll_shape_obj_handle.scale = scale_old * radius / radius_old * 2
         else: # For Cylinder, Cone and Capsule
-            coll_shape_obj.scale[dir_axis] = scale_old[dir_axis] * height / height_old
-            coll_shape_obj.scale[(dir_axis + 1) % 3] = scale_old[(dir_axis + 1) % 3] * radius / radius_old * 2
-            coll_shape_obj.scale[(dir_axis + 2) % 3] = scale_old[(dir_axis + 2) % 3] * radius / radius_old * 2
+            coll_shape_obj_handle.scale[dir_axis] = scale_old[dir_axis] * height / height_old
+            coll_shape_obj_handle.scale[(dir_axis + 1) % 3] = scale_old[(dir_axis + 1) % 3] * radius / radius_old * 2
+            coll_shape_obj_handle.scale[(dir_axis + 2) % 3] = scale_old[(dir_axis + 2) % 3] * radius / radius_old * 2
 
 
 def collision_shape_update_local_offset(obj_handle, shape_prop):
     if shape_prop.disable_update_cbs:
         return
 
-    coll_shape_obj = shape_prop.ambf_rigid_body_collision_shape_pointer
-    if coll_shape_obj is None:
+    coll_shape_obj_handle = shape_prop.ambf_rigid_body_collision_shape_pointer
+    if coll_shape_obj_handle is None:
         return
-    scale_old = coll_shape_obj.scale.copy()
+    scale_old = coll_shape_obj_handle.scale.copy()
     T_p_w = obj_handle.matrix_world.copy()
-    coll_shape_obj.matrix_world = T_p_w
+    coll_shape_obj_handle.matrix_world = T_p_w
 
     # Inertial Offset in the Body Frame
     T_inertial_p = mathutils.Matrix()
@@ -648,12 +648,12 @@ def collision_shape_update_local_offset(obj_handle, shape_prop):
     T_c_inertial.translation.y = shape_prop.ambf_rigid_body_linear_shape_offset[1]
     T_c_inertial.translation.z = shape_prop.ambf_rigid_body_linear_shape_offset[2]
 
-    coll_shape_obj.matrix_world = T_p_w * T_inertial_p * T_c_inertial
-    coll_shape_obj.scale = scale_old
+    coll_shape_obj_handle.matrix_world = T_p_w * T_inertial_p * T_c_inertial
+    coll_shape_obj_handle.scale = scale_old
 
 
 def collision_shape_create_visual(obj_handle, shape_prop):
-    cur_active_object = get_active_object()
+    cur_active_obj_handle = get_active_object()
     select_all_objects(False)
     if shape_prop.ambf_rigid_body_collision_shape_pointer is None:
         height = shape_prop.ambf_rigid_body_collision_shape_height
@@ -665,10 +665,10 @@ def collision_shape_create_visual(obj_handle, shape_prop):
             
         if shape_prop.ambf_rigid_body_collision_shape == 'BOX':
             bpy.ops.mesh.primitive_cube_add(radius=0.5)
-            coll_shape_obj = get_active_object()
-            coll_shape_obj.scale[0] = lx
-            coll_shape_obj.scale[1] = ly
-            coll_shape_obj.scale[2] = lz
+            coll_shape_obj_handle = get_active_object()
+            coll_shape_obj_handle.scale[0] = lx
+            coll_shape_obj_handle.scale[1] = ly
+            coll_shape_obj_handle.scale[2] = lz
 
         elif shape_prop.ambf_rigid_body_collision_shape == 'SPHERE':
             bpy.ops.mesh.primitive_uv_sphere_add(size=radius)
@@ -699,17 +699,17 @@ def collision_shape_create_visual(obj_handle, shape_prop):
                 # There is no primitive for capsule in Blender, so we
                 # have to use a workaround using the sphere
                 bpy.ops.mesh.primitive_uv_sphere_add(rotation=rpy_rot, size=radius)
-                coll_shape_obj = get_active_object()
-                coll_shape_obj.scale[dir_axis] = height
+                coll_shape_obj_handle = get_active_object()
+                coll_shape_obj_handle.scale[dir_axis] = height
 
             else:
                 print("FAIL! Shouldn't Get Here")
 
-        coll_shape_obj = get_active_object()
-        coll_shape_obj.ambf_object_type = 'COLLISION_SHAPE'
+        coll_shape_obj_handle = get_active_object()
+        coll_shape_obj_handle.ambf_object_type = 'COLLISION_SHAPE'
         bpy.ops.object.transform_apply(scale=True, rotation=True)
-        make_obj1_parent_of_obj2(obj_handle, coll_shape_obj)
-        shape_prop.ambf_rigid_body_collision_shape_pointer = coll_shape_obj
+        make_obj1_parent_of_obj2(obj_handle, coll_shape_obj_handle)
+        shape_prop.ambf_rigid_body_collision_shape_pointer = coll_shape_obj_handle
 
         # Update the collision shape transform
         collision_shape_update_local_offset(obj_handle, shape_prop)
@@ -725,17 +725,17 @@ def collision_shape_create_visual(obj_handle, shape_prop):
             CommonConfig.collision_shape_material.use_transparency = True
             CommonConfig.collision_shape_material.alpha = CommonConfig.collision_shape_material_transparency
 
-        # coll_shape_obj.draw_type = 'WIRE'
-        coll_shape_obj.hide_select = True
-        coll_shape_obj.show_transparent = True
-        coll_shape_obj.data.materials.append(CommonConfig.collision_shape_material)
-        coll_shape_obj.hide = not obj_handle.ambf_rigid_body_show_collision_shapes_per_obj
+        # coll_shape_obj_handle.draw_type = 'WIRE'
+        coll_shape_obj_handle.hide_select = True
+        coll_shape_obj_handle.show_transparent = True
+        coll_shape_obj_handle.data.materials.append(CommonConfig.collision_shape_material)
+        coll_shape_obj_handle.hide = not obj_handle.ambf_rigid_body_show_collision_shapes_per_object
 
-        set_active_object(cur_active_object)
+        set_active_object(cur_active_obj_handle)
     else:
-        coll_shape_obj = shape_prop.ambf_rigid_body_collision_shape_pointer
+        coll_shape_obj_handle = shape_prop.ambf_rigid_body_collision_shape_pointer
 
-    return coll_shape_obj
+    return coll_shape_obj_handle
 
 
 # Body Template for the some commonly used of afBody's data
@@ -821,7 +821,7 @@ class AMBF_OT_generate_ambf_file(bpy.types.Operator):
         body_yaml_name = self.add_body_prefix_str(obj_handle_name)
         output_mesh = bpy.context.scene['mesh_output_type']
         body_data['name'] = obj_handle_name
-        # If the obj is root body of a Multi-Body and has children
+        # If the obj_handle is root body of a Multi-Body and has children
         # then we should enable the publishing of its joint names
         # and joint positions
         if obj_handle.parent is None and obj_handle.children:
@@ -1033,17 +1033,17 @@ class AMBF_OT_generate_ambf_file(bpy.types.Operator):
                 body_data['collision margin'] = round(obj_handle.ambf_rigid_body_collision_margin, 4)
 
             if obj_handle.ambf_rigid_body_collision_type == 'SINGULAR_SHAPE':
-                ocs = obj_handle.ambf_collision_shape_prop_collection.items()[0][1]
-                body_data['collision shape'] = ocs.ambf_rigid_body_collision_shape
+                shape_prop_group = obj_handle.ambf_collision_shape_prop_collection.items()[0][1]
+                body_data['collision shape'] = shape_prop_group.ambf_rigid_body_collision_shape
                 bcg = OrderedDict()
                 dims = obj_handle.dimensions.copy()
                 od = [round(dims[0], 3), round(dims[1], 3), round(dims[2], 3)]
                 # Now we need to find out the geometry of the shape
-                if ocs.ambf_rigid_body_collision_shape == 'BOX':
+                if shape_prop_group.ambf_rigid_body_collision_shape == 'BOX':
                     bcg = {'x': od[0], 'y': od[1], 'z': od[2]}
-                elif ocs.ambf_rigid_body_collision_shape == 'SPHERE':
+                elif shape_prop_group.ambf_rigid_body_collision_shape == 'SPHERE':
                     bcg = {'radius': max(od)/2.0}
-                elif ocs.ambf_rigid_body_collision_shape in ['CONE', 'CYLINDER', 'CAPSULE']:
+                elif shape_prop_group.ambf_rigid_body_collision_shape in ['CONE', 'CYLINDER', 'CAPSULE']:
                     major_ax_char, major_ax_idx = get_major_axis(od)
                     median_ax_char, median_ax_idx = get_median_axis(od)
                     bcg = {'radius': od[median_ax_idx]/2.0, 'height': od[major_ax_idx], 'axis': major_ax_char}
@@ -1054,32 +1054,32 @@ class AMBF_OT_generate_ambf_file(bpy.types.Operator):
                     del body_data['collision shape']
                 compound_shape = []
                 shape_count = 0
-                for pg in obj_handle.ambf_collision_shape_prop_collection.items():
-                    ocs = pg[1]
+                for prop_tuple in obj_handle.ambf_collision_shape_prop_collection.items():
+                    shape_prop_group = prop_tuple[1]
                     bcg = OrderedDict()
                     bcg['name'] = str(shape_count + 1)
-                    bcg['shape'] = ocs.ambf_rigid_body_collision_shape
+                    bcg['shape'] = shape_prop_group.ambf_rigid_body_collision_shape
                     bcg['geometry'] = OrderedDict()
                     # Now we need to find out the geometry of the shape
-                    if ocs.ambf_rigid_body_collision_shape == 'BOX':
-                        bcg['geometry'] = {'x': round(ocs.ambf_rigid_body_collision_shape_xyz_dims[0], 3),
-                                           'y': round(ocs.ambf_rigid_body_collision_shape_xyz_dims[1], 3),
-                                           'z': round(ocs.ambf_rigid_body_collision_shape_xyz_dims[2], 3)}
-                    elif ocs.ambf_rigid_body_collision_shape == 'SPHERE':
-                        bcg['geometry'] = {'radius': round(ocs.ambf_rigid_body_collision_shape_radius, 3)}
-                    elif ocs.ambf_rigid_body_collision_shape in ['CONE', 'CYLINDER', 'CAPSULE']:
+                    if shape_prop_group.ambf_rigid_body_collision_shape == 'BOX':
+                        bcg['geometry'] = {'x': round(shape_prop_group.ambf_rigid_body_collision_shape_xyz_dims[0], 3),
+                                           'y': round(shape_prop_group.ambf_rigid_body_collision_shape_xyz_dims[1], 3),
+                                           'z': round(shape_prop_group.ambf_rigid_body_collision_shape_xyz_dims[2], 3)}
+                    elif shape_prop_group.ambf_rigid_body_collision_shape == 'SPHERE':
+                        bcg['geometry'] = {'radius': round(shape_prop_group.ambf_rigid_body_collision_shape_radius, 3)}
+                    elif shape_prop_group.ambf_rigid_body_collision_shape in ['CONE', 'CYLINDER', 'CAPSULE']:
                         geometry = dict({'radius': 0, 'height': 0})
-                        geometry['radius'] = round(ocs.ambf_rigid_body_collision_shape_radius, 3)
-                        geometry['height'] = round(ocs.ambf_rigid_body_collision_shape_height, 3)
+                        geometry['radius'] = round(shape_prop_group.ambf_rigid_body_collision_shape_radius, 3)
+                        geometry['height'] = round(shape_prop_group.ambf_rigid_body_collision_shape_height, 3)
                         bcg['geometry'] = geometry
 
                     offset = get_pose_ordered_dict()
-                    offset['position']['x'] = ocs.ambf_rigid_body_linear_shape_offset[0]
-                    offset['position']['y'] = ocs.ambf_rigid_body_linear_shape_offset[1]
-                    offset['position']['z'] = ocs.ambf_rigid_body_linear_shape_offset[2]
-                    offset['orientation']['r'] = ocs.ambf_rigid_body_angular_shape_offset[0]
-                    offset['orientation']['p'] = ocs.ambf_rigid_body_angular_shape_offset[1]
-                    offset['orientation']['y'] = ocs.ambf_rigid_body_angular_shape_offset[2]
+                    offset['position']['x'] = shape_prop_group.ambf_rigid_body_linear_shape_offset[0]
+                    offset['position']['y'] = shape_prop_group.ambf_rigid_body_linear_shape_offset[1]
+                    offset['position']['z'] = shape_prop_group.ambf_rigid_body_linear_shape_offset[2]
+                    offset['orientation']['r'] = shape_prop_group.ambf_rigid_body_angular_shape_offset[0]
+                    offset['orientation']['p'] = shape_prop_group.ambf_rigid_body_angular_shape_offset[1]
+                    offset['orientation']['y'] = shape_prop_group.ambf_rigid_body_angular_shape_offset[2]
                     bcg['offset'] = offset
                     compound_shape.append(bcg)
                     shape_count = shape_count + 1
@@ -1641,17 +1641,17 @@ class AMBF_OT_generate_ambf_file(bpy.types.Operator):
 
         _heirarichal_objects_list = populate_heirarchial_tree()
 
-        for obj in _heirarichal_objects_list:
+        for obj_handle in _heirarichal_objects_list:
             if self._context.scene.enable_legacy_loading:
-                self.generate_body_data_from_blender_rigid_body(self._ambf_yaml, obj)
+                self.generate_body_data_from_blender_rigid_body(self._ambf_yaml, obj_handle)
             else:
-                self.generate_body_data_from_ambf_rigid_body(self._ambf_yaml, obj)
+                self.generate_body_data_from_ambf_rigid_body(self._ambf_yaml, obj_handle)
 
-        for obj in _heirarichal_objects_list:
+        for obj_handle in _heirarichal_objects_list:
             if self._context.scene.enable_legacy_loading:
-                self.generate_joint_data_from_blender_constraint(self._ambf_yaml, obj)
+                self.generate_joint_data_from_blender_constraint(self._ambf_yaml, obj_handle)
             else:
-                self.generate_joint_data_from_ambf_constraint(self._ambf_yaml, obj)
+                self.generate_joint_data_from_ambf_constraint(self._ambf_yaml, obj_handle)
 
         # Now populate the bodies and joints tag
         self._ambf_yaml['bodies'] = self._body_names_list
@@ -1678,7 +1678,7 @@ class AMBF_OT_save_meshes(bpy.types.Operator):
                      " high-res and low-res meshes separately"
 
     def execute(self, context):
-        replace_dot_from_obj_names()
+        replace_dot_from_object_names()
         self.save_meshes(context)
         return {'FINISHED'}
 
@@ -1687,27 +1687,27 @@ class AMBF_OT_save_meshes(bpy.types.Operator):
     # to move the parent to origin first and then its children successively
     # otherwise moving any parent after its child has been moved with move the
     # child as well
-    def set_to_origin(self, p_obj, obj_name_mat_list):
-        if p_obj.children is None:
+    def set_to_origin(self, p_obj_handle, obj_name_mat_list):
+        if p_obj_handle.children is None:
             return
-        obj_name_mat_list.append([p_obj.name, p_obj.matrix_world.copy()])
+        obj_name_mat_list.append([p_obj_handle.name, p_obj_handle.matrix_world.copy()])
         # Since setting the world transform clears the embedded scale
-        # of the object, we need to re-scale the object after putting it to origin
+        # of the object, we need to re-scale the obj_handle after putting it to origin
         scale_mat = mathutils.Matrix()
-        scale_mat = scale_mat.Scale(p_obj.matrix_world.median_scale, 4)
-        p_obj.matrix_world.identity()
-        p_obj.matrix_world = scale_mat
-        for c_obj in p_obj.children:
-            self.set_to_origin(c_obj, obj_name_mat_list)
+        scale_mat = scale_mat.Scale(p_obj_handle.matrix_world.median_scale, 4)
+        p_obj_handle.matrix_world.identity()
+        p_obj_handle.matrix_world = scale_mat
+        for c_obj_handle in p_obj_handle.children:
+            self.set_to_origin(c_obj_handle, obj_name_mat_list)
 
     # Since Blender exports meshes w.r.t world transform and not the
-    # the local mesh transform, we explicitly push each object to origin
+    # the local mesh transform, we explicitly push each obj_handle to origin
     # and remember its world transform for putting it back later on
     def set_all_meshes_to_origin(self):
         obj_name_mat_list = []
-        for p_obj in bpy.data.objects:
-            if p_obj.parent is None:
-                self.set_to_origin(p_obj, obj_name_mat_list)
+        for p_obj_handle in bpy.data.objects:
+            if p_obj_handle.parent is None:
+                self.set_to_origin(p_obj_handle, obj_name_mat_list)
         return obj_name_mat_list
 
     # This recursive function works in similar fashion to the
@@ -1821,16 +1821,16 @@ class AMBF_OT_generate_low_res_mesh_modifiers(bpy.types.Operator):
         bpy.ops.ambf.remove_low_res_mesh_modifiers()
 
         # Now deselect all objects
-        for obj in bpy.data.objects:
-            select_object(obj, False)
+        for obj_handle in bpy.data.objects:
+            select_object(obj_handle, False)
 
         vertices_max = context.scene.mesh_max_vertices
-        # Select each object iteratively and generate its low-res mesh
-        for obj in bpy.data.objects:
-            if obj.type == 'MESH' and obj.hide is False:
-                decimate_mod = obj.modifiers.new('decimate_mod', 'DECIMATE')
-                if len(obj.data.vertices) > vertices_max:
-                    reduction_ratio = vertices_max / len(obj.data.vertices)
+        # Select each obj_handle iteratively and generate its low-res mesh
+        for obj_handle in bpy.data.objects:
+            if obj_handle.type == 'MESH' and obj_handle.hide is False:
+                decimate_mod = obj_handle.modifiers.new('decimate_mod', 'DECIMATE')
+                if len(obj_handle.data.vertices) > vertices_max:
+                    reduction_ratio = vertices_max / len(obj_handle.data.vertices)
                     decimate_mod.use_symmetry = False
                     decimate_mod.use_collapse_triangulate = True
                     decimate_mod.ratio = reduction_ratio
@@ -1848,8 +1848,8 @@ class AMBF_OT_create_detached_joint(bpy.types.Operator):
     def execute(self, context):
         select_all_objects(False)
         bpy.ops.object.empty_add(type='PLAIN_AXES')
-        active_object = get_active_object()
-        active_object.name = CommonConfig.detached_joint_prefix[0] + ' joint'
+        active_obj_handle = get_active_object()
+        active_obj_handle.name = CommonConfig.detached_joint_prefix[0] + ' joint'
         return {'FINISHED'}
 
 
@@ -1859,9 +1859,9 @@ class AMBF_OT_remove_low_res_mesh_modifiers(bpy.types.Operator):
     bl_description = "This removes all the mesh modifiers generated for meshes in the current scene"
 
     def execute(self, context):
-        for obj in bpy.data.objects:
-            for mod in obj.modifiers:
-                obj.modifiers.remove(mod)
+        for obj_handle in bpy.data.objects:
+            for mod in obj_handle.modifiers:
+                obj_handle.modifiers.remove(mod)
         return {'FINISHED'}
 
 
@@ -1871,8 +1871,8 @@ class AMBF_OT_toggle_low_res_mesh_modifiers_visibility(bpy.types.Operator):
     bl_description = "This hides all the mesh modifiers generated for meshes in the current scene"
 
     def execute(self, context):
-        for obj in bpy.data.objects:
-            for mod in obj.modifiers:
+        for obj_handle in bpy.data.objects:
+            for mod in obj_handle.modifiers:
                 mod.show_viewport = not mod.show_viewport
         return {'FINISHED'}
 
@@ -1883,12 +1883,12 @@ class AMBF_OT_estimate_inertial_offsets(bpy.types.Operator):
     bl_description = "Automatically Estimate the Inertial Offsets for the Bodies"
 
     def execute(self, context):
-        for obj in bpy.data.objects:
-            if obj.ambf_object_type == 'RIGID_BODY':
-                local_com = compute_local_com(obj)
-                obj.ambf_rigid_body_linear_inertial_offset[0] = local_com[0]
-                obj.ambf_rigid_body_linear_inertial_offset[1] = local_com[1]
-                obj.ambf_rigid_body_linear_inertial_offset[2] = local_com[2]
+        for obj_handle in bpy.data.objects:
+            if obj_handle.ambf_object_type == 'RIGID_BODY':
+                local_com = compute_local_com(obj_handle)
+                obj_handle.ambf_rigid_body_linear_inertial_offset[0] = local_com[0]
+                obj_handle.ambf_rigid_body_linear_inertial_offset[1] = local_com[1]
+                obj_handle.ambf_rigid_body_linear_inertial_offset[2] = local_com[2]
                 pass
         return {'FINISHED'}
 
@@ -1899,8 +1899,8 @@ class AMBF_OT_estimate_collision_shapes_geometry(bpy.types.Operator):
     bl_description = "Estimate Collision Shapes Geometry"
 
     def execute(self, context):
-        for obj in bpy.data.objects:
-            estimate_collision_shape_geometry(obj)
+        for obj_handle in bpy.data.objects:
+            estimate_collision_shape_geometry(obj_handle)
         return {'FINISHED'}
 
 
@@ -1910,14 +1910,14 @@ class AMBF_OT_estimate_inertias(bpy.types.Operator):
     bl_description = "Estimate Body Inertias"
 
     def execute(self, context):
-        for obj in bpy.data.objects:
-            if obj.ambf_object_type == 'RIGID_BODY':
-                if not obj.ambf_rigid_body_is_static:
-                    I = calculate_principal_inertia(obj)
-                    obj.ambf_rigid_body_inertia_x = I[0]
-                    obj.ambf_rigid_body_inertia_y = I[1]
-                    obj.ambf_rigid_body_inertia_z = I[2]
-                    obj.ambf_rigid_body_specify_inertia = True
+        for obj_handle in bpy.data.objects:
+            if obj_handle.ambf_object_type == 'RIGID_BODY':
+                if not obj_handle.ambf_rigid_body_is_static:
+                    I = calculate_principal_inertia(obj_handle)
+                    obj_handle.ambf_rigid_body_inertia_x = I[0]
+                    obj_handle.ambf_rigid_body_inertia_y = I[1]
+                    obj_handle.ambf_rigid_body_inertia_z = I[2]
+                    obj_handle.ambf_rigid_body_specify_inertia = True
         return {'FINISHED'}
 
 
@@ -1927,34 +1927,34 @@ class AMBF_OT_auto_rename_joints(bpy.types.Operator):
     bl_description = "Automatically Rename Joints as Parent-Child name"
 
     def execute(self, context):
-        for obj in bpy.data.objects:
-            if obj.ambf_object_type == 'CONSTRAINT':
-                parent = obj.ambf_constraint_parent
-                child = obj.ambf_constraint_child
+        for obj_handle in bpy.data.objects:
+            if obj_handle.ambf_object_type == 'CONSTRAINT':
+                parent = obj_handle.ambf_constraint_parent
+                child = obj_handle.ambf_constraint_child
                 if parent and child:
-                    obj.ambf_constraint_name = remove_namespace_prefix(parent.name) + '-' + remove_namespace_prefix(child.name)
+                    obj_handle.ambf_constraint_name = remove_namespace_prefix(parent.name) + '-' + remove_namespace_prefix(child.name)
                 pass
         return {'FINISHED'}
 
 
-class AMBF_OT_estimate_inertial_offset_per_obj(bpy.types.Operator):
-    bl_idname = "ambf.estimate_inertial_offset_per_obj"
+class AMBF_OT_estimate_inertial_offset_per_object(bpy.types.Operator):
+    bl_idname = "ambf.estimate_inertial_offset_per_object"
     bl_label = "Estimate Inertial Offset"
     bl_description = "Automatically Estimate the Inertial Offsets for the Bodies"
 
     def execute(self, context):
-        obj = context.object
-        if obj.ambf_object_type == 'RIGID_BODY':
-            local_com = compute_local_com(obj)
-            obj.ambf_rigid_body_linear_inertial_offset[0] = local_com[0]
-            obj.ambf_rigid_body_linear_inertial_offset[1] = local_com[1]
-            obj.ambf_rigid_body_linear_inertial_offset[2] = local_com[2]
+        obj_handle = context.object
+        if obj_handle.ambf_object_type == 'RIGID_BODY':
+            local_com = compute_local_com(obj_handle)
+            obj_handle.ambf_rigid_body_linear_inertial_offset[0] = local_com[0]
+            obj_handle.ambf_rigid_body_linear_inertial_offset[1] = local_com[1]
+            obj_handle.ambf_rigid_body_linear_inertial_offset[2] = local_com[2]
             pass
         return {'FINISHED'}
 
 
-class AMBF_OT_estimate_collision_shape_geometry_per_obj(bpy.types.Operator):
-    bl_idname = "ambf.estimate_collision_shape_geometry_per_obj"
+class AMBF_OT_estimate_collision_shape_geometry_per_object(bpy.types.Operator):
+    bl_idname = "ambf.estimate_collision_shape_geometry_per_object"
     bl_label = "Estimate Collision Shape Geometry"
     bl_description = "Estimate Collision Shape Geometry"
 
@@ -1963,35 +1963,35 @@ class AMBF_OT_estimate_collision_shape_geometry_per_obj(bpy.types.Operator):
         return {'FINISHED'}
 
 
-class AMBF_OT_estimate_inertia_per_obj(bpy.types.Operator):
-    bl_idname = "ambf.estimate_inertia_per_obj"
+class AMBF_OT_estimate_inertia_per_object(bpy.types.Operator):
+    bl_idname = "ambf.estimate_inertia_per_object"
     bl_label = "Estimate Body Inertia"
     bl_description = "Estimate Body Inertia"
 
     def execute(self, context):
-        obj = context.object
-        if obj.ambf_object_type == 'RIGID_BODY':
-            if not obj.ambf_rigid_body_is_static:
-                I = calculate_principal_inertia(obj)
-                obj.ambf_rigid_body_inertia_x = I[0]
-                obj.ambf_rigid_body_inertia_y = I[1]
-                obj.ambf_rigid_body_inertia_z = I[2]
-                obj.ambf_rigid_body_specify_inertia = True
+        obj_handle = context.object
+        if obj_handle.ambf_object_type == 'RIGID_BODY':
+            if not obj_handle.ambf_rigid_body_is_static:
+                I = calculate_principal_inertia(obj_handle)
+                obj_handle.ambf_rigid_body_inertia_x = I[0]
+                obj_handle.ambf_rigid_body_inertia_y = I[1]
+                obj_handle.ambf_rigid_body_inertia_z = I[2]
+                obj_handle.ambf_rigid_body_specify_inertia = True
         return {'FINISHED'}
 
 
-class AMBF_OT_auto_rename_joint_per_obj(bpy.types.Operator):
-    bl_idname = "ambf.auto_rename_joint_per_obj"
+class AMBF_OT_auto_rename_joint_per_object(bpy.types.Operator):
+    bl_idname = "ambf.auto_rename_joint_per_object"
     bl_label = "Automatically Rename Joint"
     bl_description = "Automatically Rename Joint as Parent-Child name"
 
     def execute(self, context):
-        obj = context.object
-        if obj.ambf_object_type == 'CONSTRAINT':
-            parent = obj.ambf_constraint_parent
-            child = obj.ambf_constraint_child
+        obj_handle = context.object
+        if obj_handle.ambf_object_type == 'CONSTRAINT':
+            parent = obj_handle.ambf_constraint_parent
+            child = obj_handle.ambf_constraint_child
             if parent and child:
-                obj.ambf_constraint_name = remove_namespace_prefix(parent.name) + '-' + remove_namespace_prefix(child.name)
+                obj_handle.ambf_constraint_name = remove_namespace_prefix(parent.name) + '-' + remove_namespace_prefix(child.name)
             pass
         return {'FINISHED'}
 
@@ -2002,8 +2002,8 @@ class AMBF_OT_remove_object_namespaces(bpy.types.Operator):
     bl_description = "This removes any current object namespaces"
 
     def execute(self, context):
-        for obj in bpy.data.objects:
-            obj.name = obj.name.split('/')[-1]
+        for obj_handle in bpy.data.objects:
+            obj_handle.name = obj_handle.name.split('/')[-1]
         return {'FINISHED'}
 
 
@@ -2060,9 +2060,9 @@ class AMBF_OT_load_ambf_file(bpy.types.Operator):
             bpy.ops.import_mesh.stl(filepath=str(mesh_filepath.resolve()))
 
         elif mesh_filepath.suffix in ['.obj', '.OBJ']:
-            _manually_select_obj = True
+            _manually_select_obj_handle = True
             bpy.ops.import_scene.obj(filepath=str(mesh_filepath.resolve()), axis_up='Z', axis_forward='Y')
-            # Hack, .3ds and .obj imports do not make the imported object active. A hack is
+            # Hack, .3ds and .obj imports do not make the imported obj_handle active. A hack is
             # to capture the selected objects in this case.
             set_active_object(self._context.selected_objects[0])
 
@@ -2101,9 +2101,9 @@ class AMBF_OT_load_ambf_file(bpy.types.Operator):
                 set_active_object(so[0])
 
         elif mesh_filepath.suffix in ['.3ds', '.3DS']:
-            _manually_select_obj = True
+            _manually_select_obj_handle = True
             bpy.ops.import_scene.autodesk_3ds(filepath=str(mesh_filepath.resolve()))
-            # Hack, .3ds and .obj imports do not make the imported object active. A hack is
+            # Hack, .3ds and .obj imports do not make the imported obj_handle active. A hack is
             # to capture the selected objects in this case.
             set_active_object(self._context.selected_objects[0])
 
@@ -2291,9 +2291,9 @@ class AMBF_OT_load_ambf_file(bpy.types.Operator):
                 obj_handle.ambf_rigid_body_enable_controllers = True
 
             # Now lets add a collision shape for each collision_property_group
-            for prop_group in obj_handle.ambf_collision_shape_prop_collection.items():
-                shape_prop = prop_group[1]
-                collision_shape_create_visual(obj_handle, shape_prop)
+            for prop_tuple in obj_handle.ambf_collision_shape_prop_collection.items():
+                shape_prop_group = prop_tuple[1]
+                collision_shape_create_visual(obj_handle, shape_prop_group)
 
     def load_rigid_body_name(self, body_data, obj_handle):
 
@@ -2647,8 +2647,8 @@ class AMBF_OT_load_ambf_file(bpy.types.Operator):
         child_obj_handle = bpy.data.objects[self._blender_remapped_body_names[child_body_name]]
 
         # If the joint is a detached joint, create an empty axis and return that
-        # as the child object handle. Otherwise, return the child obj handle
-        # as the joint obj handle
+        # as the child obj_handle. Otherwise, return the child obj_handle
+        # as the joint obj_handle
         if self.is_detached_joint(joint_data):
             bpy.ops.object.empty_add(type='PLAIN_AXES')
             joint_obj_handle = get_active_object()
@@ -2874,9 +2874,9 @@ class AMBF_OT_load_ambf_file(bpy.types.Operator):
 def collision_shape_show_update_cb(self, context):
     for obj_handle in bpy.data.objects:
         if obj_handle.ambf_rigid_body_collision_type in ['SINGULAR_SHAPE', 'COMPOUND_SHAPE']:
-            for shape_item in obj_handle.ambf_collision_shape_prop_collection.items():
-                prop = shape_item[1]
-                prop.ambf_rigid_body_collision_shape_pointer.hide = not context.scene.ambf_rigid_body_show_collision_shapes
+            for prop_tuple in obj_handle.ambf_collision_shape_prop_collection.items():
+                shape_prop_group = prop_tuple[1]
+                shape_prop_group.ambf_rigid_body_collision_shape_pointer.hide = not context.scene.ambf_rigid_body_show_collision_shapes
 ##
 
 
@@ -3173,10 +3173,10 @@ class AMBF_PT_rigid_body_props(bpy.types.Panel):
     @classmethod
     def poll(self, context):
         active = False
-        active_object = get_active_object()
-        if active_object:
-            if active_object.type == 'MESH':
-                if active_object.rigid_body:
+        active_obj_handle = get_active_object()
+        if active_obj_handle:
+            if active_obj_handle.type == 'MESH':
+                if active_obj_handle.rigid_body:
                     active = True
         return active
     
@@ -3228,11 +3228,11 @@ class AMBF_PT_joint_props(bpy.types.Panel):
     @classmethod
     def poll(self, context):
         has_detached_prefix = False
-        active_object = get_active_object()
-        if active_object: # Check if an object is active
-            if active_object.type in ['EMPTY', 'MESH']: # Check if the object is a mesh or an empty axis
-                if active_object.rigid_body_constraint: # Check if the object has a constraint
-                    if active_object.rigid_body_constraint.type in ['HINGE', 'SLIDER', 'GENERIC']: # Check if a valid constraint
+        active_obj_handle = get_active_object()
+        if active_obj_handle: # Check if an obj_handle is active
+            if active_obj_handle.type in ['EMPTY', 'MESH']: # Check if the obj_handle is a mesh or an empty axis
+                if active_obj_handle.rigid_body_constraint: # Check if the obj_handle has a constraint
+                    if active_obj_handle.rigid_body_constraint.type in ['HINGE', 'SLIDER', 'GENERIC']: # Check if a valid constraint
                         has_detached_prefix = True
         return has_detached_prefix
     
@@ -3303,9 +3303,9 @@ class AMBF_OT_ambf_rigid_body_remove_collision_shape(bpy.types.Operator):
 #
 # Collision Property Update Callbacks
 def collision_shape_dims_update_cb(self, context):
-    obj = context.object
-    for shape_prop in obj.ambf_collision_shape_prop_collection.items():
-        collision_shape_update_dimensions(shape_prop[1])
+    obj_handle = context.object
+    for prop_tuple in obj_handle.ambf_collision_shape_prop_collection.items():
+        collision_shape_update_dimensions(prop_tuple[1])
 
 
 def collision_shape_axis_update_cb(self, context):
@@ -3313,21 +3313,21 @@ def collision_shape_axis_update_cb(self, context):
 
 
 def collision_shape_type_update_cb(self, context):
-    obj = context.object
-    for shape_item in obj.ambf_collision_shape_prop_collection.items():
-        item = shape_item[1]
-        if item.ambf_rigid_body_collision_shape_pointer:
-            bpy.data.objects.remove(item.ambf_rigid_body_collision_shape_pointer)
+    obj_handle = context.object
+    for prop_tuple in obj_handle.ambf_collision_shape_prop_collection.items():
+        shape_prop_group = prop_tuple[1]
+        if shape_prop_group.ambf_rigid_body_collision_shape_pointer:
+            bpy.data.objects.remove(shape_prop_group.ambf_rigid_body_collision_shape_pointer)
 
-    if obj.ambf_rigid_body_collision_type in ['SINGULAR_SHAPE', 'COMPOUND_SHAPE']:
-        for shape_item in obj.ambf_collision_shape_prop_collection.items():
-            collision_shape_create_visual(obj, shape_item[1])
+    if obj_handle.ambf_rigid_body_collision_type in ['SINGULAR_SHAPE', 'COMPOUND_SHAPE']:
+        for prop_tuple in obj_handle.ambf_collision_shape_prop_collection.items():
+            collision_shape_create_visual(obj_handle, prop_tuple[1])
 
 
 def collision_shape_offset_update_cb(self, context):
-    obj = context.object
-    for shape_prop in obj.ambf_collision_shape_prop_collection.items():
-        collision_shape_update_local_offset(obj, shape_prop[1])
+    obj_handle = context.object
+    for prop_tuple in obj_handle.ambf_collision_shape_prop_collection.items():
+        collision_shape_update_local_offset(obj_handle, prop_tuple[1])
 #
 #
 
@@ -3418,12 +3418,12 @@ def rigid_body_collision_type_update_cb(self, context):
         add_collision_shape_property(context.object)
 
 
-def collision_shape_show_per_obj_update_cb(self, context):
-    obj = context.object
-    if obj.ambf_rigid_body_collision_type in ['SINGULAR_SHAPE', 'COMPOUND_SHAPE']:
-        for shape_item in obj.ambf_collision_shape_prop_collection.items():
-            prop = shape_item[1]
-            prop.ambf_rigid_body_collision_shape_pointer.hide = not obj.ambf_rigid_body_show_collision_shapes_per_obj
+def collision_shape_show_per_object_update_cb(self, context):
+    obj_handle = context.object
+    if obj_handle.ambf_rigid_body_collision_type in ['SINGULAR_SHAPE', 'COMPOUND_SHAPE']:
+        for prop_tuple in obj_handle.ambf_collision_shape_prop_collection.items():
+            shape_prop_group = prop_tuple[1]
+            shape_prop_group.ambf_rigid_body_collision_shape_pointer.hide = not obj_handle.ambf_rigid_body_show_collision_shapes_per_object
 #
 ##
 
@@ -3455,7 +3455,7 @@ class AMBF_PT_ambf_rigid_body(bpy.types.Panel):
     
     bpy.types.Object.ambf_rigid_body_enable_collision_margin = bpy.props.BoolProperty(name="Collision Margin", default=False)
 
-    bpy.types.Object.ambf_rigid_body_show_collision_shapes_per_obj = bpy.props.BoolProperty(name="Show Collision Shapes", default=False, update=collision_shape_show_per_obj_update_cb)
+    bpy.types.Object.ambf_rigid_body_show_collision_shapes_per_object = bpy.props.BoolProperty(name="Show Collision Shapes", default=False, update=collision_shape_show_per_object_update_cb)
     
     bpy.types.Object.ambf_rigid_body_collision_margin = bpy.props.FloatProperty(name="Margin", default=0.001, min=-0.1, max=1.0)
     
@@ -3561,9 +3561,9 @@ class AMBF_PT_ambf_rigid_body(bpy.types.Panel):
     @classmethod
     def poll(self, context):
         active = False
-        active_object = get_active_object()
-        if active_object: # Check if an object is active
-            if active_object.type in ['EMPTY', 'MESH']:
+        active_obj_handle = get_active_object()
+        if active_obj_handle: # Check if an obj_handle is active
+            if active_obj_handle.type in ['EMPTY', 'MESH']:
                 active = True
                 
         return active
@@ -3601,7 +3601,7 @@ class AMBF_PT_ambf_rigid_body(bpy.types.Panel):
             row.enabled = not context.object.ambf_rigid_body_is_static
             col = row.column()
             col.scale_y = 1.5
-            col.operator("ambf.estimate_inertia_per_obj")
+            col.operator("ambf.estimate_inertia_per_object")
             col = col.column()
             col.scale_y = 1.5
             col.prop(context.object, 'ambf_rigid_body_specify_inertia', toggle=True)
@@ -3620,7 +3620,7 @@ class AMBF_PT_ambf_rigid_body(bpy.types.Panel):
             # Inertial Offsets
             box.separator()
             col = box.column()
-            col.operator("ambf.estimate_inertial_offset_per_obj")
+            col.operator("ambf.estimate_inertial_offset_per_object")
             
             col = box.column()
             col = col.split(percentage=0.5)
@@ -3641,7 +3641,7 @@ class AMBF_PT_ambf_rigid_body(bpy.types.Panel):
             if context.object.ambf_rigid_body_collision_type == 'SINGULAR_SHAPE':
                 
                 col = box.column()
-                col.operator('ambf.estimate_collision_shape_geometry_per_obj')
+                col.operator('ambf.estimate_collision_shape_geometry_per_object')
                 propgroup = context.object.ambf_collision_shape_prop_collection.items()[0][1]
                 self.draw_collision_shape_prop(context, propgroup, box)
                 
@@ -3671,7 +3671,7 @@ class AMBF_PT_ambf_rigid_body(bpy.types.Panel):
             row.prop(context.object, 'ambf_rigid_body_collision_groups', toggle=True)
 
             col = box.column()
-            col.prop(context.object, 'ambf_rigid_body_show_collision_shapes_per_obj', toggle=True)
+            col.prop(context.object, 'ambf_rigid_body_show_collision_shapes_per_object', toggle=True)
             col.scale_y = 1.5
             
             layout.separator()
@@ -3857,9 +3857,9 @@ class AMBF_PT_ambf_constraint(bpy.types.Panel):
     @classmethod
     def poll(self, context):
         active = False
-        active_object = get_active_object()
-        if active_object: # Check if an object is active
-            if active_object.type in ['EMPTY']:
+        active_obj_handle = get_active_object()
+        if active_obj_handle: # Check if an obj_handle is active
+            if active_obj_handle.type in ['EMPTY']:
                 active = True
                           
         return active
@@ -3876,7 +3876,7 @@ class AMBF_PT_ambf_constraint(bpy.types.Panel):
         if context.object.ambf_constraint_enable:
             layout.separator()
             col = layout.column()
-            col.operator('ambf.auto_rename_joint_per_obj')
+            col.operator('ambf.auto_rename_joint_per_object')
             
             col = layout.column()
             col.alignment = 'CENTER'
@@ -3891,15 +3891,15 @@ class AMBF_PT_ambf_constraint(bpy.types.Panel):
             col = layout.column()
             col.prop_search(context.object, "ambf_constraint_child", context.scene, "objects")
             
-            pobj = context.object.ambf_constraint_parent
-            cobj = context.object.ambf_constraint_child
+            pobj_handle = context.object.ambf_constraint_parent
+            cobj_handle = context.object.ambf_constraint_child
             
-            for pc_obj in [pobj, cobj]:
-                if pc_obj:
-                    if context.scene.objects.get(pc_obj.name) is None:
-                        # That means that the object has been deleted from the
+            for pc_obj_handle in [pobj_handle, cobj_handle]:
+                if pc_obj_handle:
+                    if context.scene.objects.get(pc_obj_handle.name) is None:
+                        # That means that the obj_handle has been deleted from the
                         # scene graph, therefore remove it explicitlyt
-                        bpy.data.objects.remove(pc_obj)
+                        bpy.data.objects.remove(pc_obj_handle)
             
             layout.separator()
             layout.separator()
@@ -3974,10 +3974,10 @@ custom_classes = (AMBF_OT_toggle_low_res_mesh_modifiers_visibility,
                   AMBF_OT_estimate_collision_shapes_geometry,
                   AMBF_OT_estimate_inertias,
                   AMBF_OT_auto_rename_joints,
-                  AMBF_OT_estimate_inertial_offset_per_obj,
-                  AMBF_OT_estimate_collision_shape_geometry_per_obj,
-                  AMBF_OT_estimate_inertia_per_obj,
-                  AMBF_OT_auto_rename_joint_per_obj,
+                  AMBF_OT_estimate_inertial_offset_per_object,
+                  AMBF_OT_estimate_collision_shape_geometry_per_object,
+                  AMBF_OT_estimate_inertia_per_object,
+                  AMBF_OT_auto_rename_joint_per_object,
                   AMBF_OT_ambf_rigid_body_activate,
                   AMBF_OT_ambf_constraint_activate,
                   AMBF_PT_create_adf,
