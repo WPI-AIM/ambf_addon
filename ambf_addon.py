@@ -1037,16 +1037,18 @@ class AMBF_OT_generate_ambf_file(bpy.types.Operator):
                 body_data['collision shape'] = shape_prop_group.ambf_rigid_body_collision_shape
                 bcg = OrderedDict()
                 dims = obj_handle.dimensions.copy()
-                od = [round(dims[0], 3), round(dims[1], 3), round(dims[2], 3)]
                 # Now we need to find out the geometry of the shape
                 if shape_prop_group.ambf_rigid_body_collision_shape == 'BOX':
-                    bcg = {'x': od[0], 'y': od[1], 'z': od[2]}
+                    bcg = get_xyz_ordered_dict()
+                    bcg['x'] = round(shape_prop_group.ambf_rigid_body_collision_shape_xyz_dims[0], 3)
+                    bcg['y'] = round(shape_prop_group.ambf_rigid_body_collision_shape_xyz_dims[1], 3)
+                    bcg['z'] = round(shape_prop_group.ambf_rigid_body_collision_shape_xyz_dims[2], 3)
                 elif shape_prop_group.ambf_rigid_body_collision_shape == 'SPHERE':
-                    bcg = {'radius': max(od)/2.0}
+                    bcg = {'radius': round(shape_prop_group.ambf_rigid_body_collision_shape_radius, 3)}
                 elif shape_prop_group.ambf_rigid_body_collision_shape in ['CONE', 'CYLINDER', 'CAPSULE']:
-                    major_ax_char, major_ax_idx = get_major_axis(od)
-                    median_ax_char, median_ax_idx = get_median_axis(od)
-                    bcg = {'radius': od[median_ax_idx]/2.0, 'height': od[major_ax_idx], 'axis': major_ax_char}
+                    bcg = {'radius': round(shape_prop_group.ambf_rigid_body_collision_shape_radius, 3),
+                           'height': round(shape_prop_group.ambf_rigid_body_collision_shape_height, 3),
+                           'axis': shape_prop_group.ambf_rigid_body_collision_shape_axis}
                 body_data['collision geometry'] = bcg
 
             if obj_handle.ambf_rigid_body_collision_type == 'COMPOUND_SHAPE':
@@ -1068,9 +1070,10 @@ class AMBF_OT_generate_ambf_file(bpy.types.Operator):
                     elif shape_prop_group.ambf_rigid_body_collision_shape == 'SPHERE':
                         bcg['geometry'] = {'radius': round(shape_prop_group.ambf_rigid_body_collision_shape_radius, 3)}
                     elif shape_prop_group.ambf_rigid_body_collision_shape in ['CONE', 'CYLINDER', 'CAPSULE']:
-                        geometry = dict({'radius': 0, 'height': 0})
+                        geometry = dict({'radius': 0, 'height': 0, 'axis': 'Z'})
                         geometry['radius'] = round(shape_prop_group.ambf_rigid_body_collision_shape_radius, 3)
                         geometry['height'] = round(shape_prop_group.ambf_rigid_body_collision_shape_height, 3)
+                        geometry['axis'] = shape_prop_group.ambf_rigid_body_collision_shape_axis
                         bcg['geometry'] = geometry
 
                     offset = get_pose_ordered_dict()
@@ -1088,10 +1091,12 @@ class AMBF_OT_generate_ambf_file(bpy.types.Operator):
 
             del body_data['inertia']
             body_data['mesh'] = obj_handle_name + get_extension(output_mesh)
-            body_d_pos = body_data['inertial offset']['position']
-            body_d_pos['x'] = round(obj_handle.ambf_rigid_body_linear_inertial_offset[0], 3)
-            body_d_pos['y'] = round(obj_handle.ambf_rigid_body_linear_inertial_offset[1], 3)
-            body_d_pos['z'] = round(obj_handle.ambf_rigid_body_linear_inertial_offset[2], 3)
+            xyz_inertial_off = get_xyz_ordered_dict()
+            xyz_inertial_off['x'] = round(obj_handle.ambf_rigid_body_linear_inertial_offset[0], 3)
+            xyz_inertial_off['y'] = round(obj_handle.ambf_rigid_body_linear_inertial_offset[1], 3)
+            xyz_inertial_off['z'] = round(obj_handle.ambf_rigid_body_linear_inertial_offset[2], 3)
+
+            body_data['inertial offset']['position'] = xyz_inertial_off
 
             if obj_handle.data.materials:
                 del body_data['color']
