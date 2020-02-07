@@ -986,6 +986,10 @@ class AMBF_OT_generate_ambf_file(bpy.types.Operator):
         if obj_handle.ambf_object_type != 'RIGID_BODY':
             return
 
+        # The object is unlinked from the scene. Don't write it
+        if self._context.scene.objects.get(obj_handle.name) is None:
+            return
+
         if obj_handle.hide is True:
             return
 
@@ -3006,9 +3010,6 @@ class AMBF_PT_create_adf(bpy.types.Panel):
             if o.ambf_object_type in ['RIGID_BODY', 'CONSTRAINT', 'COLLISION_SHAPE']:
                 if context.scene.objects.get(o.name) is None:
                     bpy.data.objects.remove(o)
-                if o.ambf_object_type == 'COLLISION_SHAPE':
-                    if o.parent is None:
-                        bpy.data.objects.remove(o)
 
         layout = self.layout
         
@@ -3908,16 +3909,17 @@ class AMBF_PT_ambf_constraint(bpy.types.Panel):
             
             col = layout.column()
             col.prop_search(context.object, "ambf_constraint_child", context.scene, "objects")
-            
-            pobj_handle = context.object.ambf_constraint_parent
-            cobj_handle = context.object.ambf_constraint_child
-            
-            for pc_obj_handle in [pobj_handle, cobj_handle]:
-                if pc_obj_handle:
-                    if context.scene.objects.get(pc_obj_handle.name) is None:
-                        # That means that the obj_handle has been deleted from the
-                        # scene graph, therefore remove it explicitlyt
-                        bpy.data.objects.remove(pc_obj_handle)
+
+            # If the parent or child have been deleted from the scene, they might still be
+            # present but unlinked. In that case, clear the corresponding parent or child handle
+            if context.object.ambf_constraint_parent:
+                if context.scene.objects.get(context.object.ambf_constraint_parent.name) is None:
+                    context.object.ambf_constraint_parent = None
+
+            if context.object.ambf_constraint_child:
+                if context.scene.objects.get(context.object.ambf_constraint_child.name) is None:
+                    context.object.ambf_constraint_child = None
+
             
             layout.separator()
             layout.separator()
