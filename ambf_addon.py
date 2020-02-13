@@ -18,6 +18,7 @@ import bpy
 import math
 import yaml
 import os
+import sys
 from pathlib import Path
 import mathutils
 from enum import Enum
@@ -79,7 +80,7 @@ def vec_norm(v):
 
 def round_vec(v):
     for i in range(0, 3):
-        v[i] = round(v[i], 3)
+        v[i] = round(v[i], 4)
     return v
 
 
@@ -598,9 +599,9 @@ def collision_shape_update_dimensions(shape_prop):
     ly = shape_prop.ambf_rigid_body_collision_shape_xyz_dims[1]
     lz = shape_prop.ambf_rigid_body_collision_shape_xyz_dims[2]
     
-    lx = round(lx, 3)
-    ly = round(ly, 3)
-    lz = round(lz, 3)
+    lx = round(lx, 4)
+    ly = round(ly, 4)
+    lz = round(lz, 4)
 
     dim_old = coll_shape_obj_handle.dimensions.copy()
     scale_old = coll_shape_obj_handle.scale.copy()
@@ -681,11 +682,11 @@ def collision_shape_create_visual(obj_handle, shape_prop_group):
             if shape_prop_group.ambf_rigid_body_collision_shape_axis == 'X':
                 dir_axis = 0
                 rot_axis = mathutils.Vector((0, 1, 0))  # Choose y axis for rot
-                rot_angle = 1.57079
+                rot_angle = pi/2
             elif shape_prop_group.ambf_rigid_body_collision_shape_axis == 'Y':
                 dir_axis = 1
                 rot_axis = mathutils.Vector((1, 0, 0))  # Choose y axis for rot
-                rot_angle = -1.57079
+                rot_angle = -pi/2
             else:
                 dir_axis = 2
                 rot_axis = mathutils.Vector((0, 0, 1))
@@ -845,12 +846,12 @@ class AMBF_OT_generate_ambf_file(bpy.types.Operator):
         world_rot = obj_handle.matrix_world.to_euler()
         body_pos = body_data['location']['position']
         body_rot = body_data['location']['orientation']
-        body_pos['x'] = round(world_pos.x, 3)
-        body_pos['y'] = round(world_pos.y, 3)
-        body_pos['z'] = round(world_pos.z, 3)
-        body_rot['r'] = round(world_rot[0], 3)
-        body_rot['p'] = round(world_rot[1], 3)
-        body_rot['y'] = round(world_rot[2], 3)
+        body_pos['x'] = round(world_pos.x, 4)
+        body_pos['y'] = round(world_pos.y, 4)
+        body_pos['z'] = round(world_pos.z, 4)
+        body_rot['r'] = round(world_rot[0], 4)
+        body_rot['p'] = round(world_rot[1], 4)
+        body_rot['y'] = round(world_rot[2], 4)
         if obj_handle.type == 'EMPTY':
             # Check for a special case for defining joints for parallel linkages
             _is_detached_joint = False
@@ -878,20 +879,20 @@ class AMBF_OT_generate_ambf_file(bpy.types.Operator):
                 if obj_handle.rigid_body.type == 'PASSIVE':
                     body_data['mass'] = 0.0
                 else:
-                    body_data['mass'] = round(obj_handle.rigid_body.mass, 3)
+                    body_data['mass'] = round(obj_handle.rigid_body.mass, 4)
                 body_data['friction'] = {'rolling': 0.01, 'static': 0.5}
                 body_data['damping'] = {'linear': 0.1, 'angular': 0.1}
                 body_data['restitution'] = round(obj_handle.rigid_body.restitution)
 
-                body_data['friction']['static'] = round(obj_handle.rigid_body.friction, 3)
-                body_data['damping']['linear'] = round(obj_handle.rigid_body.linear_damping, 3)
-                body_data['damping']['angular'] = round(obj_handle.rigid_body.angular_damping, 3)
+                body_data['friction']['static'] = round(obj_handle.rigid_body.friction, 4)
+                body_data['damping']['linear'] = round(obj_handle.rigid_body.linear_damping, 4)
+                body_data['damping']['angular'] = round(obj_handle.rigid_body.angular_damping, 4)
 
                 body_data['collision groups'] = [idx for idx, chk in
                                                  enumerate(obj_handle.rigid_body.collision_groups) if chk == True]
 
                 if obj_handle.rigid_body.use_margin is True:
-                    body_data['collision margin'] = round(obj_handle.rigid_body.collision_margin, 3)
+                    body_data['collision margin'] = round(obj_handle.rigid_body.collision_margin, 4)
 
                 # Now lets load the loaded data if any from loaded AMBF File
                 _body_col_geo_already_defined = False
@@ -911,7 +912,7 @@ class AMBF_OT_generate_ambf_file(bpy.types.Operator):
                         body_data['collision shape'] = ocs
                         bcg = OrderedDict()
                         dims = obj_handle.dimensions.copy()
-                        od = [round(dims[0], 3), round(dims[1], 3), round(dims[2], 3)]
+                        od = [round(dims[0], 4), round(dims[1], 4), round(dims[2], 4)]
                         # Now we need to find out the geometry of the shape
                         if ocs == 'BOX':
                             bcg = {'x': od[0], 'y': od[1], 'z': od[2]}
@@ -936,9 +937,9 @@ class AMBF_OT_generate_ambf_file(bpy.types.Operator):
             body_data['mesh'] = obj_handle_name + get_extension(output_mesh)
             body_com = compute_local_com(obj_handle)
             body_d_pos = body_data['inertial offset']['position']
-            body_d_pos['x'] = round(body_com[0], 3)
-            body_d_pos['y'] = round(body_com[1], 3)
-            body_d_pos['z'] = round(body_com[2], 3)
+            body_d_pos['x'] = round(body_com[0], 4)
+            body_d_pos['y'] = round(body_com[1], 4)
+            body_d_pos['z'] = round(body_com[2], 4)
 
             if obj_handle.data.materials:
                 del body_data['color']
@@ -1014,12 +1015,12 @@ class AMBF_OT_generate_ambf_file(bpy.types.Operator):
         world_rot = obj_handle.matrix_world.to_euler()
         body_pos = body_data['location']['position']
         body_rot = body_data['location']['orientation']
-        body_pos['x'] = round(world_pos.x, 3)
-        body_pos['y'] = round(world_pos.y, 3)
-        body_pos['z'] = round(world_pos.z, 3)
-        body_rot['r'] = round(world_rot[0], 3)
-        body_rot['p'] = round(world_rot[1], 3)
-        body_rot['y'] = round(world_rot[2], 3)
+        body_pos['x'] = round(world_pos.x, 4)
+        body_pos['y'] = round(world_pos.y, 4)
+        body_pos['z'] = round(world_pos.z, 4)
+        body_rot['r'] = round(world_rot[0], 4)
+        body_rot['p'] = round(world_rot[1], 4)
+        body_rot['y'] = round(world_rot[2], 4)
 
         if obj_handle.type == 'EMPTY':
             body_data['mesh'] = ''
@@ -1034,7 +1035,7 @@ class AMBF_OT_generate_ambf_file(bpy.types.Operator):
             if obj_handle.ambf_rigid_body_is_static:
                 body_data['mass'] = 0.0
             else:
-                body_data['mass'] = round(obj_handle.ambf_rigid_body_mass, 3)
+                body_data['mass'] = round(obj_handle.ambf_rigid_body_mass, 4)
 
             body_data['friction'] = {'static': round(obj_handle.ambf_rigid_body_static_friction, 4),
                                      'rolling': round(obj_handle.ambf_rigid_body_rolling_friction, 4)}
@@ -1057,14 +1058,14 @@ class AMBF_OT_generate_ambf_file(bpy.types.Operator):
                 # Now we need to find out the geometry of the shape
                 if shape_prop_group.ambf_rigid_body_collision_shape == 'BOX':
                     bcg = get_xyz_ordered_dict()
-                    bcg['x'] = round(shape_prop_group.ambf_rigid_body_collision_shape_xyz_dims[0], 3)
-                    bcg['y'] = round(shape_prop_group.ambf_rigid_body_collision_shape_xyz_dims[1], 3)
-                    bcg['z'] = round(shape_prop_group.ambf_rigid_body_collision_shape_xyz_dims[2], 3)
+                    bcg['x'] = round(shape_prop_group.ambf_rigid_body_collision_shape_xyz_dims[0], 4)
+                    bcg['y'] = round(shape_prop_group.ambf_rigid_body_collision_shape_xyz_dims[1], 4)
+                    bcg['z'] = round(shape_prop_group.ambf_rigid_body_collision_shape_xyz_dims[2], 4)
                 elif shape_prop_group.ambf_rigid_body_collision_shape == 'SPHERE':
-                    bcg = {'radius': round(shape_prop_group.ambf_rigid_body_collision_shape_radius, 3)}
+                    bcg = {'radius': round(shape_prop_group.ambf_rigid_body_collision_shape_radius, 4)}
                 elif shape_prop_group.ambf_rigid_body_collision_shape in ['CONE', 'CYLINDER', 'CAPSULE']:
-                    bcg = {'radius': round(shape_prop_group.ambf_rigid_body_collision_shape_radius, 3),
-                           'height': round(shape_prop_group.ambf_rigid_body_collision_shape_height, 3),
+                    bcg = {'radius': round(shape_prop_group.ambf_rigid_body_collision_shape_radius, 4),
+                           'height': round(shape_prop_group.ambf_rigid_body_collision_shape_height, 4),
                            'axis': shape_prop_group.ambf_rigid_body_collision_shape_axis}
                 body_data['collision geometry'] = bcg
 
@@ -1081,15 +1082,15 @@ class AMBF_OT_generate_ambf_file(bpy.types.Operator):
                     bcg['geometry'] = OrderedDict()
                     # Now we need to find out the geometry of the shape
                     if shape_prop_group.ambf_rigid_body_collision_shape == 'BOX':
-                        bcg['geometry'] = {'x': round(shape_prop_group.ambf_rigid_body_collision_shape_xyz_dims[0], 3),
-                                           'y': round(shape_prop_group.ambf_rigid_body_collision_shape_xyz_dims[1], 3),
-                                           'z': round(shape_prop_group.ambf_rigid_body_collision_shape_xyz_dims[2], 3)}
+                        bcg['geometry'] = {'x': round(shape_prop_group.ambf_rigid_body_collision_shape_xyz_dims[0], 4),
+                                           'y': round(shape_prop_group.ambf_rigid_body_collision_shape_xyz_dims[1], 4),
+                                           'z': round(shape_prop_group.ambf_rigid_body_collision_shape_xyz_dims[2], 4)}
                     elif shape_prop_group.ambf_rigid_body_collision_shape == 'SPHERE':
-                        bcg['geometry'] = {'radius': round(shape_prop_group.ambf_rigid_body_collision_shape_radius, 3)}
+                        bcg['geometry'] = {'radius': round(shape_prop_group.ambf_rigid_body_collision_shape_radius, 4)}
                     elif shape_prop_group.ambf_rigid_body_collision_shape in ['CONE', 'CYLINDER', 'CAPSULE']:
                         geometry = dict({'radius': 0, 'height': 0, 'axis': 'Z'})
-                        geometry['radius'] = round(shape_prop_group.ambf_rigid_body_collision_shape_radius, 3)
-                        geometry['height'] = round(shape_prop_group.ambf_rigid_body_collision_shape_height, 3)
+                        geometry['radius'] = round(shape_prop_group.ambf_rigid_body_collision_shape_radius, 4)
+                        geometry['height'] = round(shape_prop_group.ambf_rigid_body_collision_shape_height, 4)
                         geometry['axis'] = shape_prop_group.ambf_rigid_body_collision_shape_axis
                         bcg['geometry'] = geometry
 
@@ -1109,9 +1110,9 @@ class AMBF_OT_generate_ambf_file(bpy.types.Operator):
             del body_data['inertia']
             body_data['mesh'] = obj_handle_name + get_extension(output_mesh)
             xyz_inertial_off = get_xyz_ordered_dict()
-            xyz_inertial_off['x'] = round(obj_handle.ambf_rigid_body_linear_inertial_offset[0], 3)
-            xyz_inertial_off['y'] = round(obj_handle.ambf_rigid_body_linear_inertial_offset[1], 3)
-            xyz_inertial_off['z'] = round(obj_handle.ambf_rigid_body_linear_inertial_offset[2], 3)
+            xyz_inertial_off['x'] = round(obj_handle.ambf_rigid_body_linear_inertial_offset[0], 4)
+            xyz_inertial_off['y'] = round(obj_handle.ambf_rigid_body_linear_inertial_offset[1], 4)
+            xyz_inertial_off['z'] = round(obj_handle.ambf_rigid_body_linear_inertial_offset[2], 4)
 
             body_data['inertial offset']['position'] = xyz_inertial_off
 
@@ -1230,20 +1231,20 @@ class AMBF_OT_generate_ambf_file(bpy.types.Operator):
 
                     parent_pivot_data = joint_data["parent pivot"]
                     parent_axis_data = joint_data["parent axis"]
-                    parent_pivot_data['x'] = round(parent_pivot.x, 3)
-                    parent_pivot_data['y'] = round(parent_pivot.y, 3)
-                    parent_pivot_data['z'] = round(parent_pivot.z, 3)
-                    parent_axis_data['x'] = round(parent_axis.x, 3)
-                    parent_axis_data['y'] = round(parent_axis.y, 3)
-                    parent_axis_data['z'] = round(parent_axis.z, 3)
+                    parent_pivot_data['x'] = round(parent_pivot.x, 4)
+                    parent_pivot_data['y'] = round(parent_pivot.y, 4)
+                    parent_pivot_data['z'] = round(parent_pivot.z, 4)
+                    parent_axis_data['x'] = round(parent_axis.x, 4)
+                    parent_axis_data['y'] = round(parent_axis.y, 4)
+                    parent_axis_data['z'] = round(parent_axis.z, 4)
                     child_pivot_data = joint_data["child pivot"]
                     child_axis_data = joint_data["child axis"]
-                    child_pivot_data['x'] = round(child_pivot.x, 3)
-                    child_pivot_data['y'] = round(child_pivot.y, 3)
-                    child_pivot_data['z'] = round(child_pivot.z, 3)
-                    child_axis_data['x'] = round(child_axis.x, 3)
-                    child_axis_data['y'] = round(child_axis.y, 3)
-                    child_axis_data['z'] = round(child_axis.z, 3)
+                    child_pivot_data['x'] = round(child_pivot.x, 4)
+                    child_pivot_data['y'] = round(child_pivot.y, 4)
+                    child_pivot_data['z'] = round(child_pivot.z, 4)
+                    child_axis_data['x'] = round(child_axis.x, 4)
+                    child_axis_data['y'] = round(child_axis.y, 4)
+                    child_axis_data['z'] = round(child_axis.z, 4)
 
                     # This method assigns joint limits, joint_type, joint damping and stiffness for spring joints
                     self.assign_joint_params_from_blender_constraint(constraint, joint_data)
@@ -1273,7 +1274,7 @@ class AMBF_OT_generate_ambf_file(bpy.types.Operator):
                         # print '\t', joint.axis
                         # print 'Offset Axis'
                         # print '\t', offset_axis_angle[1]
-                        offset_angle = round(offset_axis_angle[1], 3)
+                        offset_angle = round(offset_axis_angle[1], 4)
                         # offset_angle = round(offset_angle, 3)
                         # print 'Offset Angle: \t', offset_angle
                         # print('OFFSET ANGLE', offset_axis_angle[1])
@@ -1288,7 +1289,7 @@ class AMBF_OT_generate_ambf_file(bpy.types.Operator):
                             joint_data['offset'] = -offset_angle
                             # print ': OPPOSITE DIRECTION'
                         else:
-                            print('ERROR: SHOULD\'NT GET HERE')
+                            print('ERROR: (', sys._getframe().f_code.co_name, ') (', joint_data['name'], ') SHOULD\'NT GET HERE')
 
                     joint_yaml_name = self.add_joint_prefix_str(joint_data['name'])
                     ambf_yaml[joint_yaml_name] = joint_data
@@ -1367,21 +1368,21 @@ class AMBF_OT_generate_ambf_file(bpy.types.Operator):
 
         parent_pivot_data = joint_data["parent pivot"]
         parent_axis_data = joint_data["parent axis"]
-        parent_pivot_data['x'] = round(parent_pivot.x, 3)
-        parent_pivot_data['y'] = round(parent_pivot.y, 3)
-        parent_pivot_data['z'] = round(parent_pivot.z, 3)
-        parent_axis_data['x'] = round(parent_axis.x, 3)
-        parent_axis_data['y'] = round(parent_axis.y, 3)
-        parent_axis_data['z'] = round(parent_axis.z, 3)
+        parent_pivot_data['x'] = round(parent_pivot.x, 4)
+        parent_pivot_data['y'] = round(parent_pivot.y, 4)
+        parent_pivot_data['z'] = round(parent_pivot.z, 4)
+        parent_axis_data['x'] = round(parent_axis.x, 4)
+        parent_axis_data['y'] = round(parent_axis.y, 4)
+        parent_axis_data['z'] = round(parent_axis.z, 4)
 
         child_pivot_data = joint_data["child pivot"]
         child_axis_data = joint_data["child axis"]
-        child_pivot_data['x'] = round(child_pivot.x, 3)
-        child_pivot_data['y'] = round(child_pivot.y, 3)
-        child_pivot_data['z'] = round(child_pivot.z, 3)
-        child_axis_data['x'] = round(child_axis.x, 3)
-        child_axis_data['y'] = round(child_axis.y, 3)
-        child_axis_data['z'] = round(child_axis.z, 3)
+        child_pivot_data['x'] = round(child_pivot.x, 4)
+        child_pivot_data['y'] = round(child_pivot.y, 4)
+        child_pivot_data['z'] = round(child_pivot.z, 4)
+        child_axis_data['x'] = round(child_axis.x, 4)
+        child_axis_data['y'] = round(child_axis.y, 4)
+        child_axis_data['z'] = round(child_axis.z, 4)
 
         # This method assigns joint limits, joint_type, joint damping and stiffness for spring joints
         self.assign_joint_params_from_ambf_constraint(joint_obj_handle, joint_data)
@@ -1401,7 +1402,7 @@ class AMBF_OT_generate_ambf_file(bpy.types.Operator):
         offset_axis_angle = r_angular_offset.to_quaternion().to_axis_angle()
 
         if abs(offset_axis_angle[1]) > 0.01:
-            offset_angle = round(offset_axis_angle[1], 3)
+            offset_angle = round(offset_axis_angle[1], 4)
 
             if abs(1.0 - child_axis.dot(offset_axis_angle[0])) < 0.1:
                 joint_data['offset'] = offset_angle
@@ -1410,7 +1411,7 @@ class AMBF_OT_generate_ambf_file(bpy.types.Operator):
                 joint_data['offset'] = -offset_angle
                 # print ': OPPOSITE DIRECTION'
             else:
-                print('ERROR: SHOULD\'NT GET HERE')
+                print('ERROR: (', sys._getframe().f_code.co_name, ') (', joint_data['name'], ') SHOULD\'NT GET HERE')
 
         joint_yaml_name = self.add_joint_prefix_str(joint_data['name'])
         ambf_yaml[joint_yaml_name] = joint_data
@@ -1582,8 +1583,8 @@ class AMBF_OT_generate_ambf_file(bpy.types.Operator):
 
         else:
             joint_limit_data = joint_data["joint limits"]
-            joint_limit_data['low'] = round(lower_limit, 3)
-            joint_limit_data['high'] = round(higher_limit, 3)
+            joint_limit_data['low'] = round(lower_limit, 4)
+            joint_limit_data['high'] = round(higher_limit, 4)
 
     # Assign the joint parameters that include joint limits, type, damping and joint stiffness for spring joints
     def assign_joint_params_from_ambf_constraint(self, joint_obj_handle, joint_data):
@@ -2117,7 +2118,7 @@ class AMBF_OT_load_ambf_file(bpy.types.Operator):
                 # Kind of a hack, blender is spawning the collada file
                 # a 90 deg offset along the axis axis, this is to correct that
                 # Maybe this will not be needed in future versions of blender
-                r_x = mathutils.Matrix.Rotation(-1.57, 4, 'X')
+                r_x = mathutils.Matrix.Rotation(-pi/2, 4, 'X')
                 obj_handle.data.transform(r_x)
             else:
                 set_active_object(so[0])
