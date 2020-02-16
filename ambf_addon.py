@@ -1764,6 +1764,9 @@ class AMBF_OT_save_meshes(bpy.types.Operator):
         mesh_name_mat_list = self.set_all_meshes_to_origin()
         for obj_handle in bpy.data.objects:
             # Mesh Type is .stl
+            if not obj_handle.ambf_object_type == 'RIGID_BODY':
+                # Only Save Meshes if the object type is ambf rigid body
+                continue
             select_object(obj_handle)
 
             obj_handle_name = remove_namespace_prefix(obj_handle.name)
