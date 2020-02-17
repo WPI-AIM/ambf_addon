@@ -1357,7 +1357,7 @@ class AMBF_OT_generate_ambf_file(bpy.types.Operator):
 
         joint_data['parent'] = self.add_body_prefix_str(parent_obj_handle_name)
         joint_data['child'] = self.add_body_prefix_str(child_obj_handle_name)
-        constraint_axis = self.get_default_axis_of_ambf_constraint(joint_obj_handle)
+        constraint_axis = self.get_axis_of_ambf_constraint(joint_obj_handle)
         parent_pivot, parent_axis = self.compute_body_pivot_and_axis(
             parent_obj_handle, joint_obj_handle, constraint_axis)
         child_pivot, child_axis = self.compute_body_pivot_and_axis(
@@ -1434,11 +1434,16 @@ class AMBF_OT_generate_ambf_file(bpy.types.Operator):
         return joint_axis
 
     # Get the joints axis as a vector
-    def get_default_axis_of_ambf_constraint(self, joint_obj_handle):
-        if joint_obj_handle.ambf_constraint_type in ['REVOLUTE', 'TORSION_SPRING', 'P2P', 'FIXED']:
-            joint_axis = mathutils.Vector([0, 0, 1])
-        elif joint_obj_handle.ambf_constraint_type in ['PRISMATIC', 'LINEAR_SPRING']:
+    def get_axis_of_ambf_constraint(self, joint_obj_handle):
+        if joint_obj_handle.ambf_constraint_axis == 'X':
             joint_axis = mathutils.Vector([1, 0, 0])
+        elif joint_obj_handle.ambf_constraint_axis == 'Y':
+            joint_axis = mathutils.Vector([0, 1, 0])
+        elif joint_obj_handle.ambf_constraint_axis == 'Z':
+            joint_axis = mathutils.Vector([0, 0, 1])
+        else:
+            print("ERROR! JOINT AXES NOT UNDERSTOOD")
+
         return joint_axis
 
     # Since changing the scale of the bodies directly impacts the rotation matrix, we have
