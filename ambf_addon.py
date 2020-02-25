@@ -2875,7 +2875,13 @@ class AMBF_OT_load_ambf_file(bpy.types.Operator):
         self._yaml_filepath = str(bpy.path.abspath(context.scene['external_ambf_yaml_filepath']))
         print(self._yaml_filepath)
         yaml_file = open(self._yaml_filepath)
-        self._ambf_data = yaml.load(yaml_file, Loader=yaml.FullLoader)
+        
+        # Check YAML version
+        ver = float(yaml.__version__)
+        if ver > 5.0:
+            self._ambf_data = yaml.load(yaml_file, Loader=yaml.FullLoader)
+        else:
+            self._ambf_data = yaml.load(yaml_file)
         self._context = context
 
         bodies_list = self._ambf_data['bodies']
