@@ -1918,7 +1918,7 @@ class AMBF_OT_estimate_inertial_offsets(bpy.types.Operator):
 
     def execute(self, context):
         for obj_handle in bpy.data.objects:
-            if obj_handle.ambf_object_type == 'RIGID_BODY':
+            if obj_handle.ambf_object_type == 'RIGID_BODY' and obj_handle.type == 'MESH':
                 local_com = compute_local_com(obj_handle)
                 obj_handle.ambf_rigid_body_linear_inertial_offset[0] = local_com[0]
                 obj_handle.ambf_rigid_body_linear_inertial_offset[1] = local_com[1]
@@ -1978,7 +1978,7 @@ class AMBF_OT_estimate_inertial_offset_per_object(bpy.types.Operator):
 
     def execute(self, context):
         obj_handle = context.object
-        if obj_handle.ambf_object_type == 'RIGID_BODY':
+        if obj_handle.ambf_object_type == 'RIGID_BODY' and obj_handle.type == 'MESH':
             local_com = compute_local_com(obj_handle)
             obj_handle.ambf_rigid_body_linear_inertial_offset[0] = local_com[0]
             obj_handle.ambf_rigid_body_linear_inertial_offset[1] = local_com[1]
@@ -2226,7 +2226,7 @@ class AMBF_OT_load_ambf_file(bpy.types.Operator):
 
     def load_ambf_rigid_body(self, body_data, obj_handle):
 
-        if obj_handle.type == 'MESH':
+        if obj_handle.type in ['EMPTY', 'MESH']:
             obj_handle.ambf_rigid_body_enable = True
             obj_handle.ambf_rigid_body_mass = body_data['mass']
             obj_handle.ambf_object_type = 'RIGID_BODY'
