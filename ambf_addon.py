@@ -833,7 +833,7 @@ class AMBF_OT_generate_ambf_file(bpy.types.Operator):
         obj_handle_name = remove_namespace_prefix(obj_handle.name)
 
         body_yaml_name = self.add_body_prefix_str(obj_handle_name)
-        output_mesh = bpy.context.scene['mesh_output_type']
+        output_mesh = bpy.context.scene.mesh_output_type
         body_data['name'] = obj_handle_name
         # If the obj_handle is root body of a Multi-Body and has children
         # then we should enable the publishing of its joint names
@@ -1004,7 +1004,7 @@ class AMBF_OT_generate_ambf_file(bpy.types.Operator):
         obj_handle_name = remove_namespace_prefix(obj_handle.name)
 
         body_yaml_name = self.add_body_prefix_str(obj_handle_name)
-        output_mesh = bpy.context.scene['mesh_output_type']
+        output_mesh = bpy.context.scene.mesh_output_type
         body_data['name'] = obj_handle_name
 
         body_data['publish children names'] = obj_handle.ambf_rigid_body_publish_children_names
@@ -1108,7 +1108,7 @@ class AMBF_OT_generate_ambf_file(bpy.types.Operator):
                 body_data['compound collision shape'] = compound_shape
 
             del body_data['inertia']
-            body_data['mesh'] = obj_handle_name + get_extension(output_mesh)
+            body_data['mesh'] = obj_handle_name + '.' + output_mesh
             xyz_inertial_off = get_xyz_ordered_dict()
             xyz_inertial_off['x'] = round(obj_handle.ambf_rigid_body_linear_inertial_offset[0], 4)
             xyz_inertial_off['y'] = round(obj_handle.ambf_rigid_body_linear_inertial_offset[1], 4)
@@ -1764,7 +1764,7 @@ class AMBF_OT_save_meshes(bpy.types.Operator):
         low_res_path = os.path.join(save_path, 'low_res/')
         os.makedirs(high_res_path, exist_ok=True)
         os.makedirs(low_res_path, exist_ok=True)
-        mesh_type = bpy.context.scene['mesh_output_type']
+        mesh_type = bpy.context.scene.mesh_output_type
 
         mesh_name_mat_list = self.set_all_meshes_to_origin()
         for obj_handle in bpy.data.objects:
@@ -1787,22 +1787,23 @@ class AMBF_OT_save_meshes(bpy.types.Operator):
                 for mat in obj_handle.data.materials:
                     for tex_slot in mat.texture_slots:
                         if tex_slot:
-                            im = tex_slot.texture.image
-                            _existing_path = im.filepath_raw
-                            _dir = os.path.dirname(_existing_path)
-                            _filename = os.path.basename(_existing_path)
-                            _filename_wo_ext = _filename.split('.')[0]
-                            _save_as = os.path.join(high_res_path, _filename_wo_ext + '.png')
-                            im.filepath_raw = _save_as
-                            im.save_render(_save_as)
+                            if hasattr(tex_slot.texture, 'image'):
+                                im = tex_slot.texture.image
+                                _existing_path = im.filepath_raw
+                                _dir = os.path.dirname(_existing_path)
+                                _filename = os.path.basename(_existing_path)
+                                _filename_wo_ext = _filename.split('.')[0]
+                                _save_as = os.path.join(high_res_path, _filename_wo_ext + '.png')
+                                im.filepath_raw = _save_as
+                                im.save_render(_save_as)
 
-                if mesh_type == MeshType.meshSTL.value:
+                if mesh_type == 'STL':
                     obj_name = obj_handle_name + '.STL'
                     filename_high_res = os.path.join(high_res_path, obj_name)
                     filename_low_res = os.path.join(low_res_path, obj_name)
                     bpy.ops.export_mesh.stl(filepath=filename_high_res, use_selection=True, use_mesh_modifiers=False)
                     bpy.ops.export_mesh.stl(filepath=filename_low_res, use_selection=True, use_mesh_modifiers=True)
-                elif mesh_type == MeshType.meshOBJ.value:
+                elif mesh_type == 'OBJ':
                     obj_name = obj_handle_name + '.OBJ'
                     filename_high_res = os.path.join(high_res_path, obj_name)
                     filename_low_res = os.path.join(low_res_path, obj_name)
@@ -1810,7 +1811,7 @@ class AMBF_OT_save_meshes(bpy.types.Operator):
                                              use_selection=True, use_mesh_modifiers=False)
                     bpy.ops.export_scene.obj(filepath=filename_low_res, axis_up='Z', axis_forward='Y',
                                              use_selection=True, use_mesh_modifiers=True)
-                elif mesh_type == MeshType.mesh3DS.value:
+                elif mesh_type == '3DS':
                     obj_name = obj_handle_name + '.3DS'
                     filename_high_res = os.path.join(high_res_path, obj_name)
                     filename_low_res = os.path.join(low_res_path, obj_name)
@@ -1823,7 +1824,7 @@ class AMBF_OT_save_meshes(bpy.types.Operator):
                     for mod in obj_handle.modifiers:
                         mod.show_viewport = True
                     bpy.ops.export_scene.autodesk_3ds(filepath=filename_high_res, use_selection=True)
-                elif mesh_type == MeshType.meshPLY.value:
+                elif mesh_type == 'PLY':
                     # .PLY export has a bug in which it only saves the mesh that is
                     # active in context of view. Hence we explicitly select this object
                     # as active in the scene on top of being selected
@@ -1835,6 +1836,8 @@ class AMBF_OT_save_meshes(bpy.types.Operator):
                     bpy.ops.export_mesh.ply(filepath=filename_low_res, use_mesh_modifiers=True)
                     # Make sure to deselect the mesh
                     set_active_object(None)
+                else:
+                    raise Exception('Mesh Format Not Specified/Understood')
 
             select_object(obj_handle, False)
         self.reset_meshes_to_original_position(mesh_name_mat_list)
@@ -2960,8 +2963,6 @@ class AMBF_PT_create_adf(bpy.types.Panel):
             name="Mesh Type",
             default='STL'
         )
-
-    bpy.context.scene['mesh_output_type'] = 0
 
     bpy.types.Scene.mesh_max_vertices = bpy.props.IntProperty \
         (
