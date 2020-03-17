@@ -6,7 +6,7 @@ bl_info = {
     "name": "Asynchronous Multi-Body Framework (AMBF) Config Creator",
     "author": "Adnan Munawar",
     "version": (0, 1),
-    "blender": (2, 79, 0),
+    "blender": (2, 8, 0),
     "location": "View3D > Add > Mesh > AMBF",
     "description": "Helps Generate AMBF Config File and Saves both High and Low Resolution(Collision) Meshes",
     "warning": "",
@@ -105,7 +105,7 @@ def rot_matrix_from_vecs(v1, v2):
             out = out.Rotation(rot_angle, 3, axis)
     else:
         skew_v = skew_mat(vcross)
-        out = mathutils.Matrix.Identity(3) + skew_v + skew_v * skew_v * ((1 - vdot) / (vec_norm(vcross) ** 2))
+        out = mathutils.Matrix.Identity(3) + skew_v + skew_v @ skew_v * ((1 - vdot) / (vec_norm(vcross) ** 2))
     return out
 
 
@@ -152,8 +152,7 @@ class CommonConfig:
     loaded_joint_map = {}
     collision_shape_material = None
     collision_shape_material_name = 'collision_shape_material'
-    collision_shape_material_color = mathutils.Vector((0.8, 0.775, 0.0)) # Pick a random color
-    collision_shape_material_transparency = 0.4 # Pick a random transparency
+    collision_shape_material_color = mathutils.Vector((0.8, 0.775, 0.0, 0.4)) # Pick a random color
 
 
 def update_global_namespace(context):
@@ -279,7 +278,7 @@ def prepend_comment_to_file(filename, comment):
 
 
 def select_object(obj_handle, select=True):
-    obj_handle.select = select
+    obj_handle.select_set(select)
 
 
 def select_all_objects(select):
@@ -294,7 +293,8 @@ def get_active_object():
 
 
 def set_active_object(active_object):
-    bpy.context.scene.objects.active = active_object
+#    bpy.context.scene.objects.active = active_object
+    bpy.context.view_layer.objects.active = active_object
 
 
 def make_obj1_parent_of_obj2(obj1, obj2):
@@ -653,7 +653,7 @@ def collision_shape_update_local_offset(obj_handle, shape_prop):
     T_c_inertial.translation.y = shape_prop.ambf_rigid_body_linear_shape_offset[1]
     T_c_inertial.translation.z = shape_prop.ambf_rigid_body_linear_shape_offset[2]
 
-    coll_shape_obj_handle.matrix_world = T_p_w * T_inertial_p * T_c_inertial
+    coll_shape_obj_handle.matrix_world = T_p_w @ T_inertial_p @ T_c_inertial
     coll_shape_obj_handle.scale = scale_old
 
 
@@ -669,7 +669,7 @@ def collision_shape_create_visual(obj_handle, shape_prop_group):
         lz = shape_prop_group.ambf_rigid_body_collision_shape_xyz_dims[2]
             
         if shape_prop_group.ambf_rigid_body_collision_shape == 'BOX':
-            bpy.ops.mesh.primitive_cube_add(radius=0.5)
+            bpy.ops.mesh.primitive_cube_add(size=0.5)
             coll_shape_obj_handle = get_active_object()
             coll_shape_obj_handle.scale[0] = lx
             coll_shape_obj_handle.scale[1] = ly
@@ -703,7 +703,7 @@ def collision_shape_create_visual(obj_handle, shape_prop_group):
             elif shape_prop_group.ambf_rigid_body_collision_shape == 'CAPSULE':
                 # There is no primitive for capsule in Blender, so we
                 # have to use a workaround using the sphere
-                bpy.ops.mesh.primitive_uv_sphere_add(rotation=rpy_rot, size=radius)
+                bpy.ops.mesh.primitive_uv_sphere_add(rotation=rpy_rot, radius=radius)
                 coll_shape_obj_handle = get_active_object()
                 coll_shape_obj_handle.scale[dir_axis] = height
 
@@ -727,14 +727,12 @@ def collision_shape_create_visual(obj_handle, shape_prop_group):
                 CommonConfig.collision_shape_material = bpy.data.materials[CommonConfig.collision_shape_material_name]
 
             CommonConfig.collision_shape_material.diffuse_color = CommonConfig.collision_shape_material_color
-            CommonConfig.collision_shape_material.use_transparency = True
-            CommonConfig.collision_shape_material.alpha = CommonConfig.collision_shape_material_transparency
 
         # coll_shape_obj_handle.draw_type = 'WIRE'
         coll_shape_obj_handle.hide_select = True
         coll_shape_obj_handle.show_transparent = True
         coll_shape_obj_handle.data.materials.append(CommonConfig.collision_shape_material)
-        coll_shape_obj_handle.hide = not obj_handle.ambf_rigid_body_show_collision_shapes_per_object
+        coll_shape_obj_handle.hide_set(not obj_handle.ambf_rigid_body_show_collision_shapes_per_object)
 
         set_active_object(cur_active_obj_handle)
 
@@ -991,7 +989,7 @@ class AMBF_OT_generate_ambf_file(bpy.types.Operator):
         if self._context.scene.objects.get(obj_handle.name) is None:
             return
 
-        if obj_handle.hide is True:
+        if obj_handle.hide_get() is True:
             return
 
         body = BodyTemplate()
@@ -1132,9 +1130,9 @@ class AMBF_OT_generate_ambf_file(bpy.types.Operator):
                 body_data['color components']['specular']['g'] = round(obj_handle.data.materials[0].specular_color[1], 4)
                 body_data['color components']['specular']['b'] = round(obj_handle.data.materials[0].specular_color[2], 4)
 
-                body_data['color components']['ambient']['level'] = round(obj_handle.data.materials[0].ambient, 4)
+                body_data['color components']['ambient']['level'] = 1.0
 
-                body_data['color components']['transparency'] = round(obj_handle.data.materials[0].alpha, 4)
+                body_data['color components']['transparency'] = round(obj_handle.data.materials[0].diffuse_color[3], 4)
 
             # Set the body controller data from the controller props
             if obj_handle.ambf_rigid_body_enable_controllers is True:
@@ -1322,18 +1320,18 @@ class AMBF_OT_generate_ambf_file(bpy.types.Operator):
         if joint_obj_handle.ambf_object_type != 'CONSTRAINT':
             return
 
-        if joint_obj_handle.hide is True:
+        if joint_obj_handle.hide_get() is True:
             return
 
         _valid_constraint = True
         if joint_obj_handle.ambf_constraint_parent:
-            if joint_obj_handle.ambf_constraint_parent.hide is True:
+            if joint_obj_handle.ambf_constraint_parent.hide_get() is True:
                 _valid_constraint = False
         else:
             _valid_constraint = False
 
         if joint_obj_handle.ambf_constraint_child:
-            if joint_obj_handle.ambf_constraint_child.hide is True:
+            if joint_obj_handle.ambf_constraint_child.hide_get() is True:
                 _valid_constraint = False
         else:
             _valid_constraint = False
@@ -1397,8 +1395,8 @@ class AMBF_OT_generate_ambf_file(bpy.types.Operator):
         r_w_p = t_p_w.to_3x3().copy()
         r_w_p.invert()
         r_c_w = child_obj_handle.matrix_world.to_3x3().copy()
-        r_c_p_blender = r_w_p * r_c_w
-        r_angular_offset = r_p_c_ambf * r_c_p_blender
+        r_c_p_blender = r_w_p @ r_c_w
+        r_angular_offset = r_p_c_ambf @ r_c_p_blender
         offset_axis_angle = r_angular_offset.to_quaternion().to_axis_angle()
 
         if abs(offset_axis_angle[1]) > 0.01:
@@ -1467,13 +1465,13 @@ class AMBF_OT_generate_ambf_file(bpy.types.Operator):
         t_w_p.invert()
         # Transform of Child in Parent
         # t_c_p = t_w_p * t_c_w
-        t_c_p = t_w_p * t_c_w
+        t_c_p = t_w_p @ t_c_w
         pivot = t_c_p.translation
         
         constraint_axis.resize_4d()
         constraint_axis[3] = 0.0
         # The third col of rotation matrix is the z axis of child in parent
-        axis = mathutils.Vector((t_c_p * constraint_axis)[0:3])
+        axis = mathutils.Vector((t_c_p @ constraint_axis)[0:3])
         return pivot, axis
 
     # Assign the joint parameters that include joint limits, type, damping and joint stiffness for spring joints
@@ -1785,10 +1783,10 @@ class AMBF_OT_save_meshes(bpy.types.Operator):
                 _settings.file_format = 'PNG'
 
                 for mat in obj_handle.data.materials:
-                    for tex_slot in mat.texture_slots:
-                        if tex_slot:
-                            if hasattr(tex_slot.texture, 'image'):
-                                im = tex_slot.texture.image
+                    if mat.node_tree:
+                        for node in mat.node_tree.nodes:
+                            if node.type == 'TEX_IMAGE':
+                                im = node.image
                                 _existing_path = im.filepath_raw
                                 _dir = os.path.dirname(_existing_path)
                                 _filename = os.path.basename(_existing_path)
@@ -1861,7 +1859,7 @@ class AMBF_OT_generate_low_res_mesh_modifiers(bpy.types.Operator):
         vertices_max = context.scene.mesh_max_vertices
         # Select each obj_handle iteratively and generate its low-res mesh
         for obj_handle in bpy.data.objects:
-            if obj_handle.type == 'MESH' and obj_handle.hide is False:
+            if obj_handle.type == 'MESH' and obj_handle.hide_get() is False:
                 decimate_mod = obj_handle.modifiers.new('decimate_mod', 'DECIMATE')
                 if len(obj_handle.data.vertices) > vertices_max:
                     reduction_ratio = vertices_max / len(obj_handle.data.vertices)
@@ -2165,15 +2163,16 @@ class AMBF_OT_load_ambf_file(bpy.types.Operator):
             mat.diffuse_color[0] = body_data['color components']['diffuse']['r']
             mat.diffuse_color[1] = body_data['color components']['diffuse']['g']
             mat.diffuse_color[2] = body_data['color components']['diffuse']['b']
+            mat.diffuse_color[3] = body_data['color components']['transparency']
 
             mat.specular_color[0] = body_data['color components']['specular']['r']
             mat.specular_color[1] = body_data['color components']['specular']['g']
             mat.specular_color[2] = body_data['color components']['specular']['b']
 
-            mat.ambient = body_data['color components']['ambient']['level']
-            mat.use_transparency = True
-            mat.transparency_method = 'Z_TRANSPARENCY'
-            mat.alpha = body_data['color components']['transparency']
+#            mat.ambient = body_data['color components']['ambient']['level']
+#            mat.use_transparency = True
+#            mat.transparency_method = 'Z_TRANSPARENCY'
+#            mat.alpha = body_data['color components']['transparency']
             obj_handle.data.materials.append(mat)
 
     def load_blender_rigid_body(self, body_data, obj_handle):
@@ -2628,7 +2627,7 @@ class AMBF_OT_load_ambf_file(bpy.types.Operator):
 
         T_p_w_off = self._body_T_j_c[joint_data['parent']]
         # Transformation of child in parents frame
-        T_j_w = T_p_w * T_p_w_off * P_j_p * T_c_offset_rot * R_j_p
+        T_j_w = T_p_w @ T_p_w_off @ P_j_p @ T_c_offset_rot @ R_j_p
 
         return T_j_w
 
@@ -2675,7 +2674,7 @@ class AMBF_OT_load_ambf_file(bpy.types.Operator):
 
         T_p_w_off = self._body_T_j_c[joint_data['parent']]
         # Transformation of child in parents frame
-        T_c_w = T_p_w * T_p_w_off * P_j_p * T_c_offset_rot * R_c_p * P_c_j
+        T_c_w = T_p_w @ T_p_w_off @ P_j_p @ T_c_offset_rot @ R_c_p @ P_c_j
 
         return T_c_w
 
@@ -2923,7 +2922,8 @@ def collision_shape_show_update_cb(self, context):
         if obj_handle.ambf_rigid_body_collision_type in ['SINGULAR_SHAPE', 'COMPOUND_SHAPE']:
             for prop_tuple in obj_handle.ambf_collision_shape_prop_collection.items():
                 shape_prop_group = prop_tuple[1]
-                shape_prop_group.ambf_rigid_body_collision_shape_pointer.hide = not context.scene.ambf_rigid_body_show_collision_shapes
+                shape_prop_group.ambf_rigid_body_collision_shape_pointer.hide_set(
+                not context.scene.ambf_rigid_body_show_collision_shapes)
 ##
 
 
@@ -2932,7 +2932,7 @@ class AMBF_PT_create_adf(bpy.types.Panel):
     bl_label = "LOAD, CREATE AND SAVE ADFs"
     bl_idname = "AMBF_PT_create_adf"
     bl_space_type = 'VIEW_3D'
-    bl_region_type = 'TOOLS'
+    bl_region_type = 'UI'
     bl_category = "AMBF"
 
     bpy.types.Scene.ambf_yaml_conf_path = bpy.props.StringProperty \
@@ -3068,7 +3068,7 @@ class AMBF_PT_create_adf(bpy.types.Panel):
         # Mesh Reduction Ratio Properties
         row = sbox.row(align=True)
         row.alignment = 'LEFT'
-        split = row.split(percentage=0.7)
+        split = row.split(factor=0.7)
         row = split.row()
         row.label(text='Coll Mesh Max Verts: ')
         row = split.row()
@@ -3465,7 +3465,8 @@ def collision_shape_show_per_object_update_cb(self, context):
     if obj_handle.ambf_rigid_body_collision_type in ['SINGULAR_SHAPE', 'COMPOUND_SHAPE']:
         for prop_tuple in obj_handle.ambf_collision_shape_prop_collection.items():
             shape_prop_group = prop_tuple[1]
-            shape_prop_group.ambf_rigid_body_collision_shape_pointer.hide = not obj_handle.ambf_rigid_body_show_collision_shapes_per_object
+            shape_prop_group.ambf_rigid_body_collision_shape_pointer.hide_set(
+            not obj_handle.ambf_rigid_body_show_collision_shapes_per_object)
 #
 ##
 
@@ -3665,7 +3666,7 @@ class AMBF_PT_ambf_rigid_body(bpy.types.Panel):
             col.operator("ambf.estimate_inertial_offset_per_object")
             
             col = box.column()
-            col = col.split(percentage=0.5)
+            col = col.split(factor=0.5)
             col.alignment = 'EXPAND'
             col.prop(context.object, 'ambf_rigid_body_linear_inertial_offset')
             
@@ -3813,7 +3814,7 @@ class AMBF_PT_ambf_rigid_body(bpy.types.Panel):
         if context.object.ambf_rigid_body_collision_type == 'COMPOUND_SHAPE':
             sbox.separator()
             col = sbox.column()
-            col = col.split(percentage=0.5)
+            col = col.split(factor=0.5)
             col.alignment = 'EXPAND'
             col.prop(prop, 'ambf_rigid_body_linear_shape_offset')
 
@@ -3974,17 +3975,17 @@ class AMBF_PT_ambf_constraint(bpy.types.Panel):
                 
                 row = layout.row()
                 row.enabled = context.object.ambf_constraint_limits_enable
-                r1 = row.split(percentage=0.8)
+                r1 = row.split(factor=0.8)
                 r1.prop(context.object, 'ambf_constraint_limits_lower', text='Low')
                 r2 = r1.row()
-                r2.label(units)
+                r2.label(text=units)
                 
                 row = layout.row()
                 row.enabled = context.object.ambf_constraint_limits_enable
-                r1 = row.split(percentage=0.8)
+                r1 = row.split(factor=0.8)
                 r1.prop(context.object, 'ambf_constraint_limits_higher', text='High')
                 r2 = r1.row()
-                r2.label(units)
+                r2.label(text=units)
  
                 if context.object.ambf_constraint_type in ['PRISMATIC', 'REVOLUTE']:
                     row = layout.row()
