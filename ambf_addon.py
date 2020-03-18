@@ -528,6 +528,32 @@ def calculate_principal_inertia(obj_handle):
     return I
 
 
+def create_capsule(height, radius, axis='Z'):
+    if axis.upper() == 'X':
+        axis_vec = mathutils.Vector((1.0, 0.0, 0.0))
+        rot_axis_angle = mathutils.Vector((0.0, math.pi/2.0, 0.0))
+    elif axis.upper() == 'Y':
+        axis_vec = mathutils.Vector((0.0, 1.0, 0.0))
+        rot_axis_angle = mathutils.Vector((math.pi/2.0, 0.0, 0.0))
+    elif axis.upper() == 'Z':
+        axis_vec = mathutils.Vector((0.0, 0.0, 1.0))
+        rot_axis_angle = mathutils.Vector((0.0, 0.0, 0.0))
+    else:
+        raise 'ERROR! Axis type not understood'
+    bpy.ops.mesh.primitive_uv_sphere_add(radius=radius)
+    sphere1 = get_active_object()
+    sphere1.matrix_world.translation = sphere1.matrix_world.translation + axis_vec * height/2.0
+    bpy.ops.mesh.primitive_uv_sphere_add(radius=radius)
+    sphere2 = get_active_object()
+    sphere2.matrix_world.translation = sphere2.matrix_world.translation - axis_vec * height/2.0
+    bpy.ops.mesh.primitive_cylinder_add(radius=radius, depth=height, rotation=rot_axis_angle)
+    cylinder = get_active_object()
+    select_object(sphere1)
+    select_object(sphere2)
+    set_active_object(cylinder)
+    bpy.ops.object.join()
+    
+
 def add_collision_shape_property(obj_handle, shape_type=None):
     obj_handle.ambf_collision_shape_prop_collection.add()
     cnt = len(obj_handle.ambf_collision_shape_prop_collection.items())
@@ -669,24 +695,24 @@ def collision_shape_create_visual(obj_handle, shape_prop_group):
         lz = shape_prop_group.ambf_rigid_body_collision_shape_xyz_dims[2]
             
         if shape_prop_group.ambf_rigid_body_collision_shape == 'BOX':
-            bpy.ops.mesh.primitive_cube_add(size=0.5)
+            bpy.ops.mesh.primitive_cube_add(size=1.0)
             coll_shape_obj_handle = get_active_object()
             coll_shape_obj_handle.scale[0] = lx
             coll_shape_obj_handle.scale[1] = ly
             coll_shape_obj_handle.scale[2] = lz
 
         elif shape_prop_group.ambf_rigid_body_collision_shape == 'SPHERE':
-            bpy.ops.mesh.primitive_uv_sphere_add(size=radius)
+            bpy.ops.mesh.primitive_uv_sphere_add(radius=radius)
             
         elif shape_prop_group.ambf_rigid_body_collision_shape in ['CONE', 'CYLINDER', 'CAPSULE']:
             if shape_prop_group.ambf_rigid_body_collision_shape_axis == 'X':
                 dir_axis = 0
                 rot_axis = mathutils.Vector((0, 1, 0))  # Choose y axis for rot
-                rot_angle = pi/2
+                rot_angle = math.pi/2
             elif shape_prop_group.ambf_rigid_body_collision_shape_axis == 'Y':
                 dir_axis = 1
                 rot_axis = mathutils.Vector((1, 0, 0))  # Choose y axis for rot
-                rot_angle = -pi/2
+                rot_angle = -math.pi/2
             else:
                 dir_axis = 2
                 rot_axis = mathutils.Vector((0, 0, 1))
@@ -703,9 +729,7 @@ def collision_shape_create_visual(obj_handle, shape_prop_group):
             elif shape_prop_group.ambf_rigid_body_collision_shape == 'CAPSULE':
                 # There is no primitive for capsule in Blender, so we
                 # have to use a workaround using the sphere
-                bpy.ops.mesh.primitive_uv_sphere_add(rotation=rpy_rot, radius=radius)
-                coll_shape_obj_handle = get_active_object()
-                coll_shape_obj_handle.scale[dir_axis] = height
+                create_capsule(height=height, radius=radius, axis=shape_prop_group.ambf_rigid_body_collision_shape_axis)
 
             else:
                 print("FAIL! Shouldn't Get Here")
@@ -3037,6 +3061,11 @@ class AMBF_PT_create_adf(bpy.types.Panel):
         layout = self.layout
         
         box = layout.box()
+        box.label(text='WARNING! CLEAN UP ALL OBJECTS')
+        col = box.column()
+        col.operator("ambf.ambf_rigid_body_cleanup")
+        
+        box = layout.box()
         row = box.row()
         # Load AMBF File Into Blender
         row.alignment = 'CENTER'
@@ -3296,6 +3325,17 @@ class AMBF_PT_joint_props(bpy.types.Panel):
         
         row = row.row()
         row.prop(context.object, 'ambf_joint_controller_d_gain')
+        
+        
+class AMBF_OT_ambf_rigid_body_cleanup(bpy.types.Operator):
+    """Add Rigid Body Properties"""
+    bl_label = "AMBF RIGID BODY CLEANUP"
+    bl_idname = "ambf.ambf_rigid_body_cleanup"
+
+    def execute(self, context):
+        for o in bpy.data.objects:
+            bpy.data.objects.remove(o)
+        return {'FINISHED'}
 
 
 class AMBF_OT_ambf_rigid_body_activate(bpy.types.Operator):
@@ -4005,6 +4045,7 @@ class AMBF_PT_ambf_constraint(bpy.types.Panel):
 
 custom_classes = (AMBF_OT_toggle_low_res_mesh_modifiers_visibility,
                   AMBF_PG_CollisionShapePropGroup,
+                  AMBF_OT_ambf_rigid_body_cleanup,
                   AMBF_OT_remove_low_res_mesh_modifiers,
                   AMBF_OT_generate_low_res_mesh_modifiers,
                   AMBF_OT_generate_ambf_file,
