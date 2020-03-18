@@ -555,13 +555,15 @@ def create_capsule(height, radius, axis='Z'):
         rot_axis_angle = mathutils.Vector((0.0, 0.0, 0.0))
     else:
         raise 'ERROR! Axis type not understood'
+    caps_dist = height/2.0 - radius
+    trunk_length = height - (2 * radius)
     bpy.ops.mesh.primitive_uv_sphere_add(radius=radius)
     sphere1 = get_active_object()
-    sphere1.matrix_world.translation = sphere1.matrix_world.translation + axis_vec * height/2.0
+    sphere1.matrix_world.translation = sphere1.matrix_world.translation + axis_vec * caps_dist
     bpy.ops.mesh.primitive_uv_sphere_add(radius=radius)
     sphere2 = get_active_object()
-    sphere2.matrix_world.translation = sphere2.matrix_world.translation - axis_vec * height/2.0
-    bpy.ops.mesh.primitive_cylinder_add(radius=radius, depth=height, rotation=rot_axis_angle)
+    sphere2.matrix_world.translation = sphere2.matrix_world.translation - axis_vec * caps_dist
+    bpy.ops.mesh.primitive_cylinder_add(radius=radius, depth=trunk_length, rotation=rot_axis_angle)
     cylinder = get_active_object()
     select_object(sphere1)
     select_object(sphere2)
