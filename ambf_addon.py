@@ -287,13 +287,28 @@ def select_all_objects(select):
         select_object(obj_handle, select)
 
 
+def hide_object(object, hide):
+    if object:
+        # object.hide = hide
+        object.hide_set(hide)
+
+
+def is_object_hidden(object):
+    if object:
+        # hidden = object.hide
+        hidden = object.hide_get()
+    else:
+        raise ValueError
+    return hidden
+
+
 def get_active_object():
     active_obj_handle = bpy.context.active_object
     return active_obj_handle
 
 
 def set_active_object(active_object):
-#    bpy.context.scene.objects.active = active_object
+   # bpy.context.scene.objects.active = active_object
     bpy.context.view_layer.objects.active = active_object
 
 
@@ -756,7 +771,7 @@ def collision_shape_create_visual(obj_handle, shape_prop_group):
         coll_shape_obj_handle.hide_select = True
         coll_shape_obj_handle.show_transparent = True
         coll_shape_obj_handle.data.materials.append(CommonConfig.collision_shape_material)
-        coll_shape_obj_handle.hide_set(not obj_handle.ambf_rigid_body_show_collision_shapes_per_object)
+        hide_object(coll_shape_obj_handle, not obj_handle.ambf_rigid_body_show_collision_shapes_per_object)
 
         set_active_object(cur_active_obj_handle)
 
@@ -843,7 +858,7 @@ class AMBF_OT_generate_ambf_file(bpy.types.Operator):
         return self.joint_name_prefix + urdf_joint_str
 
     def generate_body_data_from_blender_rigid_body(self, ambf_yaml, obj_handle):
-        if obj_handle.hide is True:
+        if is_object_hidden(obj_handle) is True:
             return
         body = BodyTemplate()
         body_data = body._ambf_data
@@ -911,7 +926,7 @@ class AMBF_OT_generate_ambf_file(bpy.types.Operator):
                 body_data['damping']['angular'] = round(obj_handle.rigid_body.angular_damping, 4)
 
                 body_data['collision groups'] = [idx for idx, chk in
-                                                 enumerate(obj_handle.rigid_body.collision_groups) if chk == True]
+                                                 enumerate(obj_handle.rigid_body.collision_collections) if chk == True]
 
                 if obj_handle.rigid_body.use_margin is True:
                     body_data['collision margin'] = round(obj_handle.rigid_body.collision_margin, 4)
@@ -956,7 +971,7 @@ class AMBF_OT_generate_ambf_file(bpy.types.Operator):
                         body_data['collision geometry'] = bcg
 
             del body_data['inertia']
-            body_data['mesh'] = obj_handle_name + get_extension(output_mesh)
+            body_data['mesh'] = obj_handle_name + '.' + output_mesh
             body_com = compute_local_com(obj_handle)
             body_d_pos = body_data['inertial offset']['position']
             body_d_pos['x'] = round(body_com[0], 4)
@@ -978,10 +993,12 @@ class AMBF_OT_generate_ambf_file(bpy.types.Operator):
                 body_data['color components']['specular']['r'] = round(obj_handle.data.materials[0].specular_color[0], 4)
                 body_data['color components']['specular']['g'] = round(obj_handle.data.materials[0].specular_color[1], 4)
                 body_data['color components']['specular']['b'] = round(obj_handle.data.materials[0].specular_color[2], 4)
+                
+#                body_data['color components']['ambient']['level'] = round(obj_handle.data.materials[0].ambient, 4)
+                body_data['color components']['ambient']['level'] = 1.0
 
-                body_data['color components']['ambient']['level'] = round(obj_handle.data.materials[0].ambient, 4)
-
-                body_data['color components']['transparency'] = round(obj_handle.data.materials[0].alpha, 4)
+#                body_data['color components']['transparency'] = round(obj_handle.data.materials[0].alpha, 4)
+                body_data['color components']['transparency'] = round(obj_handle.data.materials[0].diffuse_color[3], 4)
             
             # Set the body controller data from the controller props
             if obj_handle.ambf_enable_body_props is True:
@@ -1013,7 +1030,7 @@ class AMBF_OT_generate_ambf_file(bpy.types.Operator):
         if self._context.scene.objects.get(obj_handle.name) is None:
             return
 
-        if obj_handle.hide_get() is True:
+        if is_object_hidden(obj_handle) is True:
             return
 
         body = BodyTemplate()
@@ -1183,15 +1200,15 @@ class AMBF_OT_generate_ambf_file(bpy.types.Operator):
 
     def generate_joint_data_from_blender_constraint(self, ambf_yaml, joint_obj_handle):
 
-        if joint_obj_handle.hide is True:
+        if is_object_hidden(joint_obj_handle) is True:
             return
 
         if joint_obj_handle.rigid_body_constraint:
             if joint_obj_handle.rigid_body_constraint.object1:
-                if joint_obj_handle.rigid_body_constraint.object1.hide is True:
+                if is_object_hidden(joint_obj_handle.rigid_body_constraint.object1) is True:
                     return
             if joint_obj_handle.rigid_body_constraint.object2:
-                if joint_obj_handle.rigid_body_constraint.object2.hide is True:
+                if is_object_hidden(joint_obj_handle.rigid_body_constraint.object2) is True:
                     return
 
             if joint_obj_handle.rigid_body_constraint.type in ['FIXED', 'HINGE', 'SLIDER', 'POINT', 'GENERIC', 'GENERIC_SPRING']:
@@ -1283,9 +1300,9 @@ class AMBF_OT_generate_ambf_file(bpy.types.Operator):
                     r_w_p = t_p_w.to_3x3().copy()
                     r_w_p.invert()
                     r_c_w = child_obj_handle.matrix_world.to_3x3().copy()
-                    r_c_p_blender = r_w_p * r_c_w
+                    r_c_p_blender = r_w_p @ r_c_w
 
-                    r_angular_offset = r_p_c_ambf * r_c_p_blender
+                    r_angular_offset = r_p_c_ambf @ r_c_p_blender
 
                     offset_axis_angle = r_angular_offset.to_quaternion().to_axis_angle()
 
@@ -1344,18 +1361,18 @@ class AMBF_OT_generate_ambf_file(bpy.types.Operator):
         if joint_obj_handle.ambf_object_type != 'CONSTRAINT':
             return
 
-        if joint_obj_handle.hide_get() is True:
+        if is_object_hidden(joint_obj_handle) is True:
             return
 
         _valid_constraint = True
         if joint_obj_handle.ambf_constraint_parent:
-            if joint_obj_handle.ambf_constraint_parent.hide_get() is True:
+            if is_object_hidden(joint_obj_handle.ambf_constraint_parent) is True:
                 _valid_constraint = False
         else:
             _valid_constraint = False
 
         if joint_obj_handle.ambf_constraint_child:
-            if joint_obj_handle.ambf_constraint_child.hide_get() is True:
+            if is_object_hidden(joint_obj_handle.ambf_constraint_child) is True:
                 _valid_constraint = False
         else:
             _valid_constraint = False
@@ -1791,9 +1808,10 @@ class AMBF_OT_save_meshes(bpy.types.Operator):
         mesh_name_mat_list = self.set_all_meshes_to_origin()
         for obj_handle in bpy.data.objects:
             # Mesh Type is .stl
-            if not obj_handle.ambf_object_type == 'RIGID_BODY':
-                # Only Save Meshes if the object type is ambf rigid body
-                continue
+            if not context.scene.enable_legacy_loading:
+                if not obj_handle.ambf_object_type == 'RIGID_BODY':
+                    # Only Save Meshes if the object type is ambf rigid body
+                    continue
             select_object(obj_handle)
 
             obj_handle_name = remove_namespace_prefix(obj_handle.name)
@@ -1883,7 +1901,7 @@ class AMBF_OT_generate_low_res_mesh_modifiers(bpy.types.Operator):
         vertices_max = context.scene.mesh_max_vertices
         # Select each obj_handle iteratively and generate its low-res mesh
         for obj_handle in bpy.data.objects:
-            if obj_handle.type == 'MESH' and obj_handle.hide_get() is False:
+            if obj_handle.type == 'MESH' and is_object_hidden(obj_handle) is False:
                 decimate_mod = obj_handle.modifiers.new('decimate_mod', 'DECIMATE')
                 if len(obj_handle.data.vertices) > vertices_max:
                     reduction_ratio = vertices_max / len(obj_handle.data.vertices)
@@ -2232,10 +2250,10 @@ class AMBF_OT_load_ambf_file(bpy.types.Operator):
             if 'collision groups' in body_data:
                 col_groups = body_data['collision groups']
                 # First clear existing collision group of 0
-                obj_handle.rigid_body.collision_groups[0] = False
+                obj_handle.rigid_body.collision_collections[0] = False
                 for group in col_groups:
                     if 0 <= group < 20:
-                        obj_handle.rigid_body.collision_groups[group] = True
+                        obj_handle.rigid_body.collision_collections[group] = True
                     else:
                         print('WARNING, Collision Group Outside [0-20]')
 
@@ -2469,11 +2487,11 @@ class AMBF_OT_load_ambf_file(bpy.types.Operator):
                                                 parent_axis_data['z']])
 
                 R_caxis_p, r_cnew_p_angle = get_rot_mat_from_vecs(constraint_axis, parent_axis)
-                R_cnew_p = R_caxis_p * T_c_j
+                R_cnew_p = R_caxis_p @ T_c_j
                 R_c_p, r_c_p_angle = get_rot_mat_from_vecs(child_axis, parent_axis)
                 R_p_cnew = R_cnew_p.copy()
                 R_p_cnew.invert()
-                delta_R = R_p_cnew * R_c_p
+                delta_R = R_p_cnew @ R_c_p
                 # print('Joint Name: ', joint_name)
                 # print('Delta R: ')
                 d_axis_angle = delta_R.to_quaternion().to_axis_angle()
@@ -2491,7 +2509,7 @@ class AMBF_OT_load_ambf_file(bpy.types.Operator):
                 if abs(d_angle) > 0.1:
                     R_ao = mathutils.Matrix().Rotation(d_angle, 4, constraint_axis)
                     child_obj_handle.data.transform(R_ao)
-                    self._body_T_j_c[joint_data['child']] = R_ao * T_c_j
+                    self._body_T_j_c[joint_data['child']] = R_ao @ T_c_j
                 # end of AO algorithm
 
             # Finally assign joints and set correct positions
@@ -2946,8 +2964,8 @@ def collision_shape_show_update_cb(self, context):
         if obj_handle.ambf_rigid_body_collision_type in ['SINGULAR_SHAPE', 'COMPOUND_SHAPE']:
             for prop_tuple in obj_handle.ambf_collision_shape_prop_collection.items():
                 shape_prop_group = prop_tuple[1]
-                shape_prop_group.ambf_rigid_body_collision_shape_pointer.hide_set(
-                not context.scene.ambf_rigid_body_show_collision_shapes)
+                hide_object(shape_prop_group.ambf_rigid_body_collision_shape_pointer,
+                            not context.scene.ambf_rigid_body_show_collision_shapes)
 ##
 
 
@@ -3505,8 +3523,8 @@ def collision_shape_show_per_object_update_cb(self, context):
     if obj_handle.ambf_rigid_body_collision_type in ['SINGULAR_SHAPE', 'COMPOUND_SHAPE']:
         for prop_tuple in obj_handle.ambf_collision_shape_prop_collection.items():
             shape_prop_group = prop_tuple[1]
-            shape_prop_group.ambf_rigid_body_collision_shape_pointer.hide_set(
-            not obj_handle.ambf_rigid_body_show_collision_shapes_per_object)
+            hide_object(shape_prop_group.ambf_rigid_body_collision_shape_pointer,
+                        not obj_handle.ambf_rigid_body_show_collision_shapes_per_object)
 #
 ##
 
