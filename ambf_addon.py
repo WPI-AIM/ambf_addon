@@ -3067,6 +3067,13 @@ class AMBF_PT_create_adf(bpy.types.Panel):
             update=collision_shape_show_update_cb
         )
 
+
+    bpy.types.Scene.enable_forced_cleanup = bpy.props.BoolProperty \
+        (
+            name="Enable Forced Cleanup",
+            default=False
+        )
+
     setup_yaml()
 
     def draw(self, context):
@@ -3080,10 +3087,24 @@ class AMBF_PT_create_adf(bpy.types.Panel):
 
         layout = self.layout
         
+        col = layout.column()
+        col.prop(context.scene, 'enable_forced_cleanup')
+        
         box = layout.box()
+        box.enabled = context.scene.enable_forced_cleanup
         box.label(text='WARNING! CLEAN UP ALL OBJECTS')
+
+        col = box.column()
+        col.operator("ambf.ambf_cleanup_all")
+
         col = box.column()
         col.operator("ambf.ambf_rigid_body_cleanup")
+
+        col = box.column()
+        col.operator("ambf.ambf_constraint_cleanup")
+
+        col = box.column()
+        col.operator("ambf.ambf_collision_shape_cleanup")
         
         box = layout.box()
         row = box.row()
@@ -3345,8 +3366,19 @@ class AMBF_PT_joint_props(bpy.types.Panel):
         
         row = row.row()
         row.prop(context.object, 'ambf_joint_controller_d_gain')
-        
-        
+
+
+class AMBF_OT_cleanup_all(bpy.types.Operator):
+    """Add Rigid Body Properties"""
+    bl_label = "CLEAN UP ALL"
+    bl_idname = "ambf.ambf_cleanup_all"
+
+    def execute(self, context):
+        for o in bpy.data.objects:
+            bpy.data.objects.remove(o)
+        return {'FINISHED'}
+
+
 class AMBF_OT_ambf_rigid_body_cleanup(bpy.types.Operator):
     """Add Rigid Body Properties"""
     bl_label = "AMBF RIGID BODY CLEANUP"
@@ -3354,7 +3386,32 @@ class AMBF_OT_ambf_rigid_body_cleanup(bpy.types.Operator):
 
     def execute(self, context):
         for o in bpy.data.objects:
-            bpy.data.objects.remove(o)
+            if o.ambf_object_type == 'RIGID_BODY':
+                bpy.data.objects.remove(o)
+        return {'FINISHED'}
+
+
+class AMBF_OT_ambf_constraint_cleanup(bpy.types.Operator):
+    """Add Rigid Body Properties"""
+    bl_label = "AMBF CONSTRAINT CLEANUP"
+    bl_idname = "ambf.ambf_constraint_cleanup"
+
+    def execute(self, context):
+        for o in bpy.data.objects:
+            if o.ambf_object_type == 'CONSTRAINT':
+                bpy.data.objects.remove(o)
+        return {'FINISHED'}
+
+
+class AMBF_OT_ambf_collision_shape_cleanup(bpy.types.Operator):
+    """Add Rigid Body Properties"""
+    bl_label = "AMBF COLLISION SHAPE CLEANUP"
+    bl_idname = "ambf.ambf_collision_shape_cleanup"
+
+    def execute(self, context):
+        for o in bpy.data.objects:
+            if o.ambf_object_type == 'COLLISION_SHAPE':
+                bpy.data.objects.remove(o)
         return {'FINISHED'}
 
 
@@ -4065,7 +4122,10 @@ class AMBF_PT_ambf_constraint(bpy.types.Panel):
 
 custom_classes = (AMBF_OT_toggle_low_res_mesh_modifiers_visibility,
                   AMBF_PG_CollisionShapePropGroup,
+                  AMBF_OT_cleanup_all,
                   AMBF_OT_ambf_rigid_body_cleanup,
+                  AMBF_OT_ambf_constraint_cleanup,
+                  AMBF_OT_ambf_collision_shape_cleanup,
                   AMBF_OT_remove_low_res_mesh_modifiers,
                   AMBF_OT_generate_low_res_mesh_modifiers,
                   AMBF_OT_generate_ambf_file,
