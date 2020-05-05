@@ -288,6 +288,21 @@ def select_all_objects(select):
         select_object(obj_handle, select)
 
 
+def hide_object(object, hide):
+    if object:
+        object.hide = hide
+        # object.hide_set(hide)
+
+
+def is_object_hidden(object):
+    if object:
+        hidden = object.hide
+        # hidden = object.hide_get()
+    else:
+        raise ValueError
+    return hidden
+
+
 def get_active_object():
     active_obj_handle = bpy.context.active_object
     return active_obj_handle
@@ -370,6 +385,18 @@ def get_axis_idx(axis_str):
     return axis_idx
 
 
+def get_axis_vec_from_str(axis_str):
+    axis_str = axis_str.upper()
+    axis_vec = mathutils.Vector((0, 0, 0))
+    if axis_str == 'X':
+        axis_vec[0] = 1.0
+    elif axis_str == 'Y':
+        axis_vec[1] = 1.0
+    elif axis_str == 'Z':
+        axis_vec[2] = 1.0
+    return axis_vec
+
+
 # For shapes such as Cylinder, Cone and Ellipse, this function returns
 # the median axis (not-major and non-minor or the middle axis) by comparing
 # the dimensions of the bounding box
@@ -412,6 +439,59 @@ def compute_local_com(obj_handle):
     for i in range(0, 3):
         center[i] = center[i] * obj_handle.scale[i]
     return center
+
+
+def estimate_joint_controller_gain(obj_handle):
+    if obj_handle.ambf_object_type == 'CONSTRAINT':
+        parent_obj_handle = obj_handle.ambf_constraint_parent
+        child_obj_handle = obj_handle.ambf_constraint_child
+        if parent_obj_handle and child_obj_handle:
+            T_p_w = parent_obj_handle.matrix_world.copy()
+            T_c_w = child_obj_handle.matrix_world.copy()
+            T_j_w = obj_handle.matrix_world.copy()
+            T_p_j = T_j_w.inverted() * T_p_w
+            T_c_j = T_j_w.inverted() * T_c_w
+            N_j = get_axis_vec_from_str(obj_handle.ambf_constraint_axis)
+            P_pcom = mathutils.Vector(compute_local_com(parent_obj_handle))
+            P_pcom_j = T_p_j *P_pcom
+            P_ccom = mathutils.Vector(compute_local_com(child_obj_handle))
+            P_ccom_j = T_c_j * P_ccom
+            mass_p = parent_obj_handle.ambf_rigid_body_mass
+            mass_c = child_obj_handle.ambf_rigid_body_mass
+            if obj_handle.ambf_constraint_type == 'REVOLUTE':
+                if P_pcom_j.length > 0.001:
+                    theta_pj = N_j.angle(P_pcom_j)
+                    d_pn = P_pcom_j.length * math.sin(theta_pj)
+                else:
+                    d_pn = 0.0
+                if P_ccom_j.length > 0.001:
+                    theta_cj = N_j.angle(P_ccom_j)
+                    d_cn = P_ccom_j.length * math.sin(theta_cj)
+                else:
+                    d_cn = 0.0
+                # The gains should be scaled according the sum of these
+                # distances
+                holding_torque = (mass_p * mass_p * d_pn + mass_c * mass_c * d_cn)
+                print('Holding Torque:, ', holding_torque)
+                if holding_torque == 0.0:
+                    holding_torque = 0.001
+                # Lets define at what error do we want to apply the holding torque
+                error_deg = 1.0
+                Kp = holding_torque / ((error_deg / 180.0) * math.pi)
+                Kd = Kp / 100.0
+                print('Kp:, ', Kp)
+                print('Kd:, ', Kd)
+                obj_handle.ambf_constraint_controller_p_gain = Kp
+                obj_handle.ambf_constraint_controller_d_gain = Kd
+            elif obj_handle.ambf_constraint_type == 'PRISMATIC':
+                holding_effort = (mass_p + mass_c)
+                error_m = 0.001
+                Kp = holding_effort / error_m
+                Kd = Kp / 100.0
+                print('Kp:, ', Kp)
+                print('Kd:, ', Kd)
+                obj_handle.ambf_constraint_controller_p_gain = Kp
+                obj_handle.ambf_constraint_controller_d_gain = Kd
 
 
 def inertia_of_convex_hull(obj_handle, mass=None):
@@ -526,6 +606,34 @@ def calculate_principal_inertia(obj_handle):
     iz = round(I[2], 4)
     print(ix, iy, iz)
     return I
+
+
+def create_capsule(height, radius, axis='Z'):
+    if axis.upper() == 'X':
+        axis_vec = mathutils.Vector((1.0, 0.0, 0.0))
+        rot_axis_angle = mathutils.Vector((0.0, math.pi/2.0, 0.0))
+    elif axis.upper() == 'Y':
+        axis_vec = mathutils.Vector((0.0, 1.0, 0.0))
+        rot_axis_angle = mathutils.Vector((math.pi/2.0, 0.0, 0.0))
+    elif axis.upper() == 'Z':
+        axis_vec = mathutils.Vector((0.0, 0.0, 1.0))
+        rot_axis_angle = mathutils.Vector((0.0, 0.0, 0.0))
+    else:
+        raise ValueError
+    caps_dist = height/2.0 - radius
+    trunk_length = height - (2 * radius)
+    bpy.ops.mesh.primitive_uv_sphere_add(size=radius)
+    sphere1 = get_active_object()
+    sphere1.matrix_world.translation = sphere1.matrix_world.translation + axis_vec * caps_dist
+    bpy.ops.mesh.primitive_uv_sphere_add(size=radius)
+    sphere2 = get_active_object()
+    sphere2.matrix_world.translation = sphere2.matrix_world.translation - axis_vec * caps_dist
+    bpy.ops.mesh.primitive_cylinder_add(radius=radius, depth=trunk_length, rotation=rot_axis_angle)
+    cylinder = get_active_object()
+    select_object(sphere1)
+    select_object(sphere2)
+    set_active_object(cylinder)
+    bpy.ops.object.join()
 
 
 def add_collision_shape_property(obj_handle, shape_type=None):
@@ -701,11 +809,7 @@ def collision_shape_create_visual(obj_handle, shape_prop_group):
                 bpy.ops.mesh.primitive_cylinder_add(rotation=rpy_rot, radius=radius, depth=height)
 
             elif shape_prop_group.ambf_rigid_body_collision_shape == 'CAPSULE':
-                # There is no primitive for capsule in Blender, so we
-                # have to use a workaround using the sphere
-                bpy.ops.mesh.primitive_uv_sphere_add(rotation=rpy_rot, size=radius)
-                coll_shape_obj_handle = get_active_object()
-                coll_shape_obj_handle.scale[dir_axis] = height
+                create_capsule(height=height, radius=radius, axis=shape_prop_group.ambf_rigid_body_collision_shape_axis)
 
             else:
                 print("FAIL! Shouldn't Get Here")
@@ -734,7 +838,7 @@ def collision_shape_create_visual(obj_handle, shape_prop_group):
         coll_shape_obj_handle.hide_select = True
         coll_shape_obj_handle.show_transparent = True
         coll_shape_obj_handle.data.materials.append(CommonConfig.collision_shape_material)
-        coll_shape_obj_handle.hide = not obj_handle.ambf_rigid_body_show_collision_shapes_per_object
+        hide_object(coll_shape_obj_handle, not obj_handle.ambf_rigid_body_show_collision_shapes_per_object)
 
         set_active_object(cur_active_obj_handle)
 
@@ -821,7 +925,7 @@ class AMBF_OT_generate_ambf_file(bpy.types.Operator):
         return self.joint_name_prefix + urdf_joint_str
 
     def generate_body_data_from_blender_rigid_body(self, ambf_yaml, obj_handle):
-        if obj_handle.hide is True:
+        if is_object_hidden(obj_handle) is True:
             return
         body = BodyTemplate()
         body_data = body._ambf_data
@@ -991,7 +1095,7 @@ class AMBF_OT_generate_ambf_file(bpy.types.Operator):
         if self._context.scene.objects.get(obj_handle.name) is None:
             return
 
-        if obj_handle.hide is True:
+        if is_object_hidden(obj_handle) is True:
             return
 
         body = BodyTemplate()
@@ -1161,15 +1265,15 @@ class AMBF_OT_generate_ambf_file(bpy.types.Operator):
 
     def generate_joint_data_from_blender_constraint(self, ambf_yaml, joint_obj_handle):
 
-        if joint_obj_handle.hide is True:
+        if is_object_hidden(joint_obj_handle) is True:
             return
 
         if joint_obj_handle.rigid_body_constraint:
             if joint_obj_handle.rigid_body_constraint.object1:
-                if joint_obj_handle.rigid_body_constraint.object1.hide is True:
+                if is_object_hidden(joint_obj_handle.rigid_body_constraint.object1) is True:
                     return
             if joint_obj_handle.rigid_body_constraint.object2:
-                if joint_obj_handle.rigid_body_constraint.object2.hide is True:
+                if is_object_hidden(joint_obj_handle.rigid_body_constraint.object2) is True:
                     return
 
             if joint_obj_handle.rigid_body_constraint.type in ['FIXED', 'HINGE', 'SLIDER', 'POINT', 'GENERIC', 'GENERIC_SPRING']:
@@ -1322,18 +1426,18 @@ class AMBF_OT_generate_ambf_file(bpy.types.Operator):
         if joint_obj_handle.ambf_object_type != 'CONSTRAINT':
             return
 
-        if joint_obj_handle.hide is True:
+        if is_object_hidden(joint_obj_handle) is True:
             return
 
         _valid_constraint = True
         if joint_obj_handle.ambf_constraint_parent:
-            if joint_obj_handle.ambf_constraint_parent.hide is True:
+            if is_object_hidden(joint_obj_handle.ambf_constraint_parent) is True:
                 _valid_constraint = False
         else:
             _valid_constraint = False
 
         if joint_obj_handle.ambf_constraint_child:
-            if joint_obj_handle.ambf_constraint_child.hide is True:
+            if is_object_hidden(joint_obj_handle.ambf_constraint_child) is True:
                 _valid_constraint = False
         else:
             _valid_constraint = False
@@ -1861,7 +1965,7 @@ class AMBF_OT_generate_low_res_mesh_modifiers(bpy.types.Operator):
         vertices_max = context.scene.mesh_max_vertices
         # Select each obj_handle iteratively and generate its low-res mesh
         for obj_handle in bpy.data.objects:
-            if obj_handle.type == 'MESH' and obj_handle.hide is False:
+            if obj_handle.type == 'MESH' and is_object_hidden(obj_handle) is False:
                 decimate_mod = obj_handle.modifiers.new('decimate_mod', 'DECIMATE')
                 if len(obj_handle.data.vertices) > vertices_max:
                     reduction_ratio = vertices_max / len(obj_handle.data.vertices)
@@ -1955,6 +2059,19 @@ class AMBF_OT_estimate_inertias(bpy.types.Operator):
         return {'FINISHED'}
 
 
+class AMBF_OT_estimate_joint_controller_gains(bpy.types.Operator):
+    bl_idname = "ambf.estimate_joint_controller_gains"
+    bl_label = "Estimate Joint Controller Gains"
+    bl_description = "Estimate Joint Controller Gains"
+
+    def execute(self, context):
+        for obj_handle in bpy.data.objects:
+                estimate_joint_controller_gain(obj_handle)
+                if obj_handle.ambf_object_type == 'CONSTRAINT':
+                    obj_handle.ambf_constraint_enable_controller_gains = True
+        return {'FINISHED'}
+
+
 class AMBF_OT_auto_rename_joints(bpy.types.Operator):
     bl_idname = "ambf.auto_rename_joints"
     bl_label = "Automatically Rename Joints"
@@ -2011,6 +2128,17 @@ class AMBF_OT_estimate_inertia_per_object(bpy.types.Operator):
                 obj_handle.ambf_rigid_body_inertia_y = I[1]
                 obj_handle.ambf_rigid_body_inertia_z = I[2]
                 obj_handle.ambf_rigid_body_specify_inertia = True
+        return {'FINISHED'}
+
+
+class AMBF_OT_estimate_joint_controller_gain_per_object(bpy.types.Operator):
+    bl_idname = "ambf.estimate_joint_controller_gain_per_object"
+    bl_label = "Estimate Joint Controller Gains Per Object"
+    bl_description = "Estimate Joint Controller Gains"
+
+    def execute(self, context):
+        obj_handle = context.object
+        estimate_joint_controller_gain(obj_handle)
         return {'FINISHED'}
 
 
@@ -2929,7 +3057,8 @@ def collision_shape_show_update_cb(self, context):
         if obj_handle.ambf_rigid_body_collision_type in ['SINGULAR_SHAPE', 'COMPOUND_SHAPE']:
             for prop_tuple in obj_handle.ambf_collision_shape_prop_collection.items():
                 shape_prop_group = prop_tuple[1]
-                shape_prop_group.ambf_rigid_body_collision_shape_pointer.hide = not context.scene.ambf_rigid_body_show_collision_shapes
+                hide_object(shape_prop_group.ambf_rigid_body_collision_shape_pointer,
+                            not context.scene.ambf_rigid_body_show_collision_shapes)
 ##
 
 
@@ -3029,6 +3158,12 @@ class AMBF_PT_create_adf(bpy.types.Panel):
             update=collision_shape_show_update_cb
         )
 
+    bpy.types.Scene.enable_forced_cleanup = bpy.props.BoolProperty \
+        (
+            name="Enable Forced Cleanup",
+            default=False
+        )
+
     setup_yaml()
 
     def draw(self, context):
@@ -3041,6 +3176,25 @@ class AMBF_PT_create_adf(bpy.types.Panel):
                     bpy.data.objects.remove(o)
 
         layout = self.layout
+
+        col = layout.column()
+        col.prop(context.scene, 'enable_forced_cleanup')
+
+        box = layout.box()
+        box.enabled = context.scene.enable_forced_cleanup
+        box.label(text='WARNING! CLEAN UP ALL OBJECTS')
+
+        col = box.column()
+        col.operator("ambf.ambf_cleanup_all")
+
+        col = box.column()
+        col.operator("ambf.ambf_rigid_body_cleanup")
+
+        col = box.column()
+        col.operator("ambf.ambf_constraint_cleanup")
+
+        col = box.column()
+        col.operator("ambf.ambf_collision_shape_cleanup")
         
         box = layout.box()
         row = box.row()
@@ -3098,6 +3252,9 @@ class AMBF_PT_create_adf(bpy.types.Panel):
         
         col = sbox.column()
         col.operator("ambf.estimate_inertias")
+
+        col = sbox.column()
+        col.operator("ambf.estimate_joint_controller_gains")
 
         col = sbox.column()
         col.prop(context.scene, "ambf_rigid_body_show_collision_shapes", toggle=True)
@@ -3316,6 +3473,53 @@ class AMBF_PT_joint_props(bpy.types.Panel):
         row.prop(context.object, 'ambf_joint_controller_d_gain')
 
 
+class AMBF_OT_cleanup_all(bpy.types.Operator):
+    """Add Rigid Body Properties"""
+    bl_label = "CLEAN UP ALL"
+    bl_idname = "ambf.ambf_cleanup_all"
+
+    def execute(self, context):
+        for o in bpy.data.objects:
+            bpy.data.objects.remove(o)
+        return {'FINISHED'}
+
+
+class AMBF_OT_ambf_rigid_body_cleanup(bpy.types.Operator):
+    """Add Rigid Body Properties"""
+    bl_label = "AMBF RIGID BODY CLEANUP"
+    bl_idname = "ambf.ambf_rigid_body_cleanup"
+
+    def execute(self, context):
+        for o in bpy.data.objects:
+            if o.ambf_object_type == 'RIGID_BODY':
+                bpy.data.objects.remove(o)
+        return {'FINISHED'}
+
+
+class AMBF_OT_ambf_constraint_cleanup(bpy.types.Operator):
+    """Add Rigid Body Properties"""
+    bl_label = "AMBF CONSTRAINT CLEANUP"
+    bl_idname = "ambf.ambf_constraint_cleanup"
+
+    def execute(self, context):
+        for o in bpy.data.objects:
+            if o.ambf_object_type == 'CONSTRAINT':
+                bpy.data.objects.remove(o)
+        return {'FINISHED'}
+
+
+class AMBF_OT_ambf_collision_shape_cleanup(bpy.types.Operator):
+    """Add Rigid Body Properties"""
+    bl_label = "AMBF COLLISION SHAPE CLEANUP"
+    bl_idname = "ambf.ambf_collision_shape_cleanup"
+
+    def execute(self, context):
+        for o in bpy.data.objects:
+            if o.ambf_object_type == 'COLLISION_SHAPE':
+                bpy.data.objects.remove(o)
+        return {'FINISHED'}
+
+
 class AMBF_OT_ambf_rigid_body_activate(bpy.types.Operator):
     """Add Rigid Body Properties"""
     bl_label = "AMBF RIGID BODY ACTIVATE"
@@ -3483,7 +3687,8 @@ def collision_shape_show_per_object_update_cb(self, context):
     if obj_handle.ambf_rigid_body_collision_type in ['SINGULAR_SHAPE', 'COMPOUND_SHAPE']:
         for prop_tuple in obj_handle.ambf_collision_shape_prop_collection.items():
             shape_prop_group = prop_tuple[1]
-            shape_prop_group.ambf_rigid_body_collision_shape_pointer.hide = not obj_handle.ambf_rigid_body_show_collision_shapes_per_object
+            hide_object(shape_prop_group.ambf_rigid_body_collision_shape_pointer,
+                        not obj_handle.ambf_rigid_body_show_collision_shapes_per_object)
 #
 ##
 
@@ -3948,97 +4153,119 @@ class AMBF_PT_ambf_constraint(bpy.types.Panel):
         row.scale_y = 2
         
         if context.object.ambf_constraint_enable:
-            layout.separator()
-            col = layout.column()
-            col.operator('ambf.auto_rename_joint_per_object')
-            
-            col = layout.column()
-            col.alignment = 'CENTER'
-            col.prop(context.object, 'ambf_constraint_name')
-            
-            col = layout.column()
-            col.prop(context.object, 'ambf_constraint_type')
-            
-            col = layout.column()
-            col.prop_search(context.object, "ambf_constraint_parent", context.scene, "objects")
-            
-            col = layout.column()
-            col.prop_search(context.object, "ambf_constraint_child", context.scene, "objects")
 
-            # If the parent or child have been deleted from the scene, they might still be
-            # present but unlinked. In that case, clear the corresponding parent or child handle
-            if context.object.ambf_constraint_parent:
-                if context.scene.objects.get(context.object.ambf_constraint_parent.name) is None:
-                    context.object.ambf_constraint_parent = None
+            layout = self.layout
 
-            if context.object.ambf_constraint_child:
-                if context.scene.objects.get(context.object.ambf_constraint_child.name) is None:
-                    context.object.ambf_constraint_child = None
+            row = layout.row()
+            row.alignment = 'EXPAND'
+            row.operator('ambf.ambf_constraint_activate', text='Enable AMBF Constraint', icon='FORCE_HARMONIC')
+            row.scale_y = 2
 
-            
-            layout.separator()
-            layout.separator()
-            
-            if context.object.ambf_constraint_type in ['PRISMATIC', 'REVOLUTE', 'LINEAR_SPRING', 'TORSION_SPRING']:
-                row = layout.row()
-                row.alignment = 'EXPAND'
-                row.prop(context.object, 'ambf_constraint_axis')
+            if context.object.ambf_constraint_enable:
+                layout.separator()
+                col = layout.column()
+                col.operator('ambf.auto_rename_joint_per_object')
 
-                row = layout.row()
-                row.prop(context.object, 'ambf_constraint_damping')
-                row.scale_y=1.5
+                col = layout.column()
+                col.alignment = 'CENTER'
+                col.prop(context.object, 'ambf_constraint_name')
 
-                if context.object.ambf_constraint_type in ['LINEAR_SPRING', 'TORSION_SPRING']:
+                col = layout.column()
+                col.prop(context.object, 'ambf_constraint_type')
+
+                col = layout.column()
+                col.prop_search(context.object, "ambf_constraint_parent", context.scene, "objects")
+
+                col = layout.column()
+                col.prop_search(context.object, "ambf_constraint_child", context.scene, "objects")
+
+                # If the parent or child have been deleted from the scene, they might still be
+                # present but unlinked. In that case, clear the corresponding parent or child handle
+                if context.object.ambf_constraint_parent:
+                    if context.scene.objects.get(context.object.ambf_constraint_parent.name) is None:
+                        context.object.ambf_constraint_parent = None
+
+                if context.object.ambf_constraint_child:
+                    if context.scene.objects.get(context.object.ambf_constraint_child.name) is None:
+                        context.object.ambf_constraint_child = None
+
+                layout.separator()
+                layout.separator()
+
+                if context.object.ambf_constraint_type in ['PRISMATIC', 'REVOLUTE', 'LINEAR_SPRING', 'TORSION_SPRING']:
                     row = layout.row()
-                    row.prop(context.object, 'ambf_constraint_stiffness')
-                    row.scale_y=1.5
-                
-                row = layout.row()
-                row.alignment = 'CENTER'
-                row.prop(context.object, 'ambf_constraint_limits_enable', toggle=True)
-                row.scale_y=2
-                
-                if context.object.ambf_constraint_type in ['REVOLUTE', 'TORSION_SPRING']:
-                    units = '(Degrees)'
-                    
-                elif context.object.ambf_constraint_type in ['PRISMATIC', 'LINEAR_SPRING']:
-                    units = '(Meters)'
-                
-                row = layout.row()
-                row.enabled = context.object.ambf_constraint_limits_enable
-                r1 = row.split(percentage=0.8)
-                r1.prop(context.object, 'ambf_constraint_limits_lower', text='Low')
-                r2 = r1.row()
-                r2.label(units)
-                
-                row = layout.row()
-                row.enabled = context.object.ambf_constraint_limits_enable
-                r1 = row.split(percentage=0.8)
-                r1.prop(context.object, 'ambf_constraint_limits_higher', text='High')
-                r2 = r1.row()
-                r2.label(units)
+                    row.alignment = 'EXPAND'
+                    row.prop(context.object, 'ambf_constraint_axis')
+
+                    row = layout.row()
+                    row.prop(context.object, 'ambf_constraint_damping')
+                    row.scale_y = 1.5
+
+                    if context.object.ambf_constraint_type in ['LINEAR_SPRING', 'TORSION_SPRING']:
+                        row = layout.row()
+                        row.prop(context.object, 'ambf_constraint_stiffness')
+                        row.scale_y = 1.5
+
+                    layout.separator()
+
+                    split = layout.split(percentage=0.3)
+                    row = split.column()
+                    row.alignment = 'CENTER'
+                    row.prop(context.object, 'ambf_constraint_limits_enable', toggle=True)
+                    row.scale_y = 2
+
+                    if context.object.ambf_constraint_type in ['REVOLUTE', 'TORSION_SPRING']:
+                        units = '(Degrees)'
+
+                    elif context.object.ambf_constraint_type in ['PRISMATIC', 'LINEAR_SPRING']:
+                        units = '(Meters)'
+
+                    row = split.column()
+                    row.enabled = context.object.ambf_constraint_limits_enable
+                    r1 = row.split(percentage=0.8)
+                    r1.prop(context.object, 'ambf_constraint_limits_lower', text='Low')
+                    r2 = r1.row()
+                    r2.label(text=units)
+
+                    row = row.column()
+                    row.enabled = context.object.ambf_constraint_limits_enable
+                    r1 = row.split(percentage=0.8)
+                    r1.prop(context.object, 'ambf_constraint_limits_higher', text='High')
+                    r2 = r1.row()
+                    r2.label(text=units)
  
                 if context.object.ambf_constraint_type in ['PRISMATIC', 'REVOLUTE']:
-                    row = layout.row()
-                    row.alignment = 'CENTER'
-                    row.prop(context.object, 'ambf_constraint_enable_controller_gains',
-                             toggle=True,
-                             text='Enable Gains')
-                    row.scale_y=2
-        
-                    col = layout.column()
-                    col.enabled = context.object.ambf_constraint_enable_controller_gains
-                    col.prop(context.object, 'ambf_constraint_controller_p_gain', text='P')
+                    layout.separator()
+                    split = layout.split(percentage=0.3)
+                    c1 = split.column()
+                    c1.alignment = 'CENTER'
+                    c1.prop(context.object, 'ambf_constraint_enable_controller_gains',
+                            toggle=True,
+                            text='Enable Gains')
+                    c1.scale_y = 3
 
-                    col = col.column()
-                    col.prop(context.object, 'ambf_constraint_controller_i_gain', text='I')
-        
-                    col = col.column()
-                    col.prop(context.object, 'ambf_constraint_controller_d_gain', text='D')
+                    s2 = split.split(percentage=0.3)
+                    c2 = s2.column()
+                    c2.operator('ambf.estimate_joint_controller_gain_per_object', text='Estimate')
+                    c2.scale_y = 3
+
+                    c3 = s2.column()
+                    c3.enabled = context.object.ambf_constraint_enable_controller_gains
+                    c3.prop(context.object, 'ambf_constraint_controller_p_gain', text='P')
+
+                    r3 = c3.row()
+                    r3.prop(context.object, 'ambf_constraint_controller_i_gain', text='I')
+
+                    r4 = c3.row()
+                    r4.prop(context.object, 'ambf_constraint_controller_d_gain', text='D')
 
 
 custom_classes = (AMBF_OT_toggle_low_res_mesh_modifiers_visibility,
                   AMBF_PG_CollisionShapePropGroup,
+                  AMBF_OT_cleanup_all,
+                  AMBF_OT_ambf_rigid_body_cleanup,
+                  AMBF_OT_ambf_constraint_cleanup,
+                  AMBF_OT_ambf_collision_shape_cleanup,
                   AMBF_OT_remove_low_res_mesh_modifiers,
                   AMBF_OT_generate_low_res_mesh_modifiers,
                   AMBF_OT_generate_ambf_file,
@@ -4051,10 +4278,12 @@ custom_classes = (AMBF_OT_toggle_low_res_mesh_modifiers_visibility,
                   AMBF_OT_ambf_rigid_body_remove_collision_shape,
                   AMBF_OT_estimate_collision_shapes_geometry,
                   AMBF_OT_estimate_inertias,
+                  AMBF_OT_estimate_joint_controller_gains,
                   AMBF_OT_auto_rename_joints,
                   AMBF_OT_estimate_inertial_offset_per_object,
                   AMBF_OT_estimate_collision_shape_geometry_per_object,
                   AMBF_OT_estimate_inertia_per_object,
+                  AMBF_OT_estimate_joint_controller_gain_per_object,
                   AMBF_OT_auto_rename_joint_per_object,
                   AMBF_OT_ambf_rigid_body_activate,
                   AMBF_OT_ambf_constraint_activate,
