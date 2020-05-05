@@ -478,19 +478,23 @@ def estimate_joint_controller_gain(obj_handle):
                 # Lets define at what error do we want to apply the holding torque
                 error_deg = 1.0
                 Kp = holding_torque / ((error_deg / 180.0) * math.pi)
+                Ki = Kp / 100.0
                 Kd = Kp / 100.0
                 print('Kp:, ', Kp)
                 print('Kd:, ', Kd)
                 obj_handle.ambf_constraint_controller_p_gain = Kp
+                obj_handle.ambf_constraint_controller_i_gain = Ki
                 obj_handle.ambf_constraint_controller_d_gain = Kd
             elif obj_handle.ambf_constraint_type == 'PRISMATIC':
                 holding_effort = (mass_p + mass_c)
                 error_m = 0.001
                 Kp = holding_effort / error_m
+                Ki = Kp / 100.0
                 Kd = Kp / 100.0
                 print('Kp:, ', Kp)
                 print('Kd:, ', Kd)
                 obj_handle.ambf_constraint_controller_p_gain = Kp
+                obj_handle.ambf_constraint_controller_i_gain = Ki
                 obj_handle.ambf_constraint_controller_d_gain = Kd
 
 
@@ -1073,10 +1077,10 @@ class AMBF_OT_generate_ambf_file(bpy.types.Operator):
                 _lin_gains = OrderedDict()
                 _ang_gains = OrderedDict()
                 _lin_gains['P'] = round(obj_handle.ambf_linear_controller_p_gain, 4)
-                _lin_gains['I'] = 0
+                _lin_gains['I'] = round(obj_handle.ambf_linear_controller_i_gain, 4)
                 _lin_gains['D'] = round(obj_handle.ambf_linear_controller_d_gain, 4)
                 _ang_gains['P'] = round(obj_handle.ambf_angular_controller_p_gain, 4)
-                _ang_gains['I'] = 0
+                _ang_gains['I'] = round(obj_handle.ambf_angular_controller_i_gain, 4)
                 _ang_gains['D'] = round(obj_handle.ambf_angular_controller_d_gain, 4)
                 _controller_gains['linear'] = _lin_gains
                 _controller_gains['angular'] = _ang_gains
@@ -1248,11 +1252,11 @@ class AMBF_OT_generate_ambf_file(bpy.types.Operator):
                 _lin_gains = OrderedDict()
                 _ang_gains = OrderedDict()
                 _lin_gains['P'] = round(obj_handle.ambf_rigid_body_linear_controller_p_gain, 4)
-                _lin_gains['I'] = 0
+                _lin_gains['I'] = round(obj_handle.ambf_rigid_body_linear_controller_i_gain, 4)
                 _lin_gains['D'] = round(obj_handle.ambf_rigid_body_linear_controller_d_gain, 4)
 
                 _ang_gains['P'] = round(obj_handle.ambf_rigid_body_angular_controller_p_gain, 4)
-                _ang_gains['I'] = 0
+                _ang_gains['I'] = round(obj_handle.ambf_rigid_body_angular_controller_i_gain, 4)
                 _ang_gains['D'] = round(obj_handle.ambf_rigid_body_angular_controller_d_gain, 4)
 
                 _controller_gains['linear'] = _lin_gains
@@ -1414,7 +1418,7 @@ class AMBF_OT_generate_ambf_file(bpy.types.Operator):
                         if joint_obj_handle.ambf_enable_joint_props is True:
                             _gains = OrderedDict()
                             _gains['P'] = round(joint_obj_handle.ambf_joint_controller_p_gain, 4)
-                            _gains['I'] = 0
+                            _gains['I'] = round(joint_obj_handle.ambf_joint_controller_i_gain, 4)
                             _gains['D'] = round(joint_obj_handle.ambf_joint_controller_d_gain, 4)
                             
                             joint_data['controller'] = _gains
@@ -1734,7 +1738,7 @@ class AMBF_OT_generate_ambf_file(bpy.types.Operator):
         if joint_obj_handle.ambf_constraint_enable_controller_gains:
             _gains = OrderedDict()
             joint_data['controller']['P'] = round(joint_obj_handle.ambf_constraint_controller_p_gain, 4)
-            joint_data['controller']['I'] = 0
+            joint_data['controller']['I'] = round(joint_obj_handle.ambf_constraint_controller_i_gain, 4)
             joint_data['controller']['D'] = round(joint_obj_handle.ambf_constraint_controller_d_gain, 4)
 
     def generate_ambf_yaml(self):
@@ -2351,8 +2355,10 @@ class AMBF_OT_load_ambf_file(bpy.types.Operator):
             # If Body Controller Defined. Set the P and D gains for linera and angular controller prop fields
             if 'controller' in body_data:
                 obj_handle.ambf_linear_controller_p_gain = body_data['controller']['linear']['P']
+                obj_handle.ambf_linear_controller_i_gain = body_data['controller']['linear']['I']
                 obj_handle.ambf_linear_controller_d_gain = body_data['controller']['linear']['D']
                 obj_handle.ambf_angular_controller_p_gain = body_data['controller']['angular']['P']
+                obj_handle.ambf_angular_controller_i_gain = body_data['controller']['angular']['I']
                 obj_handle.ambf_angular_controller_d_gain = body_data['controller']['angular']['D']
                 obj_handle.ambf_enable_body_props = True
 
@@ -2451,8 +2457,10 @@ class AMBF_OT_load_ambf_file(bpy.types.Operator):
             # If Body Controller Defined. Set the P and D gains for linera and angular controller prop fields
             if 'controller' in body_data:
                 obj_handle.ambf_rigid_body_linear_controller_p_gain = body_data['controller']['linear']['P']
+                obj_handle.ambf_rigid_body_linear_controller_i_gain = body_data['controller']['linear']['I']
                 obj_handle.ambf_rigid_body_linear_controller_d_gain = body_data['controller']['linear']['D']
                 obj_handle.ambf_rigid_body_angular_controller_p_gain = body_data['controller']['angular']['P']
+                obj_handle.ambf_rigid_body_angular_controller_i_gain = body_data['controller']['angular']['I']
                 obj_handle.ambf_rigid_body_angular_controller_d_gain = body_data['controller']['angular']['D']
                 obj_handle.ambf_rigid_body_enable_controllers = True
 
@@ -2922,6 +2930,7 @@ class AMBF_OT_load_ambf_file(bpy.types.Operator):
                 if joint_data['type'] in ['hinge', 'continuous', 'revolute', 'slider', 'prismatic']:
                     self._context.object.ambf_enable_joint_props = True
                     self._context.object.ambf_joint_controller_p_gain = joint_data["controller"]["P"]
+                    self._context.object.ambf_joint_controller_i_gain = joint_data["controller"]["I"]
                     self._context.object.ambf_joint_controller_d_gain = joint_data["controller"]["D"]
 
     def set_ambf_constraint_params(self, joint_obj_handle, joint_data):
@@ -2955,6 +2964,7 @@ class AMBF_OT_load_ambf_file(bpy.types.Operator):
             if joint_type in ['REVOLUTE', 'PRISMATIC']:
                 joint_obj_handle.ambf_constraint_enable_controller_gains = True
                 joint_obj_handle.ambf_constraint_controller_p_gain = joint_data["controller"]["P"]
+                joint_obj_handle.ambf_constraint_controller_i_gain = joint_data["controller"]["I"]
                 joint_obj_handle.ambf_constraint_controller_d_gain = joint_data["controller"]["D"]
 
     def load_blender_joint(self, joint_name):
@@ -3369,9 +3379,11 @@ class AMBF_PT_rigid_body_props(bpy.types.Panel):
     bpy.types.Object.ambf_enable_body_props = bpy.props.BoolProperty(name="Enable", default=False)
     
     bpy.types.Object.ambf_linear_controller_p_gain = bpy.props.FloatProperty(name="Proportional Gain (P)", default=500, min=0)
+    bpy.types.Object.ambf_linear_controller_i_gain = bpy.props.FloatProperty(name="Integral Gain (I)", default=5, min=0)
     bpy.types.Object.ambf_linear_controller_d_gain = bpy.props.FloatProperty(name="Damping Gain (D)", default=5, min=0)
     
     bpy.types.Object.ambf_angular_controller_p_gain = bpy.props.FloatProperty(name="Proportional Gain (P)", default=50, min=0)
+    bpy.types.Object.ambf_angular_controller_i_gain = bpy.props.FloatProperty(name="Integral Gain (I)", default=0.5, min=0)
     bpy.types.Object.ambf_angular_controller_d_gain = bpy.props.FloatProperty(name="Damping Gain (D)", default=0.5, min=0)
     
     @classmethod
@@ -3403,6 +3415,9 @@ class AMBF_PT_rigid_body_props(bpy.types.Panel):
         row.prop(context.object, 'ambf_linear_controller_p_gain')
         
         row = row.row()
+        row.prop(context.object, 'ambf_linear_controller_i_gain')
+
+        row = row.row()
         row.prop(context.object, 'ambf_linear_controller_d_gain')
         
         col = col.column()
@@ -3412,6 +3427,9 @@ class AMBF_PT_rigid_body_props(bpy.types.Panel):
         row = col.row()
         row.prop(context.object, 'ambf_angular_controller_p_gain')
         
+        row = row.row()
+        row.prop(context.object, 'ambf_angular_controller_i_gain')
+
         row = row.row()
         row.prop(context.object, 'ambf_angular_controller_d_gain')
         
@@ -3426,6 +3444,7 @@ class AMBF_PT_joint_props(bpy.types.Panel):
 
     bpy.types.Object.ambf_enable_joint_props = bpy.props.BoolProperty(name="Enable", default=False)
     bpy.types.Object.ambf_joint_controller_p_gain = bpy.props.FloatProperty(name="Proportional Gain (P)", default=500, min=0)
+    bpy.types.Object.ambf_joint_controller_i_gain = bpy.props.FloatProperty(name="Integral Gain (I)", default=5, min=0)
     bpy.types.Object.ambf_joint_controller_d_gain = bpy.props.FloatProperty(name="Damping Gain (D)", default=5, min=0)
     bpy.types.Object.ambf_joint_damping = bpy.props.FloatProperty(name="Joint Damping", default=0.0, min=0.0)
     
@@ -3456,6 +3475,9 @@ class AMBF_PT_joint_props(bpy.types.Panel):
         row = col.row()
         row.prop(context.object, 'ambf_joint_controller_p_gain')
         
+        row = row.row()
+        row.prop(context.object, 'ambf_joint_controller_i_gain')
+
         row = row.row()
         row.prop(context.object, 'ambf_joint_controller_d_gain')
 
@@ -3719,9 +3741,13 @@ class AMBF_PT_ambf_rigid_body(bpy.types.Panel):
 
     bpy.types.Object.ambf_rigid_body_linear_controller_p_gain = bpy.props.FloatProperty(name="Proportional Gain (P)", default=500, min=0)
 
+    bpy.types.Object.ambf_rigid_body_linear_controller_i_gain = bpy.props.FloatProperty(name="Integral Gain (I)", default=5, min=0)
+
     bpy.types.Object.ambf_rigid_body_linear_controller_d_gain = bpy.props.FloatProperty(name="Damping Gain (D)", default=5, min=0)
 
     bpy.types.Object.ambf_rigid_body_angular_controller_p_gain = bpy.props.FloatProperty(name="Proportional Gain (P)", default=50, min=0)
+
+    bpy.types.Object.ambf_rigid_body_angular_controller_i_gain = bpy.props.FloatProperty(name="Integral Gain (I)", default=0.5, min=0)
 
     bpy.types.Object.ambf_rigid_body_angular_controller_d_gain = bpy.props.FloatProperty(name="Damping Gain (D)", default=0.5, min=0)
 
@@ -3967,6 +3993,9 @@ class AMBF_PT_ambf_rigid_body(bpy.types.Panel):
             row.prop(context.object, 'ambf_rigid_body_linear_controller_p_gain', text='P')
         
             row = row.row()
+            row.prop(context.object, 'ambf_rigid_body_linear_controller_i_gain', text='I')
+
+            row = row.row()
             row.prop(context.object, 'ambf_rigid_body_linear_controller_d_gain', text='D')
             
             col = box.column()
@@ -3977,6 +4006,9 @@ class AMBF_PT_ambf_rigid_body(bpy.types.Panel):
             row = col.row()
             row.prop(context.object, 'ambf_rigid_body_angular_controller_p_gain', text='P')
         
+            row = row.row()
+            row.prop(context.object, 'ambf_rigid_body_angular_controller_i_gain', text='I')
+
             row = row.row()
             row.prop(context.object, 'ambf_rigid_body_angular_controller_d_gain', text='D')
             
@@ -4068,6 +4100,8 @@ class AMBF_PT_ambf_constraint(bpy.types.Panel):
     
     bpy.types.Object.ambf_constraint_controller_p_gain = bpy.props.FloatProperty(name="Proportional Gain (P)", default=500, min=0)
     
+    bpy.types.Object.ambf_constraint_controller_i_gain = bpy.props.FloatProperty(name="Integral Gain (I)", default=5, min=0)
+
     bpy.types.Object.ambf_constraint_controller_d_gain = bpy.props.FloatProperty(name="Damping Gain (D)", default=5, min=0)
     
     bpy.types.Object.ambf_constraint_damping = bpy.props.FloatProperty(name="Joint Damping", default=0.0, min=0.0)
@@ -4207,17 +4241,20 @@ class AMBF_PT_ambf_constraint(bpy.types.Panel):
                     c1.prop(context.object, 'ambf_constraint_enable_controller_gains',
                              toggle=True,
                              text='Enable Gains')
-                    c1.scale_y=2
+                    c1.scale_y=3
 
                     s2 = split.split(factor=0.3)
                     c2 = s2.column()
                     c2.operator('ambf.estimate_joint_controller_gain_per_object', text='Estimate')
-                    c2.scale_y=2
+                    c2.scale_y=3
         
                     c3 = s2.column()
                     c3.enabled = context.object.ambf_constraint_enable_controller_gains
                     c3.prop(context.object, 'ambf_constraint_controller_p_gain', text='P')
         
+                    r3 = c3.row()
+                    r3.prop(context.object, 'ambf_constraint_controller_i_gain', text='I')
+
                     r3 = c3.row()
                     r3.prop(context.object, 'ambf_constraint_controller_d_gain', text='D')
 
