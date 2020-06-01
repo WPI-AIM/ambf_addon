@@ -3205,6 +3205,9 @@ class AMBF_PT_create_adf(bpy.types.Panel):
         col = box.column()
         col.operator("ambf.ambf_collision_shape_cleanup")
         
+        col = box.column()
+        col.operator("ambf.ambf_hide_all_joints")
+        
         box = layout.box()
         row = box.row()
         # Load AMBF File Into Blender
@@ -3490,6 +3493,19 @@ class AMBF_OT_cleanup_all(bpy.types.Operator):
     def execute(self, context):
         for o in bpy.data.objects:
             bpy.data.objects.remove(o)
+        return {'FINISHED'}
+    
+
+class AMBF_OT_hide_all_joints(bpy.types.Operator):
+    """Add Joint Properties"""
+    bl_label = "HIDE ALL JOINTS"
+    bl_idname = "ambf.ambf_hide_all_joints"
+
+    def execute(self, context):
+        for o in bpy.data.objects:
+            if o.ambf_object_type == 'CONSTRAINT':
+                hidden = is_object_hidden(o)
+                hide_object(o, not hidden)
         return {'FINISHED'}
 
 
@@ -4265,6 +4281,7 @@ custom_classes = (AMBF_OT_toggle_low_res_mesh_modifiers_visibility,
                   AMBF_OT_ambf_rigid_body_cleanup,
                   AMBF_OT_ambf_constraint_cleanup,
                   AMBF_OT_ambf_collision_shape_cleanup,
+                  AMBF_OT_hide_all_joints,
                   AMBF_OT_remove_low_res_mesh_modifiers,
                   AMBF_OT_generate_low_res_mesh_modifiers,
                   AMBF_OT_generate_ambf_file,
