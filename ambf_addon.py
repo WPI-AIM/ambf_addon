@@ -1720,11 +1720,15 @@ class AMBF_OT_generate_ambf_file(bpy.types.Operator):
             if joint_obj_handle.ambf_constraint_limits_enable:
                 joint_data['joint limits'] = {'low': round(math.radians(joint_obj_handle.ambf_constraint_limits_lower), 4),
                                         'high': round(math.radians(joint_obj_handle.ambf_constraint_limits_higher), 4)}
+            else:
+                del joint_data['joint limits']
 
         if joint_obj_handle.ambf_constraint_type in ['PRISMATIC', 'LINEAR_SPRING']:
             if joint_obj_handle.ambf_constraint_limits_enable:
                 joint_data['joint limits'] = {'low': round(joint_obj_handle.ambf_constraint_limits_lower, 4),
                                         'high': round(joint_obj_handle.ambf_constraint_limits_higher, 4)}
+            else:
+                del joint_data['joint limits']
 
         if joint_obj_handle.ambf_constraint_type in ['LINEAR_SPRING', 'TORSION_SPRING']:
             joint_data['stiffness'] = round(joint_obj_handle.ambf_constraint_stiffness, 4)
