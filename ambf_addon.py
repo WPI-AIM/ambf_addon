@@ -868,6 +868,7 @@ class BodyTemplate:
         self._ambf_data['scale'] = 1.0
         self._ambf_data['location'] = get_pose_ordered_dict()
         self._ambf_data['inertial offset'] = get_pose_ordered_dict()
+        self._ambf_data['passive'] = False
 
         # self._ambf_data['controller'] = {'linear': {'P': 1000, 'I': 0, 'D': 1},
         #                                  'angular': {'P': 1000, 'I': 0, 'D': 1}}
@@ -888,6 +889,7 @@ class JointTemplate:
         self._ambf_data['child axis'] = get_xyz_ordered_dict()
         self._ambf_data['child pivot'] = get_xyz_ordered_dict()
         self._ambf_data['joint limits'] = {'low': -1.2, 'high': 1.2}
+        self._ambf_data['passive'] = False
 
         cont_dict = OrderedDict()
         cont_dict['P'] = 1000
@@ -1110,10 +1112,16 @@ class AMBF_OT_generate_ambf_file(bpy.types.Operator):
         body_yaml_name = self.add_body_prefix_str(obj_handle_name)
         output_mesh = bpy.context.scene.mesh_output_type
         body_data['name'] = obj_handle_name
-
-        body_data['publish children names'] = obj_handle.ambf_rigid_body_publish_children_names
-        body_data['publish joint names'] = obj_handle.ambf_rigid_body_publish_joint_names
-        body_data['publish joint positions'] = obj_handle.ambf_rigid_body_publish_joint_positions
+        
+        body_data['passive'] = obj_handle.ambf_rigid_body_passive
+        if obj_handle.ambf_rigid_body_passive:
+            body_data['publish children names'] = False
+            body_data['publish joint names'] = False
+            body_data['publish joint positions'] = False
+        else:
+            body_data['publish children names'] = obj_handle.ambf_rigid_body_publish_children_names
+            body_data['publish joint names'] = obj_handle.ambf_rigid_body_publish_joint_names
+            body_data['publish joint positions'] = obj_handle.ambf_rigid_body_publish_joint_positions
 
         world_pos = obj_handle.matrix_world.translation
         world_rot = obj_handle.matrix_world.to_euler()
@@ -1740,6 +1748,8 @@ class AMBF_OT_generate_ambf_file(bpy.types.Operator):
             joint_data['controller']['D'] = round(joint_obj_handle.ambf_constraint_controller_d_gain, 4)
         else:
             del joint_data['controller']
+            
+        joint_data['passive'] = joint_obj_handle.ambf_constraint_passive
 
     def generate_ambf_yaml(self):
         num_objs = len(bpy.data.objects)
@@ -3764,6 +3774,8 @@ class AMBF_PT_ambf_rigid_body(bpy.types.Panel):
     bpy.types.Object.ambf_rigid_body_angular_controller_i_gain = bpy.props.FloatProperty(name="Integral Gain (I)", default=0, min=0)
 
     bpy.types.Object.ambf_rigid_body_angular_controller_d_gain = bpy.props.FloatProperty(name="Damping Gain (D)", default=0.5, min=0)
+    
+    bpy.types.Object.ambf_rigid_body_passive = bpy.props.BoolProperty(name="Is Passive?", default=False, description="If passive. this body will not be spawned as an AMBF communication object")
 
     bpy.types.Object.ambf_rigid_body_is_static = bpy.props.BoolProperty \
         (
@@ -4032,14 +4044,21 @@ class AMBF_PT_ambf_rigid_body(bpy.types.Panel):
             
             # Publish various children properties
             box = layout.box()
+            
+            col = box.column()
+            col.prop(context.object, 'ambf_rigid_body_passive')
+            
             col = box.column()
             col.prop(context.object, 'ambf_rigid_body_publish_children_names')
+            col.enabled = not context.object.ambf_rigid_body_passive
 
             col = box.column()
             col.prop(context.object, 'ambf_rigid_body_publish_joint_names')
+            col.enabled = not context.object.ambf_rigid_body_passive
 
             col = box.column()
             col.prop(context.object, 'ambf_rigid_body_publish_joint_positions')
+            col.enabled = not context.object.ambf_rigid_body_passive
             
     def draw_collision_shape_prop(self, context, prop, box):
         sbox = box.box()
@@ -4125,6 +4144,8 @@ class AMBF_PT_ambf_constraint(bpy.types.Panel):
     bpy.types.Object.ambf_constraint_stiffness = bpy.props.FloatProperty(name="Joint Stiffness", default=0.0, min=0.0)
 
     bpy.types.Object.ambf_constraint_limits_enable = bpy.props.BoolProperty(name="Enable Limits", default=True)
+    
+    bpy.types.Object.ambf_constraint_passive = bpy.props.BoolProperty(name="Is Passive?", default=False)
 
     bpy.types.Object.ambf_constraint_limits_lower = bpy.props.FloatProperty(name="Low", default=-60, min=-359, max=359)
     bpy.types.Object.ambf_constraint_limits_higher = bpy.props.FloatProperty(name="High", default=60, min=-359, max=359)
@@ -4214,6 +4235,9 @@ class AMBF_PT_ambf_constraint(bpy.types.Panel):
 
                 layout.separator()
                 layout.separator()
+                
+                col = layout.column()
+                col.prop(context.object, 'ambf_constraint_passive')
 
                 if context.object.ambf_constraint_type in ['PRISMATIC', 'REVOLUTE', 'LINEAR_SPRING', 'TORSION_SPRING']:
                     row = layout.row()
@@ -4259,6 +4283,14 @@ class AMBF_PT_ambf_constraint(bpy.types.Panel):
  
                 if context.object.ambf_constraint_type in ['PRISMATIC', 'REVOLUTE']:
                     layout.separator()
+                    
+                    if context.object.ambf_constraint_enable_controller_gains and not context.object.ambf_constraint_passive:
+                        enable_gain_setting = True
+                    else:
+                        enable_gain_setting = False
+                    
+                    col = layout.column()
+                    
                     split = layout.split(percentage=0.3)
                     c1 = split.column()
                     c1.alignment = 'CENTER'
@@ -4273,7 +4305,7 @@ class AMBF_PT_ambf_constraint(bpy.types.Panel):
                     c2.scale_y = 3
 
                     c3 = s2.column()
-                    c3.enabled = context.object.ambf_constraint_enable_controller_gains
+                    c3.enabled = enable_gain_setting
                     c3.prop(context.object, 'ambf_constraint_controller_p_gain', text='P')
 
                     r3 = c3.row()
