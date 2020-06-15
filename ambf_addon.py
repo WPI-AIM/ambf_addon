@@ -1744,6 +1744,8 @@ class AMBF_OT_generate_ambf_file(bpy.types.Operator):
             joint_data['controller']['P'] = round(joint_obj_handle.ambf_constraint_controller_p_gain, 4)
             joint_data['controller']['I'] = round(joint_obj_handle.ambf_constraint_controller_i_gain, 4)
             joint_data['controller']['D'] = round(joint_obj_handle.ambf_constraint_controller_d_gain, 4)
+        else:
+            del joint_data['controller']
 
     def generate_ambf_yaml(self):
         num_objs = len(bpy.data.objects)
