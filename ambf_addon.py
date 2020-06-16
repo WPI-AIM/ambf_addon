@@ -2461,6 +2461,9 @@ class AMBF_OT_load_ambf_file(bpy.types.Operator):
                         obj_handle.ambf_rigid_body_collision_groups[group] = True
                     else:
                         print('WARNING, Collision Group Outside [0-20]')
+                        
+            if 'passive' in body_data:
+                obj_handle.ambf_rigid_body_passive = body_data['passive']
 
             # If Body Controller Defined. Set the P and D gains for linera and angular controller prop fields
             if 'controller' in body_data:
@@ -2966,6 +2969,9 @@ class AMBF_OT_load_ambf_file(bpy.types.Operator):
         if 'stiffness' in joint_data:
             if joint_type in ['LINEAR_SPRING', 'TORSION_SPRING']:
                 joint_obj_handle.ambf_constraint_stiffness = joint_data['stiffness']
+                
+        if 'passive' in joint_data:
+                joint_obj_handle.ambf_constraint_passive = joint_data['passive']
 
         # If joint controller is defined. Set the corresponding values in the joint properties
         if 'controller' in joint_data:
