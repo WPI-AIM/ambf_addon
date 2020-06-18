@@ -3044,8 +3044,8 @@ class AMBF_OT_load_ambf_file(bpy.types.Operator):
         yaml_file = open(self._yaml_filepath)
         
         # Check YAML version
-        ver = float(yaml.__version__)
-        if ver > 5.0:
+        maj, min, patch = [int(x, 10) for x in yaml.__version__.split('.')]
+        if maj >= 5:
             self._ambf_data = yaml.load(yaml_file, Loader=yaml.FullLoader)
         else:
             self._ambf_data = yaml.load(yaml_file)
