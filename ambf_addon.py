@@ -156,6 +156,16 @@ class CommonConfig:
     collision_shape_material_transparency = 0.4 # Pick a random transparency
 
 
+def ensure_collision_shape_material():
+    # Create a use a material only for the first instance
+    if bpy.data.materials.find(CommonConfig.collision_shape_material_name) == -1:
+        CommonConfig.collision_shape_material = bpy.data.materials.new(CommonConfig.collision_shape_material_name)
+    else:
+        CommonConfig.collision_shape_material = bpy.data.materials[CommonConfig.collision_shape_material_name]
+
+    CommonConfig.collision_shape_material.diffuse_color = CommonConfig.collision_shape_material_color
+
+
 def update_global_namespace(context):
     CommonConfig.namespace = context.scene.ambf_namespace
     if CommonConfig.namespace[-1] != '/':
@@ -824,15 +834,7 @@ def collision_shape_create_visual(obj_handle, shape_prop_group):
         collision_shape_update_local_offset(obj_handle, shape_prop_group)
 
         # Create a use a material only for the first instance
-        if CommonConfig.collision_shape_material is None:
-            if bpy.data.materials.find(CommonConfig.collision_shape_material_name) == -1:
-                CommonConfig.collision_shape_material = bpy.data.materials.new(CommonConfig.collision_shape_material_name)
-            else:
-                CommonConfig.collision_shape_material = bpy.data.materials[CommonConfig.collision_shape_material_name]
-
-            CommonConfig.collision_shape_material.diffuse_color = CommonConfig.collision_shape_material_color
-            CommonConfig.collision_shape_material.use_transparency = True
-            CommonConfig.collision_shape_material.alpha = CommonConfig.collision_shape_material_transparency
+        ensure_collision_shape_material()
 
         # coll_shape_obj_handle.draw_type = 'WIRE'
         coll_shape_obj_handle.hide_select = True
@@ -3079,8 +3081,11 @@ def collision_shape_show_update_cb(self, context):
         if obj_handle.ambf_rigid_body_collision_type in ['SINGULAR_SHAPE', 'COMPOUND_SHAPE']:
             for prop_tuple in obj_handle.ambf_collision_shape_prop_collection.items():
                 shape_prop_group = prop_tuple[1]
-                hide_object(shape_prop_group.ambf_rigid_body_collision_shape_pointer,
-                            not context.scene.ambf_rigid_body_show_collision_shapes)
+                coll_shape_obj = shape_prop_group.ambf_rigid_body_collision_shape_pointer
+                if coll_shape_obj is None:
+                    collision_shape_create_visual(obj_handle, shape_prop_group)
+                    coll_shape_obj = shape_prop_group.ambf_rigid_body_collision_shape_pointer
+                hide_object(coll_shape_obj, not context.scene.ambf_rigid_body_show_collision_shapes)
 ##
 
 
@@ -3726,8 +3731,11 @@ def collision_shape_show_per_object_update_cb(self, context):
     if obj_handle.ambf_rigid_body_collision_type in ['SINGULAR_SHAPE', 'COMPOUND_SHAPE']:
         for prop_tuple in obj_handle.ambf_collision_shape_prop_collection.items():
             shape_prop_group = prop_tuple[1]
-            hide_object(shape_prop_group.ambf_rigid_body_collision_shape_pointer,
-                        not obj_handle.ambf_rigid_body_show_collision_shapes_per_object)
+            coll_shape_obj = shape_prop_group.ambf_rigid_body_collision_shape_pointer
+            if coll_shape_obj is None:
+                collision_shape_create_visual(obj_handle, shape_prop_group)
+                coll_shape_obj = shape_prop_group.ambf_rigid_body_collision_shape_pointer
+            hide_object(coll_shape_obj, not obj_handle.ambf_rigid_body_show_collision_shapes_per_object)
 #
 ##
 
