@@ -770,12 +770,12 @@ def collision_shape_update_local_offset(obj_handle, shape_prop):
 
     # Shape Offset in Inertial Frame
     R_c_inertial = euler_rot.to_matrix()
-    T_c_inertial = R_c_inertial.to_4x4()
-    T_c_inertial.translation.x = shape_prop.ambf_rigid_body_linear_shape_offset[0]
-    T_c_inertial.translation.y = shape_prop.ambf_rigid_body_linear_shape_offset[1]
-    T_c_inertial.translation.z = shape_prop.ambf_rigid_body_linear_shape_offset[2]
+    T_c_p = R_c_inertial.to_4x4()
+    T_c_p.translation.x = shape_prop.ambf_rigid_body_linear_shape_offset[0]
+    T_c_p.translation.y = shape_prop.ambf_rigid_body_linear_shape_offset[1]
+    T_c_p.translation.z = shape_prop.ambf_rigid_body_linear_shape_offset[2]
 
-    coll_shape_obj_handle.matrix_world = T_p_w @ T_inertial_p @ T_c_inertial
+    coll_shape_obj_handle.matrix_world = T_p_w @ T_c_p
     coll_shape_obj_handle.scale = scale_old
 
 
@@ -1189,6 +1189,15 @@ class AMBF_OT_generate_ambf_file(bpy.types.Operator):
                            'height': round(shape_prop_group.ambf_rigid_body_collision_shape_height, 4),
                            'axis': shape_prop_group.ambf_rigid_body_collision_shape_axis}
                 body_data['collision geometry'] = bcg
+
+                offset = get_pose_ordered_dict()
+                offset['position']['x'] = round(shape_prop_group.ambf_rigid_body_linear_shape_offset[0], 4)
+                offset['position']['y'] = round(shape_prop_group.ambf_rigid_body_linear_shape_offset[1], 4)
+                offset['position']['z'] = round(shape_prop_group.ambf_rigid_body_linear_shape_offset[2], 4)
+                offset['orientation']['r'] = round(shape_prop_group.ambf_rigid_body_angular_shape_offset[0], 4)
+                offset['orientation']['p'] = round(shape_prop_group.ambf_rigid_body_angular_shape_offset[1], 4)
+                offset['orientation']['y'] = round(shape_prop_group.ambf_rigid_body_angular_shape_offset[2], 4)
+                body_data['collision offset'] = offset
 
             if obj_handle.ambf_rigid_body_collision_type == 'COMPOUND_SHAPE':
                 if 'collision shape' in body_data:
@@ -2057,7 +2066,26 @@ class AMBF_OT_estimate_inertial_offsets(bpy.types.Operator):
                 obj_handle.ambf_rigid_body_linear_inertial_offset[0] = local_com[0]
                 obj_handle.ambf_rigid_body_linear_inertial_offset[1] = local_com[1]
                 obj_handle.ambf_rigid_body_linear_inertial_offset[2] = local_com[2]
-                pass
+        return {'FINISHED'}
+
+
+class AMBF_OT_estimate_shape_offsets(bpy.types.Operator):
+    bl_idname = "ambf.estimate_shape_offsets"
+    bl_label = "Estimate Shape Offsets"
+    bl_description = "Automatically Estimate the Shape Offsets for the Bodies (ONLY FOR SINGULAR SHAPES)"
+
+    def execute(self, context):
+        cur_active_obj = get_active_object()
+        for obj_handle in bpy.data.objects:
+            if obj_handle.ambf_object_type == 'RIGID_BODY' and obj_handle.type == 'MESH':
+                if obj_handle.ambf_rigid_body_collision_type == 'SINGULAR_SHAPE':
+                    set_active_object(obj_handle)
+                    prop_group = obj_handle.ambf_collision_shape_prop_collection.items()[0][1]
+                    local_com = compute_local_com(obj_handle)
+                    prop_group.ambf_rigid_body_linear_shape_offset[0] = local_com[0]
+                    prop_group.ambf_rigid_body_linear_shape_offset[1] = local_com[1]
+                    prop_group.ambf_rigid_body_linear_shape_offset[2] = local_com[2]
+        set_active_object(cur_active_obj)
         return {'FINISHED'}
 
 
@@ -2131,6 +2159,23 @@ class AMBF_OT_estimate_inertial_offset_per_object(bpy.types.Operator):
             obj_handle.ambf_rigid_body_linear_inertial_offset[1] = local_com[1]
             obj_handle.ambf_rigid_body_linear_inertial_offset[2] = local_com[2]
             pass
+        return {'FINISHED'}
+
+
+class AMBF_OT_estimate_shape_offset_per_object(bpy.types.Operator):
+    bl_idname = "ambf.estimate_shape_offset_per_object"
+    bl_label = "Estimate Shape Offset Per Object"
+    bl_description = "Automatically Estimate the Shape Offset for the Body (SINGULAR SHAPE ONLY)"
+
+    def execute(self, context):
+        obj_handle = context.object
+        if obj_handle.ambf_object_type == 'RIGID_BODY' and obj_handle.type == 'MESH':
+            if obj_handle.ambf_rigid_body_collision_type == 'SINGULAR_SHAPE':
+                prop_group = obj_handle.ambf_collision_shape_prop_collection.items()[0][1]
+                local_com = compute_local_com(obj_handle)
+                prop_group.ambf_rigid_body_linear_shape_offset[0] = local_com[0]
+                prop_group.ambf_rigid_body_linear_shape_offset[1] = local_com[1]
+                prop_group.ambf_rigid_body_linear_shape_offset[2] = local_com[2]
         return {'FINISHED'}
 
 
@@ -2438,6 +2483,25 @@ class AMBF_OT_load_ambf_file(bpy.types.Operator):
                     ocs.ambf_rigid_body_collision_shape_radius = body_data['collision geometry']['radius']
                     ocs.ambf_rigid_body_collision_shape_height = body_data['collision geometry']['height']
                     ocs.ambf_rigid_body_collision_shape_axis = str.upper(body_data['collision geometry']['axis'])
+
+                if 'collision shape offset' in body_data:
+                    cso = body_data['collision offset']
+                    ocs.ambf_rigid_body_linear_shape_offset[0] = cso['position']['x']
+                    ocs.ambf_rigid_body_linear_shape_offset[1] = cso['position']['y']
+                    ocs.ambf_rigid_body_linear_shape_offset[2] = cso['position']['z']
+                    ocs.ambf_rigid_body_angular_shape_offset[0] = cso['orientation']['r']
+                    ocs.ambf_rigid_body_angular_shape_offset[1] = cso['orientation']['p']
+                    ocs.ambf_rigid_body_angular_shape_offset[2] = cso['orientation']['y']
+                else:
+                    # This is for legacy ADF, if the shape offset is
+                    # not defined set the shape offset equal to the inertial offset
+                    ocs.ambf_rigid_body_linear_shape_offset[0] = obj_handle.ambf_rigid_body_linear_inertial_offset[0]
+                    ocs.ambf_rigid_body_linear_shape_offset[1] = obj_handle.ambf_rigid_body_linear_inertial_offset[1]
+                    ocs.ambf_rigid_body_linear_shape_offset[2] = obj_handle.ambf_rigid_body_linear_inertial_offset[2]
+
+                    ocs.ambf_rigid_body_angular_shape_offset[0] = obj_handle.ambf_rigid_body_angular_inertial_offset[0]
+                    ocs.ambf_rigid_body_angular_shape_offset[1] = obj_handle.ambf_rigid_body_angular_inertial_offset[1]
+                    ocs.ambf_rigid_body_angular_shape_offset[2] = obj_handle.ambf_rigid_body_angular_inertial_offset[2]
                 
                 obj_handle.ambf_rigid_body_collision_type = 'SINGULAR_SHAPE'
             elif 'compound collision shape' in body_data:
@@ -2461,6 +2525,7 @@ class AMBF_OT_load_ambf_file(bpy.types.Operator):
                     ocs.ambf_rigid_body_linear_shape_offset[0] = shape_item['offset']['position']['x']
                     ocs.ambf_rigid_body_linear_shape_offset[1] = shape_item['offset']['position']['y']
                     ocs.ambf_rigid_body_linear_shape_offset[2] = shape_item['offset']['position']['z']
+
                     ocs.ambf_rigid_body_angular_shape_offset[0] = shape_item['offset']['orientation']['r']
                     ocs.ambf_rigid_body_angular_shape_offset[1] = shape_item['offset']['orientation']['p']
                     ocs.ambf_rigid_body_angular_shape_offset[2] = shape_item['offset']['orientation']['y']
@@ -3294,7 +3359,10 @@ class AMBF_PT_create_adf(bpy.types.Panel):
         # Column for creating detached joint
         col = sbox.column()
         col.operator('ambf.estimate_collision_shapes_geometry')
-        
+
+        col = sbox.column()
+        col.operator("ambf.estimate_shape_offsets")
+
         col = sbox.column()
         col.operator("ambf.estimate_inertial_offsets")
         
@@ -4116,16 +4184,21 @@ class AMBF_PT_ambf_rigid_body(bpy.types.Panel):
             col = sbox.column()
             col.prop(prop, 'ambf_rigid_body_collision_shape_xyz_dims')
 
-        if context.object.ambf_rigid_body_collision_type == 'COMPOUND_SHAPE':
+
+        if context.object.ambf_rigid_body_collision_type == 'SINGULAR_SHAPE':
             sbox.separator()
             col = sbox.column()
-            col = col.split(factor=0.5)
-            col.alignment = 'EXPAND'
-            col.prop(prop, 'ambf_rigid_body_linear_shape_offset')
+            col.operator("ambf.estimate_shape_offset_per_object")
 
-            col = col.column()
-            col.alignment = 'EXPAND'
-            col.prop(prop, 'ambf_rigid_body_angular_shape_offset')
+        sbox.separator()
+        col = sbox.column()
+        col = col.split(factor=0.5)
+        col.alignment = 'EXPAND'
+        col.prop(prop, 'ambf_rigid_body_linear_shape_offset')
+
+        col = col.column()
+        col.alignment = 'EXPAND'
+        col.prop(prop, 'ambf_rigid_body_angular_shape_offset')
             
             
 class AMBF_OT_ambf_constraint_activate(bpy.types.Operator):
@@ -4359,6 +4432,7 @@ custom_classes = (AMBF_OT_toggle_low_res_mesh_modifiers_visibility,
                   AMBF_OT_create_detached_joint,
                   AMBF_OT_remove_object_namespaces,
                   AMBF_OT_estimate_inertial_offsets,
+                  AMBF_OT_estimate_shape_offsets,
                   AMBF_OT_ambf_rigid_body_add_collision_shape,
                   AMBF_OT_ambf_rigid_body_remove_collision_shape,
                   AMBF_OT_estimate_collision_shapes_geometry,
@@ -4366,6 +4440,7 @@ custom_classes = (AMBF_OT_toggle_low_res_mesh_modifiers_visibility,
                   AMBF_OT_estimate_joint_controller_gains,
                   AMBF_OT_auto_rename_joints,
                   AMBF_OT_estimate_inertial_offset_per_object,
+                  AMBF_OT_estimate_shape_offset_per_object,
                   AMBF_OT_estimate_collision_shape_geometry_per_object,
                   AMBF_OT_estimate_inertia_per_object,
                   AMBF_OT_estimate_joint_controller_gain_per_object,
