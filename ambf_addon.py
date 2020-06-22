@@ -164,6 +164,8 @@ def ensure_collision_shape_material():
         CommonConfig.collision_shape_material = bpy.data.materials[CommonConfig.collision_shape_material_name]
 
     CommonConfig.collision_shape_material.diffuse_color = CommonConfig.collision_shape_material_color
+    CommonConfig.collision_shape_material.use_transparency = True
+    CommonConfig.collision_shape_material.alpha = CommonConfig.collision_shape_material_transparency
 
 
 def update_global_namespace(context):
@@ -2072,8 +2074,6 @@ class AMBF_OT_estimate_shape_offsets(bpy.types.Operator):
                     prop_group.ambf_rigid_body_linear_shape_offset[1] = local_com[1]
                     prop_group.ambf_rigid_body_linear_shape_offset[2] = local_com[2]
         set_active_object(cur_active_obj)
-        return {'FINISHED'}
-                pass
         return {'FINISHED'}
 
 
@@ -4183,7 +4183,7 @@ class AMBF_PT_ambf_rigid_body(bpy.types.Panel):
 
         sbox.separator()
         col = sbox.column()
-        col = col.split(factor=0.5)
+        col = col.split(percentage=0.5)
         col.alignment = 'EXPAND'
         col.prop(prop, 'ambf_rigid_body_linear_shape_offset')
 
