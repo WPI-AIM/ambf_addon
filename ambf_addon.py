@@ -1731,12 +1731,16 @@ class AMBF_OT_generate_ambf_file(bpy.types.Operator):
             else:
                 del joint_data['joint limits']
 
+            joint_data['max motor impulse'] = joint_obj_handle.ambf_constraint_max_motor_impulse
+
         if joint_obj_handle.ambf_constraint_type in ['PRISMATIC', 'LINEAR_SPRING']:
             if joint_obj_handle.ambf_constraint_limits_enable:
                 joint_data['joint limits'] = {'low': round(joint_obj_handle.ambf_constraint_limits_lower, 4),
                                         'high': round(joint_obj_handle.ambf_constraint_limits_higher, 4)}
             else:
                 del joint_data['joint limits']
+
+            joint_data['max motor impulse'] = joint_obj_handle.ambf_constraint_max_motor_impulse
 
         if joint_obj_handle.ambf_constraint_type in ['LINEAR_SPRING', 'TORSION_SPRING']:
             joint_data['stiffness'] = round(joint_obj_handle.ambf_constraint_stiffness, 4)
@@ -2989,6 +2993,10 @@ class AMBF_OT_load_ambf_file(bpy.types.Operator):
                 joint_obj_handle.ambf_constraint_controller_i_gain = joint_data["controller"]["I"]
                 joint_obj_handle.ambf_constraint_controller_d_gain = joint_data["controller"]["D"]
 
+        if 'max motor impulse' in joint_data:
+            if joint_type in ['REVOLUTE', 'PRISMATIC']:
+                joint_obj_handle.ambf_constraint_max_motor_impulse = joint_data["max motor impulse"]
+
     def load_blender_joint(self, joint_name):
         joint_data = self._ambf_data[joint_name]
         select_all_objects(False)
@@ -4160,7 +4168,10 @@ class AMBF_PT_ambf_constraint(bpy.types.Panel):
     bpy.types.Object.ambf_constraint_passive = bpy.props.BoolProperty(name="Is Passive?", default=False)
 
     bpy.types.Object.ambf_constraint_limits_lower = bpy.props.FloatProperty(name="Low", default=-60, min=-359, max=359)
+
     bpy.types.Object.ambf_constraint_limits_higher = bpy.props.FloatProperty(name="High", default=60, min=-359, max=359)
+
+    bpy.types.Object.ambf_constraint_max_motor_impulse = bpy.props.FloatProperty(name="Max Motor Impulse", default=0.05, min=0.0, max=2000)
     
     bpy.types.Object.ambf_constraint_axis = bpy.props.EnumProperty \
         (
@@ -4316,6 +4327,12 @@ class AMBF_PT_ambf_constraint(bpy.types.Panel):
 
                     r3 = c3.row()
                     r3.prop(context.object, 'ambf_constraint_controller_d_gain', text='D')
+
+                    layout.separator()
+
+                    col = layout.column()
+                    col.scale_y = 2.0
+                    col.prop(context.object, 'ambf_constraint_max_motor_impulse')
 
 
 custom_classes = (AMBF_OT_toggle_low_res_mesh_modifiers_visibility,
