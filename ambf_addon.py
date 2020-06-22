@@ -758,19 +758,13 @@ def collision_shape_update_local_offset(obj_handle, shape_prop):
     T_p_w = obj_handle.matrix_world.copy()
     coll_shape_obj_handle.matrix_world = T_p_w
 
-    # Inertial Offset in the Body Frame
-    T_inertial_p = mathutils.Matrix()
-    T_inertial_p.translation.x = obj_handle.ambf_rigid_body_linear_inertial_offset[0]
-    T_inertial_p.translation.y = obj_handle.ambf_rigid_body_linear_inertial_offset[1]
-    T_inertial_p.translation.z = obj_handle.ambf_rigid_body_linear_inertial_offset[2]
-
     euler_rot = mathutils.Euler((shape_prop.ambf_rigid_body_angular_shape_offset[0],
                                  shape_prop.ambf_rigid_body_angular_shape_offset[1],
                                  shape_prop.ambf_rigid_body_angular_shape_offset[2]), 'ZYX')
 
     # Shape Offset in Inertial Frame
-    R_c_inertial = euler_rot.to_matrix()
-    T_c_p = R_c_inertial.to_4x4()
+    R_c_p = euler_rot.to_matrix()
+    T_c_p = R_c_p.to_4x4()
     T_c_p.translation.x = shape_prop.ambf_rigid_body_linear_shape_offset[0]
     T_c_p.translation.y = shape_prop.ambf_rigid_body_linear_shape_offset[1]
     T_c_p.translation.z = shape_prop.ambf_rigid_body_linear_shape_offset[2]
@@ -2484,7 +2478,7 @@ class AMBF_OT_load_ambf_file(bpy.types.Operator):
                     ocs.ambf_rigid_body_collision_shape_height = body_data['collision geometry']['height']
                     ocs.ambf_rigid_body_collision_shape_axis = str.upper(body_data['collision geometry']['axis'])
 
-                if 'collision shape offset' in body_data:
+                if 'collision offset' in body_data:
                     cso = body_data['collision offset']
                     ocs.ambf_rigid_body_linear_shape_offset[0] = cso['position']['x']
                     ocs.ambf_rigid_body_linear_shape_offset[1] = cso['position']['y']
