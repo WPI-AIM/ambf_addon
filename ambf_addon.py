@@ -3721,7 +3721,7 @@ class AMBF_PG_CollisionShapePropGroup(bpy.types.PropertyGroup):
             name='Radius',
             default=1.0,
             update=collision_shape_dims_update_cb,
-            min=0.01
+            min=0.0001
         )
 
     ambf_rigid_body_collision_shape_height = bpy.props.FloatProperty \
@@ -3729,14 +3729,14 @@ class AMBF_PG_CollisionShapePropGroup(bpy.types.PropertyGroup):
             name='Height',
             default=1.0,
             update=collision_shape_dims_update_cb,
-            min=0.01
+            min=0.0001
         )
 
     ambf_rigid_body_collision_shape_xyz_dims = bpy.props.FloatVectorProperty \
         (
             name='Dimension (XYZ)',
             default=(1.0, 1.0, 1.0),
-            min=0.01,
+            min=0.0001,
             options={'PROPORTIONAL'},
             update=collision_shape_dims_update_cb,
             subtype='XYZ',
@@ -3826,7 +3826,7 @@ class AMBF_PT_ambf_rigid_body(bpy.types.Panel):
 
     bpy.types.Object.ambf_rigid_body_namespace = bpy.props.StringProperty(name="Namespace", default="")
     
-    bpy.types.Object.ambf_rigid_body_mass = bpy.props.FloatProperty(name="mass", default=1.0, min=0.001)
+    bpy.types.Object.ambf_rigid_body_mass = bpy.props.FloatProperty(name="mass", default=1.0, min=0.0001)
     
     bpy.types.Object.ambf_rigid_body_inertia_x = bpy.props.FloatProperty(name='Ix', default=1.0, min=0.0)
     
