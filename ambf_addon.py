@@ -1137,8 +1137,16 @@ class AMBF_OT_generate_ambf_file(bpy.types.Operator):
             if obj_handle_name in ['world', 'World', 'WORLD']:
                 body_data['mass'] = 0
             else:
-                body_data['mass'] = obj_handle.ambf_rigid_body_mass
-                body_data['inertia'] = {'ix': 0.01, 'iy': 0.01, 'iz': 0.01}
+                if obj_handle.ambf_rigid_body_is_static:
+                    body_data['mass'] = 0.0
+                else:
+                    body_data['mass'] = obj_handle.ambf_rigid_body_mass
+                    if obj_handle.ambf_rigid_body_specify_inertia:
+                        body_data['inertia'] = {'ix': round(obj_handle.ambf_rigid_body_inertia_x, 4),
+                                                'iy': round(obj_handle.ambf_rigid_body_inertia_y, 4),
+                                                'iz': round(obj_handle.ambf_rigid_body_inertia_z, 4)}
+                    else:
+                        body_data['inertia'] = {'ix': 0.01, 'iy': 0.01, 'iz': 0.01}
 
         elif obj_handle.type == 'MESH':
 
@@ -1146,6 +1154,13 @@ class AMBF_OT_generate_ambf_file(bpy.types.Operator):
                 body_data['mass'] = 0.0
             else:
                 body_data['mass'] = round(obj_handle.ambf_rigid_body_mass, 4)
+                if obj_handle.ambf_rigid_body_specify_inertia:
+                    body_data['inertia'] = {'ix': round(obj_handle.ambf_rigid_body_inertia_x, 4),
+                                            'iy': round(obj_handle.ambf_rigid_body_inertia_y, 4),
+                                            'iz': round(obj_handle.ambf_rigid_body_inertia_z, 4)}
+                else:
+                    # We can delete the inertia as it will be estimated in AMBF
+                    del body_data['inertia']
 
             body_data['friction'] = {'static': round(obj_handle.ambf_rigid_body_static_friction, 4),
                                      'rolling': round(obj_handle.ambf_rigid_body_rolling_friction, 4)}
@@ -1226,7 +1241,6 @@ class AMBF_OT_generate_ambf_file(bpy.types.Operator):
 
                 body_data['compound collision shape'] = compound_shape
 
-            del body_data['inertia']
             body_data['mesh'] = obj_handle_name + '.' + output_mesh
             xyz_inertial_off = get_xyz_ordered_dict()
             xyz_inertial_off['x'] = round(obj_handle.ambf_rigid_body_linear_inertial_offset[0], 4)
@@ -2425,6 +2439,12 @@ class AMBF_OT_load_ambf_file(bpy.types.Operator):
             obj_handle.ambf_rigid_body_enable = True
             obj_handle.ambf_rigid_body_mass = body_data['mass']
             obj_handle.ambf_object_type = 'RIGID_BODY'
+
+            if 'inertia' in body_data:
+                obj_handle.ambf_rigid_body_specify_inertia = True
+                obj_handle.ambf_rigid_body_inertia_x = body_data['inertia']['ix']
+                obj_handle.ambf_rigid_body_inertia_y = body_data['inertia']['iy']
+                obj_handle.ambf_rigid_body_inertia_z = body_data['inertia']['iz']
 
             if body_data['mass'] == 0.0:
                 obj_handle.ambf_rigid_body_is_static = True
