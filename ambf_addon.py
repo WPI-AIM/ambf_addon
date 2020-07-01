@@ -887,6 +887,7 @@ class JointTemplate:
         self._ambf_data['child axis'] = get_xyz_ordered_dict()
         self._ambf_data['child pivot'] = get_xyz_ordered_dict()
         self._ambf_data['joint limits'] = {'low': -1.2, 'high': 1.2}
+        self._ambf_data['enable feedback'] = False
         self._ambf_data['passive'] = False
 
         cont_dict = OrderedDict()
@@ -1774,6 +1775,8 @@ class AMBF_OT_generate_ambf_file(bpy.types.Operator):
         else:
             del joint_data['controller']
             
+        joint_data['enable feedback'] = joint_obj_handle.ambf_constraint_enable_feedback
+
         joint_data['passive'] = joint_obj_handle.ambf_constraint_passive
 
     def generate_ambf_yaml(self):
@@ -3060,6 +3063,9 @@ class AMBF_OT_load_ambf_file(bpy.types.Operator):
             if joint_type in ['LINEAR_SPRING', 'TORSION_SPRING']:
                 joint_obj_handle.ambf_constraint_stiffness = joint_data['stiffness']
                 
+        if 'enable feedback' in joint_data:
+                joint_obj_handle.ambf_constraint_enable_feedback = joint_data['enable feedback']
+
         if 'passive' in joint_data:
                 joint_obj_handle.ambf_constraint_passive = joint_data['passive']
 
@@ -3314,6 +3320,9 @@ class AMBF_PT_create_adf(bpy.types.Panel):
 
         col = box.column()
         col.operator("ambf.ambf_collision_shape_cleanup")
+
+        col = box.column()
+        col.operator("ambf.ambf_hide_passive_joints")
 
         col = box.column()
         col.operator("ambf.ambf_hide_all_joints")
@@ -3609,9 +3618,23 @@ class AMBF_OT_cleanup_all(bpy.types.Operator):
         return {'FINISHED'}
 
 
+class AMBF_OT_hide_passive_joints(bpy.types.Operator):
+    """Add Joint Properties"""
+    bl_label = "HIDE PASSIVE JOINTS (TOGGLE)"
+    bl_idname = "ambf.ambf_hide_passive_joints"
+
+    def execute(self, context):
+        for o in bpy.data.objects:
+            if o.ambf_object_type == 'CONSTRAINT':
+                if o.ambf_constraint_passive:
+                    hidden = is_object_hidden(o)
+                    hide_object(o, not hidden)
+        return {'FINISHED'}
+
+
 class AMBF_OT_hide_all_joints(bpy.types.Operator):
     """Add Joint Properties"""
-    bl_label = "HIDE ALL JOINTS"
+    bl_label = "HIDE ALL JOINTS (TOGGLE)"
     bl_idname = "ambf.ambf_hide_all_joints"
 
     def execute(self, context):
@@ -3620,7 +3643,6 @@ class AMBF_OT_hide_all_joints(bpy.types.Operator):
                 hidden = is_object_hidden(o)
                 hide_object(o, not hidden)
         return {'FINISHED'}
-
 
 
 class AMBF_OT_ambf_rigid_body_cleanup(bpy.types.Operator):
@@ -4258,6 +4280,8 @@ class AMBF_PT_ambf_constraint(bpy.types.Panel):
 
     bpy.types.Object.ambf_constraint_limits_enable = bpy.props.BoolProperty(name="Enable Limits", default=True)
     
+    bpy.types.Object.ambf_constraint_enable_feedback = bpy.props.BoolProperty(name="Enable Feedback", default=False)
+
     bpy.types.Object.ambf_constraint_passive = bpy.props.BoolProperty(name="Is Passive?", default=False)
 
     bpy.types.Object.ambf_constraint_limits_lower = bpy.props.FloatProperty(name="Low", default=-60, min=-359, max=359)
@@ -4354,6 +4378,9 @@ class AMBF_PT_ambf_constraint(bpy.types.Panel):
                 layout.separator()
                 
                 col = layout.column()
+                col.prop(context.object, 'ambf_constraint_enable_feedback')
+
+                col = layout.column()
                 col.prop(context.object, 'ambf_constraint_passive')
 
                 if context.object.ambf_constraint_type in ['PRISMATIC', 'REVOLUTE', 'LINEAR_SPRING', 'TORSION_SPRING']:
@@ -4444,6 +4471,7 @@ custom_classes = (AMBF_OT_toggle_low_res_mesh_modifiers_visibility,
                   AMBF_OT_ambf_rigid_body_cleanup,
                   AMBF_OT_ambf_constraint_cleanup,
                   AMBF_OT_ambf_collision_shape_cleanup,
+                  AMBF_OT_hide_passive_joints,
                   AMBF_OT_hide_all_joints,
                   AMBF_OT_remove_low_res_mesh_modifiers,
                   AMBF_OT_generate_low_res_mesh_modifiers,
