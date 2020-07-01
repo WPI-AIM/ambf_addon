@@ -890,6 +890,7 @@ class JointTemplate:
         self._ambf_data['child axis'] = get_xyz_ordered_dict()
         self._ambf_data['child pivot'] = get_xyz_ordered_dict()
         self._ambf_data['joint limits'] = {'low': -1.2, 'high': 1.2}
+        self._ambf_data['enable feedback'] = False
         self._ambf_data['passive'] = False
 
         cont_dict = OrderedDict()
@@ -1055,19 +1056,21 @@ class AMBF_OT_generate_ambf_file(bpy.types.Operator):
                                                  'ambient': {'level': 0.5},
                                                  'transparency': 1.0}
 
-                body_data['color components']['diffuse']['r'] = round(obj_handle.data.materials[0].diffuse_color[0], 4)
-                body_data['color components']['diffuse']['g'] = round(obj_handle.data.materials[0].diffuse_color[1], 4)
-                body_data['color components']['diffuse']['b'] = round(obj_handle.data.materials[0].diffuse_color[2], 4)
+                mat = obj_handle.data.materials[0]
 
-                body_data['color components']['specular']['r'] = round(obj_handle.data.materials[0].specular_color[0], 4)
-                body_data['color components']['specular']['g'] = round(obj_handle.data.materials[0].specular_color[1], 4)
-                body_data['color components']['specular']['b'] = round(obj_handle.data.materials[0].specular_color[2], 4)
+                body_data['color components']['diffuse']['r'] = round(mat.diffuse_color[0], 4)
+                body_data['color components']['diffuse']['g'] = round(mat.diffuse_color[1], 4)
+                body_data['color components']['diffuse']['b'] = round(mat.diffuse_color[2], 4)
+
+                body_data['color components']['specular']['r'] = round(mat.specular_color[0], 4)
+                body_data['color components']['specular']['g'] = round(mat.specular_color[1], 4)
+                body_data['color components']['specular']['b'] = round(mat.specular_color[2], 4)
                 
-#                body_data['color components']['ambient']['level'] = round(obj_handle.data.materials[0].ambient, 4)
+#                body_data['color components']['ambient']['level'] = round(mat.ambient, 4)
                 body_data['color components']['ambient']['level'] = 1.0
 
-#                body_data['color components']['transparency'] = round(obj_handle.data.materials[0].alpha, 4)
-                body_data['color components']['transparency'] = round(obj_handle.data.materials[0].diffuse_color[3], 4)
+#                body_data['color components']['transparency'] = round(mat.alpha, 4)
+                body_data['color components']['transparency'] = round(mat.diffuse_color[3], 4)
             
             # Set the body controller data from the controller props
             if obj_handle.ambf_enable_body_props is True:
@@ -1261,17 +1264,22 @@ class AMBF_OT_generate_ambf_file(bpy.types.Operator):
                                                  'ambient': {'level': 0.5},
                                                  'transparency': 1.0}
 
-                body_data['color components']['diffuse']['r'] = round(obj_handle.data.materials[0].diffuse_color[0], 4)
-                body_data['color components']['diffuse']['g'] = round(obj_handle.data.materials[0].diffuse_color[1], 4)
-                body_data['color components']['diffuse']['b'] = round(obj_handle.data.materials[0].diffuse_color[2], 4)
+                mat = obj_handle.data.materials[0]
+                body_data['color components']['diffuse']['r'] = round(mat.diffuse_color[0], 4)
+                body_data['color components']['diffuse']['g'] = round(mat.diffuse_color[1], 4)
+                body_data['color components']['diffuse']['b'] = round(mat.diffuse_color[2], 4)
 
-                body_data['color components']['specular']['r'] = round(obj_handle.data.materials[0].specular_color[0], 4)
-                body_data['color components']['specular']['g'] = round(obj_handle.data.materials[0].specular_color[1], 4)
-                body_data['color components']['specular']['b'] = round(obj_handle.data.materials[0].specular_color[2], 4)
+                spec_r = mat.diffuse_color[0] * mat.specular_intensity
+                spec_g = mat.diffuse_color[1] * mat.specular_intensity
+                spec_b = mat.diffuse_color[1] * mat.specular_intensity
+
+                body_data['color components']['specular']['r'] = round(spec_r, 4)
+                body_data['color components']['specular']['g'] = round(spec_g, 4)
+                body_data['color components']['specular']['b'] = round(spec_b, 4)
 
                 body_data['color components']['ambient']['level'] = 1.0
 
-                body_data['color components']['transparency'] = round(obj_handle.data.materials[0].diffuse_color[3], 4)
+                body_data['color components']['transparency'] = round(mat.diffuse_color[3], 4)
 
             # Set the body controller data from the controller props
             if obj_handle.ambf_rigid_body_enable_controllers is True:
@@ -1778,6 +1786,8 @@ class AMBF_OT_generate_ambf_file(bpy.types.Operator):
         else:
             del joint_data['controller']
             
+        joint_data['enable feedback'] = joint_obj_handle.ambf_constraint_enable_feedback
+
         joint_data['passive'] = joint_obj_handle.ambf_constraint_passive
 
     def generate_ambf_yaml(self):
@@ -2377,9 +2387,8 @@ class AMBF_OT_load_ambf_file(bpy.types.Operator):
             mat.diffuse_color[2] = body_data['color components']['diffuse']['b']
             mat.diffuse_color[3] = body_data['color components']['transparency']
 
-            mat.specular_color[0] = body_data['color components']['specular']['r']
-            mat.specular_color[1] = body_data['color components']['specular']['g']
-            mat.specular_color[2] = body_data['color components']['specular']['b']
+            # In Blender 2.8, specular is a float unlike 2.79 where it was an RGB
+            mat.specular_intensity = body_data['color components']['specular']['r'] / mat.diffuse_color[0]
 
 #            mat.ambient = body_data['color components']['ambient']['level']
 #            mat.use_transparency = True
@@ -3063,6 +3072,9 @@ class AMBF_OT_load_ambf_file(bpy.types.Operator):
             if joint_type in ['LINEAR_SPRING', 'TORSION_SPRING']:
                 joint_obj_handle.ambf_constraint_stiffness = joint_data['stiffness']
                 
+        if 'enable feedback' in joint_data:
+                joint_obj_handle.ambf_constraint_enable_feedback = joint_data['enable feedback']
+
         if 'passive' in joint_data:
                 joint_obj_handle.ambf_constraint_passive = joint_data['passive']
 
@@ -3319,6 +3331,9 @@ class AMBF_PT_create_adf(bpy.types.Panel):
         col = box.column()
         col.operator("ambf.ambf_collision_shape_cleanup")
         
+        col = box.column()
+        col.operator("ambf.ambf_hide_passive_joints")
+
         col = box.column()
         col.operator("ambf.ambf_hide_all_joints")
         
@@ -3615,7 +3630,7 @@ class AMBF_OT_cleanup_all(bpy.types.Operator):
 
 class AMBF_OT_hide_all_joints(bpy.types.Operator):
     """Add Joint Properties"""
-    bl_label = "HIDE ALL JOINTS"
+    bl_label = "HIDE ALL JOINTS (TOGGLE)"
     bl_idname = "ambf.ambf_hide_all_joints"
 
     def execute(self, context):
@@ -3623,6 +3638,20 @@ class AMBF_OT_hide_all_joints(bpy.types.Operator):
             if o.ambf_object_type == 'CONSTRAINT':
                 hidden = is_object_hidden(o)
                 hide_object(o, not hidden)
+        return {'FINISHED'}
+
+
+class AMBF_OT_hide_passive_joints(bpy.types.Operator):
+    """Add Joint Properties"""
+    bl_label = "HIDE PASSIVE JOINTS (TOGGLE)"
+    bl_idname = "ambf.ambf_hide_passive_joints"
+
+    def execute(self, context):
+        for o in bpy.data.objects:
+            if o.ambf_object_type == 'CONSTRAINT':
+                if o.ambf_constraint_passive:
+                    hidden = is_object_hidden(o)
+                    hide_object(o, not hidden)
         return {'FINISHED'}
 
 
@@ -4262,6 +4291,8 @@ class AMBF_PT_ambf_constraint(bpy.types.Panel):
 
     bpy.types.Object.ambf_constraint_passive = bpy.props.BoolProperty(name="Is Passive?", default=False)
 
+    bpy.types.Object.ambf_constraint_enable_feedback = bpy.props.BoolProperty(name="Enable Feedback", default=False)
+
     bpy.types.Object.ambf_constraint_limits_lower = bpy.props.FloatProperty(name="Low", default=-60, min=-359, max=359)
 
     bpy.types.Object.ambf_constraint_limits_higher = bpy.props.FloatProperty(name="High", default=60, min=-359, max=359)
@@ -4345,7 +4376,10 @@ class AMBF_PT_ambf_constraint(bpy.types.Panel):
             
             layout.separator()
             layout.separator()
-            
+
+            col = layout.column()
+            col.prop(context.object, 'ambf_constraint_enable_feedback')
+
             col = layout.column()
             col.prop(context.object, 'ambf_constraint_passive')
             
@@ -4436,6 +4470,7 @@ custom_classes = (AMBF_OT_toggle_low_res_mesh_modifiers_visibility,
                   AMBF_OT_ambf_rigid_body_cleanup,
                   AMBF_OT_ambf_constraint_cleanup,
                   AMBF_OT_ambf_collision_shape_cleanup,
+                  AMBF_OT_hide_passive_joints,
                   AMBF_OT_hide_all_joints,
                   AMBF_OT_remove_low_res_mesh_modifiers,
                   AMBF_OT_generate_low_res_mesh_modifiers,
