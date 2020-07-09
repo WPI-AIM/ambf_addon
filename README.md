@@ -1,4 +1,4 @@
-# Blender AMBF Add-on 
+# Blender AMBF Add-on
 Blender Add-on for creating and loading AMBF yaml config files
 
 # Introduction:
@@ -10,7 +10,7 @@ Adnan Munawar
 Email: amunawar@wpi.edu
 
 #### Decription:
-1. The blender plugin is to easy the creation of multi-body config files that are used in AMBF Framework. 
+1. The blender plugin is to easy the creation of multi-body config files that are used in AMBF Framework.
 AMBF stands for (Asynchoronous Multi-Body Framework). AMBF is real-time dynamics engine
 based on Bullet and CHAI-3D with ROS Support on Linux. The source code is located at:
 "https://github.com/WPI-AIM/ambf"
@@ -22,19 +22,41 @@ soft bodies as well as multiple unconnected, semi-connected and fully connected 
 
 3. AMBF files allow multiple parents as well as cyclical interconnection which is not possible with URDF and SDF.
 
-4. Joints are considered independent objects, similar to the bodies in the environment. Joints can easily be ignored, 
+4. Joints are considered independent objects, similar to the bodies in the environment. Joints can easily be ignored,
 added and modified in the AMBF Yaml config files.
 
 5. Because of the underlying philosophy of treating joints as independent objects, the AMBF yaml config files can seperate out joints from the bodies in differnet files. E.g. one config file can contain information about the bodies only and another config file can contain information about the joints. In addition to this features, the joints can be added at run-time for any dynamic ridig body in simulation.
 
-#### Notes:
-1. This plugin is only supported for **Blender 2.79**
-2. Simulation frame must be at 0 (box to the right of the start end frames)
+#### Usage:
+
+Please head over to the Youtube channel with the basic tutorials to get you started.
+
+https://www.youtube.com/playlist?list=PLKH7Q-IzaPumDw77qQzF8deR1l4LgbWeP
 
 #### Known Issues:
-The **yaml** modules is usually not installed alongside Blenders python compiler, therefore, while trying to load the plugin, you may encounter an issue saying **No Module Names 'yaml'**. This procedure seems to resolve this issue. The answers on these forums can be used to resolve this issue.
+1. The **yaml** modules is usually not installed alongside Blenders python interpreter, therefore, while trying to load the plugin, you may encounter an issue saying **No Module Names 'yaml'**.
+This can be solved by installing `pyyaml` for the Python interpreter used by Blender. In your terminal navigate to the folder where blender resides. If you downloaded blender
+from its website to your downloads folder, after extracting the zipped file, you should have a folder with the following naming convention `blender-<version>-<os>'.
 
-https://blender.stackexchange.com/questions/56011/how-to-install-pip-for-blenders-bundled-python
+```bash
+cd ~/Downloads/blender-<version>-<os>
+cd ./<version>/python/bin
+```
+Then install pip for the python interpreter
+```
+./python<version> -m ensurepip
+```
+and finally
+```
+./pip<version> install pyyaml
+```
 
+If for example, you downloaded blender 2.79 from its website, the above commands will become
 
-After install pip using the instructions above, one can simply install `yaml` or `pyyaml` for the blender specific python.
+```bash
+cd ~/Downloads/blender-2.79-linux64
+cd ./2.79/python/bin/
+./python3.7m -m ensurepip
+./pip3 install pyyaml
+```
+2. The simulation key-frame must be at 0 while saving the ADF files to ensure proper world transforms.
