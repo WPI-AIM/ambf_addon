@@ -1949,10 +1949,9 @@ class AMBF_OT_save_meshes(bpy.types.Operator):
                         for node in mat.node_tree.nodes:
                             if node.type == 'TEX_IMAGE':
                                 im = node.image
-                                _existing_path = im.filepath_raw
-                                _dir = os.path.dirname(_existing_path)
-                                _filename = os.path.basename(_existing_path)
+                                _filename = im.name_full
                                 _filename_wo_ext = _filename.split('.')[0]
+                                print("Texture Filename ", _filename)
                                 _save_as = os.path.join(high_res_path, _filename_wo_ext + '.png')
                                 im.filepath_raw = _save_as
                                 im.save_render(_save_as)
@@ -4297,7 +4296,7 @@ class AMBF_PT_ambf_constraint(bpy.types.Panel):
 
     bpy.types.Object.ambf_constraint_limits_higher = bpy.props.FloatProperty(name="High", default=60, min=-359, max=359)
 
-    bpy.types.Object.ambf_constraint_max_motor_impulse = bpy.props.FloatProperty(name="Max Motor Impulse", default=0.05, min=0.0, max=2000)
+    bpy.types.Object.ambf_constraint_max_motor_impulse = bpy.props.FloatProperty(name="Max Motor Impulse", default=0.05, min=0.0)
     
     bpy.types.Object.ambf_constraint_axis = bpy.props.EnumProperty \
         (
