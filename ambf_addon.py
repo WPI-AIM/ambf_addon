@@ -2387,7 +2387,19 @@ class AMBF_OT_load_ambf_file(bpy.types.Operator):
             mat.diffuse_color[3] = body_data['color components']['transparency']
 
             # In Blender 2.8, specular is a float unlike 2.79 where it was an RGB
-            mat.specular_intensity = body_data['color components']['specular']['r'] / mat.diffuse_color[0]
+            intensity = 0
+            try:
+                intensity = body_data['color components']['specular']['r'] / mat.diffuse_color[0]
+            except:
+                try:
+                    intensity = body_data['color components']['specular']['r'] / mat.diffuse_color[1]
+                except:
+                    try:
+                        intensity = body_data['color components']['specular']['r'] / mat.diffuse_color[2]
+                    except:
+                        intensity = 0.0
+                        
+            mat.specular_intensity = intensity
 
 #            mat.ambient = body_data['color components']['ambient']['level']
 #            mat.use_transparency = True
