@@ -612,9 +612,9 @@ def calculate_principal_inertia(obj_handle):
 
     # Parallel Axis Theorem
     off = obj_handle.ambf_rigid_body_linear_inertial_offset
-    I[0] = I[0] + mass * (off[1] * off[1] + off[2] + off[2])
-    I[1] = I[1] + mass * (off[0] * off[0] + off[2] + off[2])
-    I[2] = I[2] + mass * (off[0] * off[0] + off[1] + off[1])
+    I[0] = I[0] + mass * (off[1] ** 2 + off[2] ** 2)
+    I[1] = I[1] + mass * (off[0] ** 2 + off[2] ** 2)
+    I[2] = I[2] + mass * (off[0] ** 2 + off[1] ** 2)
     ix = round(I[0], 4)
     iy = round(I[1], 4)
     iz = round(I[2], 4)
