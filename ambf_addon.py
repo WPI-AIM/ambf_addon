@@ -3779,7 +3779,7 @@ def collision_shape_offset_update_cb(self, context):
 
 
 class AMBF_PG_CollisionShapePropGroup(bpy.types.PropertyGroup):
-    ambf_rigid_body_collision_shape_radius = bpy.props.FloatProperty \
+    ambf_rigid_body_collision_shape_radius: bpy.props.FloatProperty \
         (
             name='Radius',
             default=1.0,
@@ -3787,7 +3787,7 @@ class AMBF_PG_CollisionShapePropGroup(bpy.types.PropertyGroup):
             min=0.0001
         )
 
-    ambf_rigid_body_collision_shape_height = bpy.props.FloatProperty \
+    ambf_rigid_body_collision_shape_height: bpy.props.FloatProperty \
         (
             name='Height',
             default=1.0,
@@ -3795,7 +3795,7 @@ class AMBF_PG_CollisionShapePropGroup(bpy.types.PropertyGroup):
             min=0.0001
         )
 
-    ambf_rigid_body_collision_shape_xyz_dims = bpy.props.FloatVectorProperty \
+    ambf_rigid_body_collision_shape_xyz_dims: bpy.props.FloatVectorProperty \
         (
             name='Dimension (XYZ)',
             default=(1.0, 1.0, 1.0),
@@ -3805,11 +3805,11 @@ class AMBF_PG_CollisionShapePropGroup(bpy.types.PropertyGroup):
             subtype='XYZ',
         )
         
-    disable_update_cbs = bpy.props.BoolProperty(default=False)
+    disable_update_cbs: bpy.props.BoolProperty(default=False)
 
-    ambf_rigid_body_collision_shape_pointer = bpy.props.PointerProperty(name="Collision Shape", type=bpy.types.Object)
+    ambf_rigid_body_collision_shape_pointer: bpy.props.PointerProperty(name="Collision Shape", type=bpy.types.Object)
 
-    ambf_rigid_body_collision_shape = bpy.props.EnumProperty \
+    ambf_rigid_body_collision_shape: bpy.props.EnumProperty \
         (
             items=
             [
@@ -3824,7 +3824,7 @@ class AMBF_PG_CollisionShapePropGroup(bpy.types.PropertyGroup):
             default="BOX"
         )
 
-    ambf_rigid_body_collision_shape_axis = bpy.props.EnumProperty \
+    ambf_rigid_body_collision_shape_axis: bpy.props.EnumProperty \
         (
             name='Shape Axis',
             items=
@@ -3838,7 +3838,7 @@ class AMBF_PG_CollisionShapePropGroup(bpy.types.PropertyGroup):
             description='The direction the collision shape is aligned. Use for Cone, Cylinder and Capsule'
         )
 
-    ambf_rigid_body_linear_shape_offset = bpy.props.FloatVectorProperty \
+    ambf_rigid_body_linear_shape_offset: bpy.props.FloatVectorProperty \
         (
             name='Linear Shape Offset',
             default=(0.0, 0.0, 0.0),
@@ -3847,7 +3847,7 @@ class AMBF_PG_CollisionShapePropGroup(bpy.types.PropertyGroup):
             subtype='XYZ',
         )
 
-    ambf_rigid_body_angular_shape_offset = bpy.props.FloatVectorProperty \
+    ambf_rigid_body_angular_shape_offset: bpy.props.FloatVectorProperty \
         (
             name='Angular Shape Offset',
             default=(0.0, 0.0, 0.0),
