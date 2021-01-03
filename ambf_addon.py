@@ -771,10 +771,15 @@ def collision_shape_update_local_offset(obj_handle, shape_prop):
 
     coll_shape_obj_handle.matrix_world = T_p_w @ T_c_p
     coll_shape_obj_handle.scale = scale_old
+    
+
+def set_3d_cursor_location(location):
+    bpy.context.scene.cursor.location = location
 
 
 def collision_shape_create_visual(obj_handle, shape_prop_group):
     cur_active_obj_handle = get_active_object()
+    set_3d_cursor_location([0, 0, 0])
     select_all_objects(False)
     if shape_prop_group.ambf_rigid_body_collision_shape_pointer is None:
         height = shape_prop_group.ambf_rigid_body_collision_shape_height
@@ -823,7 +828,7 @@ def collision_shape_create_visual(obj_handle, shape_prop_group):
 
             else:
                 print("FAIL! Shouldn't Get Here")
-
+                
         coll_shape_obj_handle = get_active_object()
         coll_shape_obj_handle.ambf_object_type = 'COLLISION_SHAPE'
         bpy.ops.object.transform_apply(scale=True, rotation=True)
