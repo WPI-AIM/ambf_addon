@@ -508,7 +508,7 @@ def estimate_joint_controller_gain(obj_handle):
                 obj_handle.ambf_constraint_controller_d_gain = Kd
 
 
-def inertia_of_convex_hull(obj_handle, mass=None):
+def inertia_of_mesh(obj_handle, mass=None):
     if mass == None:
         mass = obj_handle.ambf_rigid_body_mass
     num_vertices = len(obj_handle.data.vertices)
@@ -582,8 +582,8 @@ def calculate_principal_inertia(obj_handle):
     # Calculate Ixx, Iyy and Izz
     mass = obj_handle.ambf_rigid_body_mass
     # For now, handle the calculation of the compound shape inertia as the convex hull's inertia
-    if obj_handle.ambf_rigid_body_collision_type in ['CONVEX_HULL', 'COMPOUND_SHAPE']:
-        I = inertia_of_convex_hull(obj_handle)
+    if obj_handle.ambf_rigid_body_collision_type in ['MESH', 'COMPOUND_SHAPE']:
+        I = inertia_of_mesh(obj_handle)
 
     elif obj_handle.ambf_rigid_body_collision_type == 'SINGULAR_SHAPE':
         prop_group = obj_handle.ambf_collision_shape_prop_collection.items()[0]
@@ -685,7 +685,7 @@ def estimate_collision_shape_geometry(obj_handle):
             add_collision_shape_property(obj_handle)
         # Don't bother if the shape is a compound shape for now. Let the
         # user calculate the geometries.
-        if obj_handle.ambf_rigid_body_collision_type in ['CONVEX_HULL', 'SINGULAR_SHAPE']:
+        if obj_handle.ambf_rigid_body_collision_type in ['MESH', 'SINGULAR_SHAPE']:
             dims = obj_handle.dimensions.copy()
             prop_group = obj_handle.ambf_collision_shape_prop_collection.items()[0][1]
             # Now we need to find out the geometry of the shape
@@ -903,6 +903,7 @@ class JointTemplate:
         cont_dict['I'] = 0
         cont_dict['D'] = 1
         self._ambf_data['controller'] = cont_dict
+        self._ambf_data['controller output type'] = 'VELOCITY'
 
 
 class AMBF_OT_generate_ambf_file(bpy.types.Operator):
@@ -1187,7 +1188,9 @@ class AMBF_OT_generate_ambf_file(bpy.types.Operator):
             if obj_handle.ambf_rigid_body_enable_collision_margin is True:
                 body_data['collision margin'] = round(obj_handle.ambf_rigid_body_collision_margin, 4)
 
-            if obj_handle.ambf_rigid_body_collision_type == 'SINGULAR_SHAPE':
+            if obj_handle.ambf_rigid_body_collision_type == 'MESH':
+                body_data['collision mesh type'] = obj_handle.ambf_rigid_body_collision_mesh_type
+            elif obj_handle.ambf_rigid_body_collision_type == 'SINGULAR_SHAPE':
                 shape_prop_group = obj_handle.ambf_collision_shape_prop_collection.items()[0][1]
                 body_data['collision shape'] = shape_prop_group.ambf_rigid_body_collision_shape
                 bcg = OrderedDict()
@@ -1214,8 +1217,7 @@ class AMBF_OT_generate_ambf_file(bpy.types.Operator):
                 offset['orientation']['p'] = round(shape_prop_group.ambf_rigid_body_angular_shape_offset[1], 4)
                 offset['orientation']['y'] = round(shape_prop_group.ambf_rigid_body_angular_shape_offset[2], 4)
                 body_data['collision offset'] = offset
-
-            if obj_handle.ambf_rigid_body_collision_type == 'COMPOUND_SHAPE':
+            elif obj_handle.ambf_rigid_body_collision_type == 'COMPOUND_SHAPE':
                 if 'collision shape' in body_data:
                     del body_data['collision shape']
                 compound_shape = []
@@ -1302,6 +1304,7 @@ class AMBF_OT_generate_ambf_file(bpy.types.Operator):
                 _controller_gains['linear'] = _lin_gains
                 _controller_gains['angular'] = _ang_gains
                 body_data['controller'] = _controller_gains
+                body_data['controller output type'] = obj_handle.ambf_rigid_body_controller_output_type
             else:
                 if 'controller' in body_data:
                     del body_data['controller']
@@ -1788,6 +1791,7 @@ class AMBF_OT_generate_ambf_file(bpy.types.Operator):
             joint_data['controller']['P'] = round(joint_obj_handle.ambf_constraint_controller_p_gain, 4)
             joint_data['controller']['I'] = round(joint_obj_handle.ambf_constraint_controller_i_gain, 4)
             joint_data['controller']['D'] = round(joint_obj_handle.ambf_constraint_controller_d_gain, 4)
+            joint_data['controller output type'] = joint_obj_handle.ambf_constraint_controller_output_type
         else:
             del joint_data['controller']
             
@@ -2379,9 +2383,7 @@ class AMBF_OT_load_ambf_file(bpy.types.Operator):
             mat.diffuse_color[0] = body_data['color rgba']['r']
             mat.diffuse_color[1] = body_data['color rgba']['g']
             mat.diffuse_color[2] = body_data['color rgba']['b']
-            mat.use_transparency = True
-            mat.transparency_method = 'Z_TRANSPARENCY'
-            mat.alpha = body_data['color rgba']['a']
+            mat.diffuse_color[3] = body_data['color rgba']['a']
             obj_handle.data.materials.append(mat)
 
         elif 'color components' in body_data:
@@ -2569,6 +2571,8 @@ class AMBF_OT_load_ambf_file(bpy.types.Operator):
                     ocs.ambf_rigid_body_angular_shape_offset[2] = shape_item['offset']['orientation']['y']
                     
                 obj_handle.ambf_rigid_body_collision_type = 'COMPOUND_SHAPE'
+            elif 'collision mesh type' in body_data:
+                obj_handle.ambf_rigid_body_collision_mesh_type = body_data['collision mesh type']
 
             if 'collision groups' in body_data:
                 col_groups = body_data['collision groups']
@@ -2586,12 +2590,19 @@ class AMBF_OT_load_ambf_file(bpy.types.Operator):
             # If Body Controller Defined. Set the P and D gains for linera and angular controller prop fields
             if 'controller' in body_data:
                 obj_handle.ambf_rigid_body_linear_controller_p_gain = body_data['controller']['linear']['P']
-                obj_handle.ambf_rigid_body_linear_controller_i_gain = body_data['controller']['linear']['I']
+                if 'I' in body_data['controller']['linear']:
+                    obj_handle.ambf_rigid_body_linear_controller_i_gain = body_data['controller']['linear']['I']
                 obj_handle.ambf_rigid_body_linear_controller_d_gain = body_data['controller']['linear']['D']
                 obj_handle.ambf_rigid_body_angular_controller_p_gain = body_data['controller']['angular']['P']
-                obj_handle.ambf_rigid_body_angular_controller_i_gain = body_data['controller']['angular']['I']
+                if 'I' in body_data['controller']['angular']:
+                    obj_handle.ambf_rigid_body_angular_controller_i_gain = body_data['controller']['angular']['I']
                 obj_handle.ambf_rigid_body_angular_controller_d_gain = body_data['controller']['angular']['D']
                 obj_handle.ambf_rigid_body_enable_controllers = True
+
+                if 'controller output type' in body_data:
+                    obj_handle.ambf_rigid_body_controller_output_type = body_data['controller output type']
+                else:
+                    obj_handle.ambf_rigid_body_controller_output_type = 'FORCE'
 
             # Now lets add a collision shape for each collision_property_group
             for prop_tuple in obj_handle.ambf_collision_shape_prop_collection.items():
@@ -3101,6 +3112,15 @@ class AMBF_OT_load_ambf_file(bpy.types.Operator):
                 joint_obj_handle.ambf_constraint_controller_p_gain = joint_data["controller"]["P"]
                 joint_obj_handle.ambf_constraint_controller_i_gain = joint_data["controller"]["I"]
                 joint_obj_handle.ambf_constraint_controller_d_gain = joint_data["controller"]["D"]
+                if 'controller output type' in joint_data:
+                    joint_obj_handle.ambf_constraint_controller_output_type = joint_data['controller output type']
+                else:
+                    joint_obj_handle.ambf_constraint_controller_output_type = 'FORCE'
+        else:
+            joint_obj_handle.ambf_constraint_controller_p_gain = 10
+            joint_obj_handle.ambf_constraint_controller_i_gain = 0
+            joint_obj_handle.ambf_constraint_controller_d_gain = 1.0
+            joint_obj_handle.ambf_constraint_controller_output_type = 'VELOCITY'
 
         if 'max motor impulse' in joint_data:
             if joint_type in ['REVOLUTE', 'PRISMATIC']:
@@ -3920,17 +3940,17 @@ class AMBF_PT_ambf_rigid_body(bpy.types.Panel):
 
     bpy.types.Object.ambf_rigid_body_enable_controllers = bpy.props.BoolProperty(name="Enable Controllers", default=False)
 
-    bpy.types.Object.ambf_rigid_body_linear_controller_p_gain = bpy.props.FloatProperty(name="Proportional Gain (P)", default=500, min=0)
+    bpy.types.Object.ambf_rigid_body_linear_controller_p_gain = bpy.props.FloatProperty(name="Proportional Gain (P)", default=10, min=0)
 
-    bpy.types.Object.ambf_rigid_body_linear_controller_i_gain = bpy.props.FloatProperty(name="Integral Gain (I)", default=5, min=0)
+    bpy.types.Object.ambf_rigid_body_linear_controller_i_gain = bpy.props.FloatProperty(name="Integral Gain (I)", default=0, min=0)
 
-    bpy.types.Object.ambf_rigid_body_linear_controller_d_gain = bpy.props.FloatProperty(name="Damping Gain (D)", default=5, min=0)
+    bpy.types.Object.ambf_rigid_body_linear_controller_d_gain = bpy.props.FloatProperty(name="Damping Gain (D)", default=1, min=0)
 
-    bpy.types.Object.ambf_rigid_body_angular_controller_p_gain = bpy.props.FloatProperty(name="Proportional Gain (P)", default=50, min=0)
+    bpy.types.Object.ambf_rigid_body_angular_controller_p_gain = bpy.props.FloatProperty(name="Proportional Gain (P)", default=10, min=0)
 
-    bpy.types.Object.ambf_rigid_body_angular_controller_i_gain = bpy.props.FloatProperty(name="Integral Gain (I)", default=0.5, min=0)
+    bpy.types.Object.ambf_rigid_body_angular_controller_i_gain = bpy.props.FloatProperty(name="Integral Gain (I)", default=0, min=0)
 
-    bpy.types.Object.ambf_rigid_body_angular_controller_d_gain = bpy.props.FloatProperty(name="Damping Gain (D)", default=0.5, min=0)
+    bpy.types.Object.ambf_rigid_body_angular_controller_d_gain = bpy.props.FloatProperty(name="Damping Gain (D)", default=1, min=0)
 
     bpy.types.Object.ambf_rigid_body_passive = bpy.props.BoolProperty(name="Is Passive?", default=False, description="If passive. this body will not be spawned as an AMBF communication object")
     
@@ -3953,13 +3973,26 @@ class AMBF_PT_ambf_rigid_body(bpy.types.Panel):
             name='Collision Type',
             items=
             [
-                ('CONVEX_HULL', 'Convex Hull', '', 'MESH_ICOSPHERE', 0),
+                ('MESH', 'MESH', '', 'MESH_ICOSPHERE', 0),
                 ('SINGULAR_SHAPE', 'Singular Shape', '', 'MESH_CUBE', 1),
                 ('COMPOUND_SHAPE', 'Compound Shape', '', 'OUTLINER_OB_GROUP_INSTANCE', 2),
             ],
-            default='CONVEX_HULL',
+            default='MESH',
             update=rigid_body_collision_type_update_cb,
             description='Choose between a singular or a compound collision that consists of multiple shapes'
+        )
+
+    bpy.types.Object.ambf_rigid_body_collision_mesh_type = bpy.props.EnumProperty \
+        (
+            name='Collision Mesh Type',
+            items=
+            [
+                ('CONCAVE_MESH', 'Concave Mesh', '', 'MESH_ICOSPHERE', 0),
+                ('CONVEX_MESH', 'Convex Mesh', '', 'MESH_CUBE', 1),
+                ('CONVEX_HULL', 'Convex Hull', '', 'OUTLINER_OB_GROUP_INSTANCE', 2),
+            ],
+            default='CONCAVE_MESH',
+            description='Choose between a the type of collision mesh. Avoid Concave Mesh if you can.'
         )
     
     bpy.types.Object.ambf_rigid_body_collision_groups = bpy.props.BoolVectorProperty \
@@ -3999,6 +4032,18 @@ class AMBF_PT_ambf_rigid_body(bpy.types.Panel):
                 ('COLLISION_SHAPE', 'COLLISION_SHAPE', '', '', 3),
             ],
             default='NONE'
+        )
+
+    bpy.types.Object.ambf_rigid_body_controller_output_type = bpy.props.EnumProperty \
+            (
+            items=
+            [
+                ('VELOCITY', 'VELOCITY', '', '', 0),
+                ('FORCE', 'FORCE', '', '', 1),
+            ],
+            name="Controller Output Type",
+            default='VELOCITY',
+            description='The output of the controller fed to the simulation. Better to use (VELOCITY) with P <= 10, D <= 1'
         )
 
     bpy.types.Object.ambf_rigid_body_publish_children_names = bpy.props.BoolProperty \
@@ -4099,8 +4144,13 @@ class AMBF_PT_ambf_rigid_body(bpy.types.Panel):
             row = box.row()
             row.prop(context.object, 'ambf_rigid_body_collision_type')
 
-            if context.object.ambf_rigid_body_collision_type == 'SINGULAR_SHAPE':
-                
+            if context.object.ambf_rigid_body_collision_type == 'MESH':
+
+                col = box.column()
+                col.prop(context.object, 'ambf_rigid_body_collision_mesh_type')
+
+            elif context.object.ambf_rigid_body_collision_type == 'SINGULAR_SHAPE':
+
                 col = box.column()
                 col.operator('ambf.estimate_collision_shape_geometry_per_object')
                 propgroup = context.object.ambf_collision_shape_prop_collection.items()[0][1]
@@ -4194,6 +4244,9 @@ class AMBF_PT_ambf_rigid_body(bpy.types.Panel):
 
             row = row.row()
             row.prop(context.object, 'ambf_rigid_body_angular_controller_d_gain', text='D')
+
+            row = col.row()
+            row.prop(context.object, 'ambf_rigid_body_controller_output_type')
             
             layout.separator()
             
@@ -4293,11 +4346,11 @@ class AMBF_PT_ambf_constraint(bpy.types.Panel):
     
     bpy.types.Object.ambf_constraint_enable_controller_gains = bpy.props.BoolProperty(name="Enable Controller Gains", default=False)
     
-    bpy.types.Object.ambf_constraint_controller_p_gain = bpy.props.FloatProperty(name="Proportional Gain (P)", default=500, min=0)
+    bpy.types.Object.ambf_constraint_controller_p_gain = bpy.props.FloatProperty(name="Proportional Gain (P)", default=10, min=0)
     
-    bpy.types.Object.ambf_constraint_controller_i_gain = bpy.props.FloatProperty(name="Integral Gain (I)", default=5, min=0)
+    bpy.types.Object.ambf_constraint_controller_i_gain = bpy.props.FloatProperty(name="Integral Gain (I)", default=0, min=0)
 
-    bpy.types.Object.ambf_constraint_controller_d_gain = bpy.props.FloatProperty(name="Damping Gain (D)", default=5, min=0)
+    bpy.types.Object.ambf_constraint_controller_d_gain = bpy.props.FloatProperty(name="Damping Gain (D)", default=1, min=0)
     
     bpy.types.Object.ambf_constraint_damping = bpy.props.FloatProperty(name="Joint Damping", default=0.0, min=0.0)
 
@@ -4340,6 +4393,18 @@ class AMBF_PT_ambf_constraint(bpy.types.Panel):
             ],
             name="Type",
             default='REVOLUTE'
+        )
+
+    bpy.types.Object.ambf_constraint_controller_output_type = bpy.props.EnumProperty \
+        (
+            items=
+            [
+                ('VELOCITY', 'VELOCITY', '', '', 0),
+                ('FORCE', 'FORCE', '', '', 1),
+            ],
+            name="Controller Output Type",
+            default='VELOCITY',
+            description='The output of the controller fed to the simulation. Better to use (VELOCITY) with P <= 10, D <= 1'
         )
     
     @classmethod
@@ -4462,6 +4527,7 @@ class AMBF_PT_ambf_constraint(bpy.types.Panel):
                     c2 = s2.column()
                     c2.operator('ambf.estimate_joint_controller_gain_per_object', text='Estimate')
                     c2.scale_y=3
+                    c2.enabled = enable_gain_setting
         
                     c3 = s2.column()
                     c3.enabled = enable_gain_setting
@@ -4472,6 +4538,10 @@ class AMBF_PT_ambf_constraint(bpy.types.Panel):
 
                     r3 = c3.row()
                     r3.prop(context.object, 'ambf_constraint_controller_d_gain', text='D')
+
+                    row = layout.row()
+                    row.prop(context.object, 'ambf_constraint_controller_output_type')
+                    row.enabled = enable_gain_setting
 
                     layout.separator()
 
