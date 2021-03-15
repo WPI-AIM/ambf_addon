@@ -2571,8 +2571,14 @@ class AMBF_OT_load_ambf_file(bpy.types.Operator):
                     ocs.ambf_rigid_body_angular_shape_offset[2] = shape_item['offset']['orientation']['y']
                     
                 obj_handle.ambf_rigid_body_collision_type = 'COMPOUND_SHAPE'
-            elif 'collision mesh type' in body_data:
-                obj_handle.ambf_rigid_body_collision_mesh_type = body_data['collision mesh type']
+            else:
+                # Since the shape is neither a single or a compound shape, it is a mesh based collision.
+                # Now figure out what type of collision mesh is used. (CONCAVE_MESH, CONVEX_MESH or CONVEX_HULL)
+                if 'collision mesh type' in body_data:
+                    obj_handle.ambf_rigid_body_collision_mesh_type = body_data['collision mesh type']
+                else:
+                    # For backward compatibility, the default collision mesh type used to be CONCAVE_MESH
+                    obj_handle.ambf_rigid_body_collision_mesh_type = 'CONCAVE_MESH'
 
             if 'collision groups' in body_data:
                 col_groups = body_data['collision groups']
@@ -3922,9 +3928,9 @@ class AMBF_PT_ambf_rigid_body(bpy.types.Panel):
     
     bpy.types.Object.ambf_rigid_body_inertia_z = bpy.props.FloatProperty(name='Iz', default=1.0, min=0.0)
     
-    bpy.types.Object.ambf_rigid_body_static_friction = bpy.props.FloatProperty(name="Static Friction", default=0.5, min=0.0, max=1.0)
+    bpy.types.Object.ambf_rigid_body_static_friction = bpy.props.FloatProperty(name="Static Friction", default=0.5, min=0.0, max=10.0)
 
-    bpy.types.Object.ambf_rigid_body_rolling_friction = bpy.props.FloatProperty(name="Rolling Friction", default=0.1, min=0.0, max=1.0)
+    bpy.types.Object.ambf_rigid_body_rolling_friction = bpy.props.FloatProperty(name="Rolling Friction", default=0.0, min=0.0, max=1.0)
     
     bpy.types.Object.ambf_rigid_body_restitution = bpy.props.FloatProperty(name="Restitution", default=0.1, min=0.0, max=1.0)
     
@@ -3934,7 +3940,7 @@ class AMBF_PT_ambf_rigid_body(bpy.types.Panel):
     
     bpy.types.Object.ambf_rigid_body_collision_margin = bpy.props.FloatProperty(name="Margin", default=0.001, min=-0.1, max=1.0)
     
-    bpy.types.Object.ambf_rigid_body_linear_damping = bpy.props.FloatProperty(name="Linear Damping", default=0.5, min=0.0, max=1.0)
+    bpy.types.Object.ambf_rigid_body_linear_damping = bpy.props.FloatProperty(name="Linear Damping", default=0.04, min=0.0, max=1.0)
     
     bpy.types.Object.ambf_rigid_body_angular_damping = bpy.props.FloatProperty(name="Angular Damping", default=0.1, min=0.0, max=1.0)
 
@@ -3991,8 +3997,8 @@ class AMBF_PT_ambf_rigid_body(bpy.types.Panel):
                 ('CONVEX_MESH', 'Convex Mesh', '', 'MESH_CUBE', 1),
                 ('CONVEX_HULL', 'Convex Hull', '', 'OUTLINER_OB_GROUP_INSTANCE', 2),
             ],
-            default='CONCAVE_MESH',
-            description='Choose between a the type of collision mesh. Avoid Concave Mesh if you can.'
+            default='CONVEX_HULL',
+            description='Choose between the type of the collision mesh. Avoid Concave Meshes if you can.'
         )
     
     bpy.types.Object.ambf_rigid_body_collision_groups = bpy.props.BoolVectorProperty \
