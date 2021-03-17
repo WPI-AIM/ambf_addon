@@ -1779,6 +1779,7 @@ class AMBF_OT_generate_ambf_file(bpy.types.Operator):
 
         if joint_obj_handle.ambf_constraint_type in ['LINEAR_SPRING', 'TORSION_SPRING']:
             joint_data['stiffness'] = round(joint_obj_handle.ambf_constraint_stiffness, 4)
+            joint_data['equilibrium point'] = round(joint_obj_handle.ambf_constraint_equilibrium_point, 4)
         else:
             if 'stiffness' in joint_data:
                 del joint_data['stiffness']
@@ -3104,6 +3105,13 @@ class AMBF_OT_load_ambf_file(bpy.types.Operator):
         if 'stiffness' in joint_data:
             if joint_type in ['LINEAR_SPRING', 'TORSION_SPRING']:
                 joint_obj_handle.ambf_constraint_stiffness = joint_data['stiffness']
+                if 'equilibrium point' in joint_data:
+                    joint_obj_handle.ambf_constraint_equilibrium_point = joint_data['equilibrium point']
+                else:
+                    # Set the eq point midway between lower and upper limit
+                    joint_obj_handle.ambf_constraint_equilibrium_point = (joint_obj_handle.ambf_constraint_limits_lower
+                                                                          + joint_obj_handle.ambf_constraint_limits_higher) / 2.0
+
                 
         if 'enable feedback' in joint_data:
                 joint_obj_handle.ambf_constraint_enable_feedback = joint_data['enable feedback']
@@ -4358,9 +4366,11 @@ class AMBF_PT_ambf_constraint(bpy.types.Panel):
 
     bpy.types.Object.ambf_constraint_controller_d_gain = bpy.props.FloatProperty(name="Damping Gain (D)", default=1, min=0)
     
-    bpy.types.Object.ambf_constraint_damping = bpy.props.FloatProperty(name="Joint Damping", default=0.0, min=0.0)
+    bpy.types.Object.ambf_constraint_damping = bpy.props.FloatProperty(name="Joint Damping", default=0.7, min=0.0)
 
-    bpy.types.Object.ambf_constraint_stiffness = bpy.props.FloatProperty(name="Joint Stiffness", default=0.0, min=0.0)
+    bpy.types.Object.ambf_constraint_stiffness = bpy.props.FloatProperty(name="Joint Stiffness", default=10.0, min=0.0)
+
+    bpy.types.Object.ambf_constraint_equilibrium_point = bpy.props.FloatProperty(name="Equilibrium Point", default=0.0)
 
     bpy.types.Object.ambf_constraint_limits_enable = bpy.props.BoolProperty(name="Enable Limits", default=True)
 
@@ -4482,6 +4492,9 @@ class AMBF_PT_ambf_constraint(bpy.types.Panel):
                 if context.object.ambf_constraint_type in ['LINEAR_SPRING', 'TORSION_SPRING']:
                     row = layout.row()
                     row.prop(context.object, 'ambf_constraint_stiffness')
+                    row.scale_y=1.5
+                    row = layout.row()
+                    row.prop(context.object, 'ambf_constraint_equilibrium_point')
                     row.scale_y=1.5
                     
                 layout.separator()
