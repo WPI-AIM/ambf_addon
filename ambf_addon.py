@@ -1924,36 +1924,16 @@ class AMBF_OT_save_meshes(bpy.types.Operator):
             if p_obj_handle.parent is None:
                 self.reset_back_to_default(p_obj_handle, obj_name_mat_list)
 
-    def save_meshes(self, context):
-        # First deselect all objects
-        select_all_objects(False)
+    def save_body_textures(self, context, obj_handle, high_res_path):
+        if obj_handle.type == 'MESH':
+            # First save the texture(s) if any
+            # Store current render settings
+            _settings = context.scene.render.image_settings
 
-        save_path = bpy.path.abspath(context.scene.ambf_yaml_mesh_path)
-        high_res_path = os.path.join(save_path, 'high_res/')
-        low_res_path = os.path.join(save_path, 'low_res/')
-        os.makedirs(high_res_path, exist_ok=True)
-        os.makedirs(low_res_path, exist_ok=True)
-        mesh_type = bpy.context.scene.mesh_output_type
+            # Change render settings to our target format
+            _settings.file_format = 'PNG'
 
-        mesh_name_mat_list = self.set_all_meshes_to_origin()
-        for obj_handle in bpy.data.objects:
-            # Mesh Type is .stl
-            if not context.scene.enable_legacy_loading:
-                if not obj_handle.ambf_object_type == 'RIGID_BODY':
-                    # Only Save Meshes if the object type is ambf rigid body
-                    continue
-            select_object(obj_handle)
-
-            obj_handle_name = remove_namespace_prefix(obj_handle.name)
-
-            if obj_handle.type == 'MESH':
-                # First save the texture(s) if any
-                # Store current render settings
-                _settings = context.scene.render.image_settings
-
-                # Change render settings to our target format
-                _settings.file_format = 'PNG'
-
+            if context.scene.ambf_save_textures:
                 for mat in obj_handle.data.materials:
                     if mat.node_tree:
                         for node in mat.node_tree.nodes:
@@ -1966,49 +1946,110 @@ class AMBF_OT_save_meshes(bpy.types.Operator):
                                 im.filepath_raw = _save_as
                                 im.save_render(_save_as)
 
-                if mesh_type == 'STL':
-                    obj_name = obj_handle_name + '.STL'
-                    filename_high_res = os.path.join(high_res_path, obj_name)
-                    filename_low_res = os.path.join(low_res_path, obj_name)
+    def save_body_meshes(self, context, obj_handle, mesh_type, high_res_path, low_res_path):
+        if not context.scene.enable_legacy_loading:
+            if not obj_handle.ambf_object_type == 'RIGID_BODY':
+                # Only Save Meshes if the object type is ambf rigid body
+                return
+
+        select_object(obj_handle)
+        obj_handle_name = remove_namespace_prefix(obj_handle.name)
+
+        if obj_handle.type == 'MESH':
+            # First save the texture(s) if any
+            # Store current render settings
+            _settings = context.scene.render.image_settings
+
+            # Change render settings to our target format
+            _settings.file_format = 'PNG'
+
+            if context.scene.ambf_save_textures:
+                for mat in obj_handle.data.materials:
+                    if mat.node_tree:
+                        for node in mat.node_tree.nodes:
+                            if node.type == 'TEX_IMAGE':
+                                im = node.image
+                                _filename = im.name_full
+                                _filename_wo_ext = _filename.split('.')[0]
+                                print("Texture Filename ", _filename)
+                                _save_as = os.path.join(high_res_path, _filename_wo_ext + '.png')
+                                im.filepath_raw = _save_as
+                                im.save_render(_save_as)
+
+            if mesh_type == 'STL':
+                obj_name = obj_handle_name + '.STL'
+                filename_high_res = os.path.join(high_res_path, obj_name)
+                filename_low_res = os.path.join(low_res_path, obj_name)
+                if context.scene.ambf_save_high_res:
                     bpy.ops.export_mesh.stl(filepath=filename_high_res, use_selection=True, use_mesh_modifiers=False)
+                if context.scene.ambf_save_low_res:
                     bpy.ops.export_mesh.stl(filepath=filename_low_res, use_selection=True, use_mesh_modifiers=True)
-                elif mesh_type == 'OBJ':
-                    obj_name = obj_handle_name + '.OBJ'
-                    filename_high_res = os.path.join(high_res_path, obj_name)
-                    filename_low_res = os.path.join(low_res_path, obj_name)
+            elif mesh_type == 'OBJ':
+                obj_name = obj_handle_name + '.OBJ'
+                filename_high_res = os.path.join(high_res_path, obj_name)
+                filename_low_res = os.path.join(low_res_path, obj_name)
+                if context.scene.ambf_save_high_res:
                     bpy.ops.export_scene.obj(filepath=filename_high_res, axis_up='Z', axis_forward='Y',
                                              use_selection=True, use_mesh_modifiers=False)
+                if context.scene.ambf_save_low_res:
                     bpy.ops.export_scene.obj(filepath=filename_low_res, axis_up='Z', axis_forward='Y',
                                              use_selection=True, use_mesh_modifiers=True)
-                elif mesh_type == '3DS':
-                    obj_name = obj_handle_name + '.3DS'
-                    filename_high_res = os.path.join(high_res_path, obj_name)
-                    filename_low_res = os.path.join(low_res_path, obj_name)
-                    # 3DS doesn't support supressing modifiers, so we explicitly
-                    # toggle them to save as high res and low res meshes
-                    # STILL BUGGY
-                    for mod in obj_handle.modifiers:
-                        mod.show_viewport = True
+            elif mesh_type == '3DS':
+                obj_name = obj_handle_name + '.3DS'
+                filename_high_res = os.path.join(high_res_path, obj_name)
+                filename_low_res = os.path.join(low_res_path, obj_name)
+                # 3DS doesn't support supressing modifiers, so we explicitly
+                # toggle them to save as high res and low res meshes
+                # STILL BUGGY
+                for mod in obj_handle.modifiers:
+                    mod.show_viewport = True
+                if context.scene.ambf_save_high_res:
                     bpy.ops.export_scene.autodesk_3ds(filepath=filename_low_res, use_selection=True)
-                    for mod in obj_handle.modifiers:
-                        mod.show_viewport = True
-                    bpy.ops.export_scene.autodesk_3ds(filepath=filename_high_res, use_selection=True)
-                elif mesh_type == 'PLY':
-                    # .PLY export has a bug in which it only saves the mesh that is
-                    # active in context of view. Hence we explicitly select this object
-                    # as active in the scene on top of being selected
-                    obj_name = obj_handle_name + '.PLY'
-                    filename_high_res = os.path.join(high_res_path, obj_name)
-                    filename_low_res = os.path.join(low_res_path, obj_name)
-                    set_active_object(obj_handle)
-                    bpy.ops.export_mesh.ply(filepath=filename_high_res, use_mesh_modifiers=False)
-                    bpy.ops.export_mesh.ply(filepath=filename_low_res, use_mesh_modifiers=True)
-                    # Make sure to deselect the mesh
-                    set_active_object(None)
-                else:
-                    raise Exception('Mesh Format Not Specified/Understood')
 
-            select_object(obj_handle, False)
+                for mod in obj_handle.modifiers:
+                    mod.show_viewport = True
+                if context.scene.ambf_save_low_res:
+                    bpy.ops.export_scene.autodesk_3ds(filepath=filename_high_res, use_selection=True)
+            elif mesh_type == 'PLY':
+                # .PLY export has a bug in which it only saves the mesh that is
+                # active in context of view. Hence we explicitly select this object
+                # as active in the scene on top of being selected
+                obj_name = obj_handle_name + '.PLY'
+                filename_high_res = os.path.join(high_res_path, obj_name)
+                filename_low_res = os.path.join(low_res_path, obj_name)
+                set_active_object(obj_handle)
+
+                if context.scene.ambf_save_high_res:
+                    bpy.ops.export_mesh.ply(filepath=filename_high_res, use_mesh_modifiers=False)
+                if context.scene.ambf_save_low_res:
+                    bpy.ops.export_mesh.ply(filepath=filename_low_res, use_mesh_modifiers=True)
+                # Make sure to deselect the mesh
+                set_active_object(None)
+            else:
+                raise Exception('Mesh Format Not Specified/Understood')
+
+        select_object(obj_handle, False)
+
+    def save_meshes(self, context):
+        # First deselect all objects
+        select_all_objects(False)
+
+        save_path = bpy.path.abspath(context.scene.ambf_yaml_mesh_path)
+        high_res_path = os.path.join(save_path, 'high_res/')
+        low_res_path = os.path.join(save_path, 'low_res/')
+        os.makedirs(high_res_path, exist_ok=True)
+        os.makedirs(low_res_path, exist_ok=True)
+        mesh_type = bpy.context.scene.mesh_output_type
+
+        mesh_name_mat_list = self.set_all_meshes_to_origin()
+        if context.scene.ambf_save_selection_only:
+            obj_handle = get_active_object()
+            self.save_body_textures(context, obj_handle, high_res_path)
+            self.save_body_meshes(context, obj_handle, mesh_type, high_res_path, low_res_path)
+        else:
+            for obj_handle in bpy.data.objects:
+                self.save_body_textures(context, obj_handle, high_res_path)
+                self.save_body_meshes(context, obj_handle, mesh_type, high_res_path, low_res_path)
         self.reset_meshes_to_original_position(mesh_name_mat_list)
 
 
@@ -3349,6 +3390,35 @@ class AMBF_PT_create_adf(bpy.types.Panel):
             default=False
         )
 
+    bpy.types.Scene.ambf_save_high_res = bpy.props.BoolProperty \
+        (
+            name="High Res",
+            default=True,
+            description="Save High Res Meshes for Visual."
+        )
+
+    bpy.types.Scene.ambf_save_low_res = bpy.props.BoolProperty \
+        (
+            name="Low Res",
+            default=True,
+            description="Save Low Res Meshes for Collision. Used only if the collision is set to MESH type"
+        )
+
+    bpy.types.Scene.ambf_save_textures = bpy.props.BoolProperty \
+        (
+            name="Textures",
+            default=True,
+            description="Save textures if defined for a body"
+        )
+
+    bpy.types.Scene.ambf_save_selection_only = bpy.props.BoolProperty \
+        (
+            name="Selection Only",
+            default=False,
+            description="Only save the meshes + textures for the selected object"
+        )
+
+
     setup_yaml()
 
     def draw(self, context):
@@ -3456,7 +3526,7 @@ class AMBF_PT_create_adf(bpy.types.Panel):
         # Panel Label
         sbox = box.box()
         row = sbox.row()
-        row.label(text="C. SAVE MESHES")
+        row.label(text="C. SAVE MESHES + TEXTURES")
 
         # Meshes Save Location
         col = sbox.column()
@@ -3466,6 +3536,18 @@ class AMBF_PT_create_adf(bpy.types.Panel):
         col = sbox.column()
         col.alignment = 'CENTER'
         col.prop(context.scene, 'mesh_output_type')
+
+        row = sbox.row()
+        row.prop(context.scene, 'ambf_save_high_res')
+
+        row = row.row()
+        row.prop(context.scene, 'ambf_save_low_res')
+
+        row = row.row()
+        row.prop(context.scene, 'ambf_save_textures')
+
+        col = sbox.column()
+        col.prop(context.scene, 'ambf_save_selection_only')
 
         # Meshes Save Button
         col = sbox.column()
