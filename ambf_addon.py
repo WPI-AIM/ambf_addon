@@ -1792,7 +1792,7 @@ class AMBF_OT_generate_ambf_file(bpy.types.Operator):
             lims = {'x': round(joint_obj_handle.ambf_constraint_cone_twist_limits[0], 4),
                     'y': round(joint_obj_handle.ambf_constraint_cone_twist_limits[1], 4),
                     'z': round(joint_obj_handle.ambf_constraint_cone_twist_limits[2], 4)}
-            joint_data['cone twist limits'] = lims
+            joint_data['joint limits'] = lims
 
         # Set the joint controller gains data from the joint controller props
         if joint_obj_handle.ambf_constraint_enable_controller_gains:
@@ -3144,13 +3144,13 @@ class AMBF_OT_load_ambf_file(bpy.types.Operator):
             elif joint_type in ['PRISMATIC', 'LINEAR_SPRING']:
                     joint_obj_handle.ambf_constraint_limits_lower = joint_data['joint limits']['low']
                     joint_obj_handle.ambf_constraint_limits_higher = joint_data['joint limits']['high']
+            elif joint_type == 'CONE_TWIST':
+                joint_obj_handle.ambf_constraint_cone_twist_limits[0] = joint_data['joint limits']["x"]
+                joint_obj_handle.ambf_constraint_cone_twist_limits[1] = joint_data['joint limits']["y"]
+                joint_obj_handle.ambf_constraint_cone_twist_limits[2] = joint_data['joint limits']["z"]
+
                 
         self.set_default_ambf_constraint_axis(joint_obj_handle)
-
-        if 'cone twist limits' in joint_data:
-            joint_obj_handle.ambf_constraint_cone_twist_limits[0] = joint_data['cone twist limits']["x"]
-            joint_obj_handle.ambf_constraint_cone_twist_limits[1] = joint_data['cone twist limits']["y"]
-            joint_obj_handle.ambf_constraint_cone_twist_limits[2] = joint_data['cone twist limits']["z"]
 
         if not limits_defined:
             joint_obj_handle.ambf_constraint_limits_enable = False
