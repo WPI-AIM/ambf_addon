@@ -1758,6 +1758,8 @@ class AMBF_OT_generate_ambf_file(bpy.types.Operator):
             joint_data['type'] = 'fixed'
         elif joint_obj_handle.ambf_constraint_type == 'P2P':
             joint_data['type'] = 'p2p'
+        elif joint_obj_handle.ambf_constraint_type == 'CONE_TWIST':
+            joint_data['type'] = 'cone twist'
 
         if joint_obj_handle.ambf_constraint_type in ['REVOLUTE', 'TORSION_SPRING']:
             if joint_obj_handle.ambf_constraint_limits_enable:
@@ -1785,6 +1787,12 @@ class AMBF_OT_generate_ambf_file(bpy.types.Operator):
                 del joint_data['stiffness']
 
         joint_data['damping'] = round(joint_obj_handle.ambf_constraint_damping, 4)
+
+        if joint_obj_handle.ambf_constraint_type == 'CONE_TWIST':
+            lims = {'x': round(joint_obj_handle.ambf_constraint_cone_twist_limits[0], 4),
+                    'y': round(joint_obj_handle.ambf_constraint_cone_twist_limits[1], 4),
+                    'z': round(joint_obj_handle.ambf_constraint_cone_twist_limits[2], 4)}
+            joint_data['cone twist limits'] = lims
 
         # Set the joint controller gains data from the joint controller props
         if joint_obj_handle.ambf_constraint_enable_controller_gains:
@@ -2833,6 +2841,8 @@ class AMBF_OT_load_ambf_file(bpy.types.Operator):
                 joint_type = 'P2P'
             elif joint_data['type'] in ['fixed', 'FIXED']:
                 joint_type = 'FIXED'
+            elif joint_data['type'] in ['cone twist']:
+                joint_type = 'CONE_TWIST'
 
         return joint_type
     
@@ -3136,6 +3146,11 @@ class AMBF_OT_load_ambf_file(bpy.types.Operator):
                     joint_obj_handle.ambf_constraint_limits_higher = joint_data['joint limits']['high']
                 
         self.set_default_ambf_constraint_axis(joint_obj_handle)
+
+        if 'cone twist limits' in joint_data:
+            joint_obj_handle.ambf_constraint_cone_twist_limits[0] = joint_data['cone twist limits']["x"]
+            joint_obj_handle.ambf_constraint_cone_twist_limits[1] = joint_data['cone twist limits']["y"]
+            joint_obj_handle.ambf_constraint_cone_twist_limits[2] = joint_data['cone twist limits']["z"]
 
         if not limits_defined:
             joint_obj_handle.ambf_constraint_limits_enable = False
@@ -4057,14 +4072,14 @@ class AMBF_PT_ambf_rigid_body(bpy.types.Panel):
             description="Is this object dynamic or static (mass = 0.0 Kg)"
         )
 
-    bpy.types.Object.ambf_rigid_body_specify_inertia = bpy.props.BoolProperty \
+    bpy.types.Object.ambf_rigid_body_specify_inertia: bpy.props.BoolProperty \
         (
             name="Specify Inertia",
             default=False,
             description="If not set explicitly, it is calculated automatically by AMBF"
         )
     
-    bpy.types.Object.ambf_rigid_body_collision_type = bpy.props.EnumProperty \
+    bpy.types.Object.ambf_rigid_body_collision_type: bpy.props.EnumProperty \
         (
             name='Collision Type',
             items=
@@ -4078,7 +4093,7 @@ class AMBF_PT_ambf_rigid_body(bpy.types.Panel):
             description='Choose between a singular or a compound collision that consists of multiple shapes'
         )
 
-    bpy.types.Object.ambf_rigid_body_collision_mesh_type = bpy.props.EnumProperty \
+    bpy.types.Object.ambf_rigid_body_collision_mesh_type: bpy.props.EnumProperty \
         (
             name='Collision Mesh Type',
             items=
@@ -4091,7 +4106,7 @@ class AMBF_PT_ambf_rigid_body(bpy.types.Panel):
             description='Choose between the type of the collision mesh. Avoid Concave Meshes if you can.'
         )
     
-    bpy.types.Object.ambf_rigid_body_collision_groups = bpy.props.BoolVectorProperty \
+    bpy.types.Object.ambf_rigid_body_collision_groups: bpy.props.BoolVectorProperty \
         (
             name='Collision Groups',
             size=20,
@@ -4100,7 +4115,7 @@ class AMBF_PT_ambf_rigid_body(bpy.types.Panel):
             subtype='LAYER'
         )
     
-    bpy.types.Object.ambf_rigid_body_linear_inertial_offset = bpy.props.FloatVectorProperty \
+    bpy.types.Object.ambf_rigid_body_linear_inertial_offset: bpy.props.FloatVectorProperty \
         (
             name='Linear Inertial Offset',
             default=(0.0, 0.0, 0.0),
@@ -4109,7 +4124,7 @@ class AMBF_PT_ambf_rigid_body(bpy.types.Panel):
             subtype='XYZ',
         )
     
-    bpy.types.Object.ambf_rigid_body_angular_inertial_offset = bpy.props.FloatVectorProperty \
+    bpy.types.Object.ambf_rigid_body_angular_inertial_offset: bpy.props.FloatVectorProperty \
         (
             name='Angular Inertial Offset',
             default=(0.0, 0.0, 0.0),
@@ -4117,7 +4132,7 @@ class AMBF_PT_ambf_rigid_body(bpy.types.Panel):
             subtype='EULER',
         )
     
-    bpy.types.Object.ambf_object_type = bpy.props.EnumProperty \
+    bpy.types.Object.ambf_object_type: bpy.props.EnumProperty \
         (
             name="Object Type",
             items=
@@ -4130,7 +4145,7 @@ class AMBF_PT_ambf_rigid_body(bpy.types.Panel):
             default='NONE'
         )
 
-    bpy.types.Object.ambf_rigid_body_controller_output_type = bpy.props.EnumProperty \
+    bpy.types.Object.ambf_rigid_body_controller_output_type: bpy.props.EnumProperty \
             (
             items=
             [
@@ -4142,19 +4157,19 @@ class AMBF_PT_ambf_rigid_body(bpy.types.Panel):
             description='The output of the controller fed to the simulation. Better to use (VELOCITY) with P <= 10, D <= 1'
         )
 
-    bpy.types.Object.ambf_rigid_body_publish_children_names = bpy.props.BoolProperty \
+    bpy.types.Object.ambf_rigid_body_publish_children_names: bpy.props.BoolProperty \
         (
             name="Publish Children Names",
             default=False
         )
 
-    bpy.types.Object.ambf_rigid_body_publish_joint_names = bpy.props.BoolProperty \
+    bpy.types.Object.ambf_rigid_body_publish_joint_names: bpy.props.BoolProperty \
         (
             name="Publish Joint Names",
             default=False
         )
 
-    bpy.types.Object.ambf_rigid_body_publish_joint_positions = bpy.props.BoolProperty \
+    bpy.types.Object.ambf_rigid_body_publish_joint_positions: bpy.props.BoolProperty \
         (
             name="Publish Joint Positions",
             default=False
@@ -4466,7 +4481,7 @@ class AMBF_PT_ambf_constraint(bpy.types.Panel):
 
     bpy.types.Object.ambf_constraint_max_motor_impulse = bpy.props.FloatProperty(name="Max Motor Impulse", default=0.05, min=0.0)
     
-    bpy.types.Object.ambf_constraint_axis = bpy.props.EnumProperty \
+    bpy.types.Object.ambf_constraint_axis: bpy.props.EnumProperty \
         (
             name='Axis',
             items=
@@ -4477,8 +4492,17 @@ class AMBF_PT_ambf_constraint(bpy.types.Panel):
             ],
             default='Z'
         )
+
+    bpy.types.Object.ambf_constraint_cone_twist_limits: bpy.props.FloatVectorProperty \
+        (
+            name='Cone Twist Swing Limits (XYZ)',
+            default=(1.2, 1.2, 1.2),
+            min=0.0,
+            options={'PROPORTIONAL'},
+            subtype='XYZ',
+        )
     
-    bpy.types.Object.ambf_constraint_type = bpy.props.EnumProperty \
+    bpy.types.Object.ambf_constraint_type: bpy.props.EnumProperty \
         (
             items=
             [
@@ -4488,12 +4512,15 @@ class AMBF_PT_ambf_constraint(bpy.types.Panel):
                 ('LINEAR_SPRING', 'Linear Spring', '', '', 3),
                 ('TORSION_SPRING', 'Torsion Spring', '', '', 4),
                 ('P2P', 'p2p', '', '', 5),
+                ('CONE_TWIST', 'Cone Twist', '', '', 6),
+                ('SIX_DOF', 'Six DOF', '', '', 7),
+                ('SIX_DOF_SPRING', 'Six DOF Spring', '', '', 8),
             ],
             name="Type",
             default='REVOLUTE'
         )
 
-    bpy.types.Object.ambf_constraint_controller_output_type = bpy.props.EnumProperty \
+    bpy.types.Object.ambf_constraint_controller_output_type: bpy.props.EnumProperty \
         (
             items=
             [
@@ -4554,13 +4581,6 @@ class AMBF_PT_ambf_constraint(bpy.types.Panel):
 
             
             layout.separator()
-            layout.separator()
-
-            col = layout.column()
-            col.prop(context.object, 'ambf_constraint_enable_feedback')
-
-            col = layout.column()
-            col.prop(context.object, 'ambf_constraint_passive')
             
             if context.object.ambf_constraint_type in ['PRISMATIC', 'REVOLUTE', 'LINEAR_SPRING', 'TORSION_SPRING']:
                 row = layout.row()
@@ -4649,6 +4669,22 @@ class AMBF_PT_ambf_constraint(bpy.types.Panel):
                     col = layout.column()
                     col.scale_y = 2.0
                     col.prop(context.object, 'ambf_constraint_max_motor_impulse')
+            elif context.object.ambf_constraint_type in ['CONE_TWIST']:
+                box = layout.box()
+                col = box.column()
+                col.prop(context.object, 'ambf_constraint_cone_twist_limits')
+            elif context.object.ambf_constraint_type in ['SIX_DOF', 'SIX_DOF_SPRING']:
+                if context.object.ambf_constraint_type == 'SIX_DOF_SPRING':
+                    pass
+
+
+            layout.separator()
+
+            col = layout.column()
+            col.prop(context.object, 'ambf_constraint_enable_feedback')
+
+            col = layout.column()
+            col.prop(context.object, 'ambf_constraint_passive')
 
 
 custom_classes = (AMBF_OT_toggle_low_res_mesh_modifiers_visibility,
