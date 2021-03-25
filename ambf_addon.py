@@ -867,20 +867,20 @@ def collision_shape_create_visual(obj_handle, shape_prop_group):
 # Body Template for the some commonly used of afBody's data
 class BodyTemplate:
     def __init__(self):
-        self._ambf_data = OrderedDict()
-        self._ambf_data['name'] = ""
-        self._ambf_data['mesh'] = ""
-        self._ambf_data['mass'] = 0.0
-        self._ambf_data['inertia'] = {'ix': 0.0, 'iy': 0.0, 'iz': 0.0}
-        self._ambf_data['collision margin'] = 0.001
-        self._ambf_data['scale'] = 1.0
-        self._ambf_data['location'] = get_pose_ordered_dict()
-        self._ambf_data['inertial offset'] = get_pose_ordered_dict()
-        self._ambf_data['passive'] = False
+        self._adf_data = OrderedDict()
+        self._adf_data['name'] = ""
+        self._adf_data['mesh'] = ""
+        self._adf_data['mass'] = 0.0
+        self._adf_data['inertia'] = {'ix': 0.0, 'iy': 0.0, 'iz': 0.0}
+        self._adf_data['collision margin'] = 0.001
+        self._adf_data['scale'] = 1.0
+        self._adf_data['location'] = get_pose_ordered_dict()
+        self._adf_data['inertial offset'] = get_pose_ordered_dict()
+        self._adf_data['passive'] = False
 
-        # self._ambf_data['controller'] = {'linear': {'P': 1000, 'I': 0, 'D': 1},
+        # self._adf_data['controller'] = {'linear': {'P': 1000, 'I': 0, 'D': 1},
         #                                  'angular': {'P': 1000, 'I': 0, 'D': 1}}
-        self._ambf_data['color'] = 'random'
+        self._adf_data['color'] = 'random'
         # Transform of Child Rel to Joint, which in inverse of t_c_j
         self.t_j_c = mathutils.Matrix()
 
@@ -888,24 +888,24 @@ class BodyTemplate:
 # Joint Template for the some commonly used of afJoint's data
 class JointTemplate:
     def __init__(self):
-        self._ambf_data = OrderedDict()
-        self._ambf_data['name'] = ''
-        self._ambf_data['parent'] = ''
-        self._ambf_data['child'] = ''
-        self._ambf_data['parent axis'] = get_xyz_ordered_dict()
-        self._ambf_data['parent pivot'] = get_xyz_ordered_dict()
-        self._ambf_data['child axis'] = get_xyz_ordered_dict()
-        self._ambf_data['child pivot'] = get_xyz_ordered_dict()
-        self._ambf_data['joint limits'] = {'low': -1.2, 'high': 1.2}
-        self._ambf_data['enable feedback'] = False
-        self._ambf_data['passive'] = False
+        self._adf_data = OrderedDict()
+        self._adf_data['name'] = ''
+        self._adf_data['parent'] = ''
+        self._adf_data['child'] = ''
+        self._adf_data['parent axis'] = get_xyz_ordered_dict()
+        self._adf_data['parent pivot'] = get_xyz_ordered_dict()
+        self._adf_data['child axis'] = get_xyz_ordered_dict()
+        self._adf_data['child pivot'] = get_xyz_ordered_dict()
+        self._adf_data['joint limits'] = {'low': -1.2, 'high': 1.2}
+        self._adf_data['enable feedback'] = False
+        self._adf_data['passive'] = False
 
         cont_dict = OrderedDict()
         cont_dict['P'] = 1000
         cont_dict['I'] = 0
         cont_dict['D'] = 1
-        self._ambf_data['controller'] = cont_dict
-        self._ambf_data['controller output type'] = 'VELOCITY'
+        self._adf_data['controller'] = cont_dict
+        self._adf_data['controller output type'] = 'VELOCITY'
 
 
 class AMBF_OT_generate_ambf_file(Operator):
@@ -920,12 +920,12 @@ class AMBF_OT_generate_ambf_file(Operator):
         self._joint_names_list = []
         self.body_name_prefix = 'BODY '
         self.joint_name_prefix = 'JOINT '
-        self._ambf_yaml = None
+        self._adf = None
         self._context = None
 
     def execute(self, context):
         self._context = context
-        self.generate_ambf_yaml()
+        self.generate_adf()
         return {'FINISHED'}
 
     # This joint adds the body prefix str if set to all the bodies in the AMBF
@@ -936,7 +936,7 @@ class AMBF_OT_generate_ambf_file(Operator):
     def add_joint_prefix_str(self, urdf_joint_str):
         return self.joint_name_prefix + urdf_joint_str
 
-    def generate_body_data_from_ambf_rigid_body(self, ambf_yaml, obj_handle):
+    def generate_body_data_from_ambf_rigid_body(self, adf_data, obj_handle):
 
         if obj_handle.ambf_object_type != 'RIGID_BODY':
             return
@@ -949,7 +949,7 @@ class AMBF_OT_generate_ambf_file(Operator):
             return
 
         body = BodyTemplate()
-        body_data = body._ambf_data
+        body_data = body._adf_data
 
         if not compare_body_namespace_with_global(obj_handle.name):
             if get_body_namespace(obj_handle.name) != '':
@@ -1146,10 +1146,10 @@ class AMBF_OT_generate_ambf_file(Operator):
                 if 'controller' in body_data:
                     del body_data['controller']
 
-        ambf_yaml[body_yaml_name] = body_data
+        adf_data[body_yaml_name] = body_data
         self._body_names_list.append(body_yaml_name)
 
-    def generate_joint_data_from_ambf_constraint(self, ambf_yaml, joint_obj_handle):
+    def generate_joint_data_from_ambf_constraint(self, adf_data, joint_obj_handle):
 
         if joint_obj_handle.ambf_object_type != 'CONSTRAINT':
             return
@@ -1175,7 +1175,7 @@ class AMBF_OT_generate_ambf_file(Operator):
             return
 
         joint_template = JointTemplate()
-        joint_data = joint_template._ambf_data
+        joint_data = joint_template._adf_data
         parent_obj_handle = joint_obj_handle.ambf_constraint_parent
         child_obj_handle = joint_obj_handle.ambf_constraint_child
         parent_obj_handle_name = remove_namespace_prefix(parent_obj_handle.name)
@@ -1246,7 +1246,7 @@ class AMBF_OT_generate_ambf_file(Operator):
                 print('ERROR: (', sys._getframe().f_code.co_name, ') (', joint_data['name'], ') SHOULD\'NT GET HERE')
 
         joint_yaml_name = self.add_joint_prefix_str(joint_data['name'])
-        ambf_yaml[joint_yaml_name] = joint_data
+        adf_data[joint_yaml_name] = joint_data
         self._joint_names_list.append(joint_yaml_name)
 
     # Get the joints axis as a vector
@@ -1356,9 +1356,9 @@ class AMBF_OT_generate_ambf_file(Operator):
 
         joint_data['passive'] = joint_obj_handle.ambf_constraint_passive
 
-    def generate_ambf_yaml(self):
+    def generate_adf(self):
         num_objs = len(bpy.data.objects)
-        save_to = bpy.path.abspath(self._context.scene.ambf_yaml_conf_path)
+        save_to = bpy.path.abspath(self._context.scene.adf_conf_path)
         filename = os.path.basename(save_to)
         save_dir = os.path.dirname(save_to)
         if not filename:
@@ -1371,23 +1371,23 @@ class AMBF_OT_generate_ambf_file(Operator):
         print('Output filename is: ', output_filename)
 
         # For inorder processing, set the bodies and joints tag at the top of the map
-        self._ambf_yaml = OrderedDict()
+        self._adf = OrderedDict()
         
-        self._ambf_yaml['bodies'] = []
-        self._ambf_yaml['joints'] = []
+        self._adf['bodies'] = []
+        self._adf['joints'] = []
         print('SAVE PATH', bpy.path.abspath(save_dir))
-        print('AMBF CONFIG PATH', bpy.path.abspath(self._context.scene.ambf_yaml_mesh_path))
-        rel_mesh_path = os.path.relpath(bpy.path.abspath(self._context.scene.ambf_yaml_mesh_path), bpy.path.abspath(save_dir))
+        print('AMBF CONFIG PATH', bpy.path.abspath(self._context.scene.adf_mesh_path))
+        rel_mesh_path = os.path.relpath(bpy.path.abspath(self._context.scene.adf_mesh_path), bpy.path.abspath(save_dir))
 
-        self._ambf_yaml['high resolution path'] = rel_mesh_path + '/high_res/'
-        self._ambf_yaml['low resolution path'] = rel_mesh_path + '/low_res/'
+        self._adf['high resolution path'] = rel_mesh_path + '/high_res/'
+        self._adf['low resolution path'] = rel_mesh_path + '/low_res/'
 
-        self._ambf_yaml['ignore inter-collision'] = self._context.scene.ignore_inter_collision
+        self._adf['ignore inter-collision'] = self._context.scene.ignore_inter_collision
 
         update_global_namespace(self._context)
 
         if CommonConfig.namespace is not "":
-            self._ambf_yaml['namespace'] = CommonConfig.namespace
+            self._adf['namespace'] = CommonConfig.namespace
 
         # We want in-order processing, so make sure to
         # add bodies to ambf in a hierarchial fashion.
@@ -1395,16 +1395,16 @@ class AMBF_OT_generate_ambf_file(Operator):
         _heirarichal_objects_list = populate_heirarchial_tree()
 
         for obj_handle in _heirarichal_objects_list:
-            self.generate_body_data_from_ambf_rigid_body(self._ambf_yaml, obj_handle)
+            self.generate_body_data_from_ambf_rigid_body(self._adf, obj_handle)
 
         for obj_handle in _heirarichal_objects_list:
-            self.generate_joint_data_from_ambf_constraint(self._ambf_yaml, obj_handle)
+            self.generate_joint_data_from_ambf_constraint(self._adf, obj_handle)
 
         # Now populate the bodies and joints tag
-        self._ambf_yaml['bodies'] = self._body_names_list
-        self._ambf_yaml['joints'] = self._joint_names_list
+        self._adf['bodies'] = self._body_names_list
+        self._adf['joints'] = self._joint_names_list
         
-        yaml.dump(self._ambf_yaml, output_file)
+        yaml.dump(self._adf, output_file)
 
         header_str = "# AMBF Version: %s\n" \
                      "# Generated By: ambf_addon for Blender %s\n" \
@@ -1583,7 +1583,7 @@ class AMBF_OT_save_meshes(Operator):
         # First deselect all objects
         select_all_objects(False)
 
-        save_path = bpy.path.abspath(context.scene.ambf_yaml_mesh_path)
+        save_path = bpy.path.abspath(context.scene.adf_mesh_path)
         high_res_path = os.path.join(save_path, 'high_res/')
         low_res_path = os.path.join(save_path, 'low_res/')
         os.makedirs(high_res_path, exist_ok=True)
@@ -1866,7 +1866,7 @@ class AMBF_OT_load_ambf_file(Operator):
     bl_description = "This loads an AMBF from the specified config file"
 
     def __init__(self):
-        self._ambf_data = None
+        self._adf_data = None
         # A dict of T_c_j frames for each body
         self._body_T_j_c = {}
         self._joint_additional_offset = {}
@@ -2186,7 +2186,7 @@ class AMBF_OT_load_ambf_file(Operator):
                                      body_location_rpy['y'])
 
     def load_body(self, body_name):
-        body_data = self._ambf_data[body_name]
+        body_data = self._adf_data[body_name]
 
         obj_handle = self.load_mesh(body_data, body_name)
 
@@ -2482,7 +2482,7 @@ class AMBF_OT_load_ambf_file(Operator):
                 joint_obj_handle.ambf_constraint_max_motor_impulse = joint_data["max motor impulse"]
 
     def load_ambf_joint(self, joint_name):
-        joint_data = self._ambf_data[joint_name]
+        joint_data = self._adf_data[joint_name]
         select_all_objects(False)
         set_active_object(None)
         # Set joint type to blender appropriate name
@@ -2510,30 +2510,30 @@ class AMBF_OT_load_ambf_file(Operator):
         CommonConfig.loaded_joint_map[child_obj_handle.rigid_body_constraint] = joint_data
 
     def execute(self, context):
-        self._yaml_filepath = str(bpy.path.abspath(context.scene['external_ambf_yaml_filepath']))
+        self._yaml_filepath = str(bpy.path.abspath(context.scene['external_adf_filepath']))
         print(self._yaml_filepath)
         yaml_file = open(self._yaml_filepath)
         
         # Check YAML version
         ver = [int(x, 10) for x in yaml.__version__.split('.')]
         if ver[0] >= 5:
-            self._ambf_data = yaml.load(yaml_file, Loader=yaml.FullLoader)
+            self._adf_data = yaml.load(yaml_file, Loader=yaml.FullLoader)
         else:
-            self._ambf_data = yaml.load(yaml_file)
+            self._adf_data = yaml.load(yaml_file)
         self._context = context
 
-        bodies_list = self._ambf_data['bodies']
-        joints_list = self._ambf_data['joints']
+        bodies_list = self._adf_data['bodies']
+        joints_list = self._adf_data['joints']
 
-        if 'namespace' in self._ambf_data:
-            set_global_namespace(context, self._ambf_data['namespace'])
+        if 'namespace' in self._adf_data:
+            set_global_namespace(context, self._adf_data['namespace'])
         else:
             set_global_namespace(context, '/ambf/env/')
 
         # num_bodies = len(bodies_list)
         # print('Number of Bodies Specified = ', num_bodies)
 
-        self._high_res_path = self.get_qualified_path(self._ambf_data['high resolution path'])
+        self._high_res_path = self.get_qualified_path(self._adf_data['high resolution path'])
         # print(self._high_res_path)
         for body_name in bodies_list:
             self.load_body(body_name)
@@ -2568,7 +2568,7 @@ class AMBF_PT_create_adf(Panel):
     bl_region_type = 'UI'
     bl_category = "AMBF"
 
-    Scene.ambf_yaml_conf_path = StringProperty \
+    Scene.adf_conf_path = StringProperty \
         (
             name="Config (Save To)",
             default="",
@@ -2576,7 +2576,7 @@ class AMBF_PT_create_adf(Panel):
             subtype='FILE_PATH'
         )
 
-    Scene.ambf_yaml_mesh_path = StringProperty \
+    Scene.adf_mesh_path = StringProperty \
         (
             name="Meshes (Save To)",
             default="",
@@ -2619,7 +2619,7 @@ class AMBF_PT_create_adf(Panel):
             description="Ignore collision between all the bodies in the scene (default = True)",
         )
 
-    Scene.external_ambf_yaml_filepath = StringProperty \
+    Scene.external_adf_filepath = StringProperty \
         (
             name="AMBF Config",
             default="",
@@ -2724,7 +2724,7 @@ class AMBF_PT_create_adf(Panel):
         # Load
         col = box.column()
         col.alignment = 'CENTER'
-        col.prop(context.scene, 'external_ambf_yaml_filepath')
+        col.prop(context.scene, 'external_adf_filepath')
         
         col = box.column()
         col.alignment = 'CENTER'
@@ -2788,7 +2788,7 @@ class AMBF_PT_create_adf(Panel):
 
         # Meshes Save Location
         col = sbox.column()
-        col.prop(context.scene, 'ambf_yaml_mesh_path')
+        col.prop(context.scene, 'adf_mesh_path')
 
         # Select the Mesh-Type for saving the meshes
         col = sbox.column()
@@ -2829,7 +2829,7 @@ class AMBF_PT_create_adf(Panel):
         
         # Config File Save Location
         col = sbox.column()
-        col.prop(context.scene, 'ambf_yaml_conf_path', text='Save As')
+        col.prop(context.scene, 'adf_conf_path', text='Save As')
 
         col = sbox.column()
         col.alignment = 'CENTER'
