@@ -24,7 +24,9 @@ import mathutils
 from enum import Enum
 from collections import OrderedDict, Counter
 from datetime import datetime
-
+from bpy.props import BoolProperty, FloatProperty, FloatVectorProperty, BoolVectorProperty
+from bpy.props import StringProperty, IntProperty, PointerProperty, EnumProperty, CollectionProperty
+from bpy.types import Scene, Operator, Panel, Object, PropertyGroup
 
 # https://stackoverflow.com/questions/31605131/dumping-a-dictionary-to-a-yaml-file-while-preserving-order/31609484
 def represent_dictionary_order(self, dict_data):
@@ -906,7 +908,7 @@ class JointTemplate:
         self._ambf_data['controller output type'] = 'VELOCITY'
 
 
-class AMBF_OT_generate_ambf_file(bpy.types.Operator):
+class AMBF_OT_generate_ambf_file(Operator):
     """Tooltip"""
     bl_idname = "ambf.add_generate_ambf_file"
     bl_label = "Write AMBF Description File (ADF)"
@@ -1415,7 +1417,7 @@ class AMBF_OT_generate_ambf_file(bpy.types.Operator):
         prepend_comment_to_file(output_filename, header_str)
 
 
-class AMBF_OT_save_meshes(bpy.types.Operator):
+class AMBF_OT_save_meshes(Operator):
     bl_idname = "ambf.save_meshes"
     bl_label = "Save Meshes"
     bl_description = "This saves the meshes in base folder specifed in the field above. Two folders" \
@@ -1600,7 +1602,7 @@ class AMBF_OT_save_meshes(bpy.types.Operator):
         self.reset_meshes_to_original_position(mesh_name_mat_list)
 
 
-class AMBF_OT_generate_low_res_mesh_modifiers(bpy.types.Operator):
+class AMBF_OT_generate_low_res_mesh_modifiers(Operator):
     bl_idname = "ambf.generate_low_res_mesh_modifiers"
     bl_label = "Generate Low-Res Meshes"
     bl_description = "This creates the low-res modifiers for higher speed collision computation" \
@@ -1629,7 +1631,7 @@ class AMBF_OT_generate_low_res_mesh_modifiers(bpy.types.Operator):
         return {'FINISHED'}
 
 
-class AMBF_OT_create_detached_joint(bpy.types.Operator):
+class AMBF_OT_create_detached_joint(Operator):
     bl_idname = "ambf.create_detached_joint"
     bl_label = "Create Detached Joint"
     bl_description = "This creates an empty object that can be used to create closed loop mechanisms. Make" \
@@ -1644,7 +1646,7 @@ class AMBF_OT_create_detached_joint(bpy.types.Operator):
         return {'FINISHED'}
 
 
-class AMBF_OT_remove_low_res_mesh_modifiers(bpy.types.Operator):
+class AMBF_OT_remove_low_res_mesh_modifiers(Operator):
     bl_idname = "ambf.remove_low_res_mesh_modifiers"
     bl_label = "Remove All Modifiers"
     bl_description = "This removes all the mesh modifiers generated for meshes in the current scene"
@@ -1656,7 +1658,7 @@ class AMBF_OT_remove_low_res_mesh_modifiers(bpy.types.Operator):
         return {'FINISHED'}
 
 
-class AMBF_OT_toggle_low_res_mesh_modifiers_visibility(bpy.types.Operator):
+class AMBF_OT_toggle_low_res_mesh_modifiers_visibility(Operator):
     bl_idname = "ambf.toggle_low_res_mesh_modifiers_visibility"
     bl_label = "Toggle Modifiers Visibility"
     bl_description = "This hides all the mesh modifiers generated for meshes in the current scene"
@@ -1668,7 +1670,7 @@ class AMBF_OT_toggle_low_res_mesh_modifiers_visibility(bpy.types.Operator):
         return {'FINISHED'}
 
 
-class AMBF_OT_estimate_inertial_offsets(bpy.types.Operator):
+class AMBF_OT_estimate_inertial_offsets(Operator):
     bl_idname = "ambf.estimate_inertial_offsets"
     bl_label = "Estimate Inertial Offsets"
     bl_description = "Automatically Estimate the Inertial Offsets for the Bodies"
@@ -1683,7 +1685,7 @@ class AMBF_OT_estimate_inertial_offsets(bpy.types.Operator):
         return {'FINISHED'}
 
 
-class AMBF_OT_estimate_shape_offsets(bpy.types.Operator):
+class AMBF_OT_estimate_shape_offsets(Operator):
     bl_idname = "ambf.estimate_shape_offsets"
     bl_label = "Estimate Shape Offsets"
     bl_description = "Automatically Estimate the Shape Offsets for the Bodies (ONLY FOR SINGULAR SHAPES)"
@@ -1703,7 +1705,7 @@ class AMBF_OT_estimate_shape_offsets(bpy.types.Operator):
         return {'FINISHED'}
 
 
-class AMBF_OT_estimate_collision_shapes_geometry(bpy.types.Operator):
+class AMBF_OT_estimate_collision_shapes_geometry(Operator):
     bl_idname = "ambf.estimate_collision_shapes_geometry"
     bl_label = "Estimate Collision Shapes Geometry"
     bl_description = "Estimate Collision Shapes Geometry"
@@ -1714,7 +1716,7 @@ class AMBF_OT_estimate_collision_shapes_geometry(bpy.types.Operator):
         return {'FINISHED'}
 
 
-class AMBF_OT_estimate_inertias(bpy.types.Operator):
+class AMBF_OT_estimate_inertias(Operator):
     bl_idname = "ambf.estimate_inertias"
     bl_label = "Estimate Body Inertias"
     bl_description = "Estimate Body Inertias"
@@ -1731,7 +1733,7 @@ class AMBF_OT_estimate_inertias(bpy.types.Operator):
         return {'FINISHED'}
 
 
-class AMBF_OT_estimate_joint_controller_gains(bpy.types.Operator):
+class AMBF_OT_estimate_joint_controller_gains(Operator):
     bl_idname = "ambf.estimate_joint_controller_gains"
     bl_label = "Estimate Joint Controller Gains"
     bl_description = "Estimate Joint Controller Gains"
@@ -1744,7 +1746,7 @@ class AMBF_OT_estimate_joint_controller_gains(bpy.types.Operator):
         return {'FINISHED'}
 
 
-class AMBF_OT_auto_rename_joints(bpy.types.Operator):
+class AMBF_OT_auto_rename_joints(Operator):
     bl_idname = "ambf.auto_rename_joints"
     bl_label = "Automatically Rename Joints"
     bl_description = "Automatically Rename Joints as Parent-Child name"
@@ -1760,7 +1762,7 @@ class AMBF_OT_auto_rename_joints(bpy.types.Operator):
         return {'FINISHED'}
 
 
-class AMBF_OT_estimate_inertial_offset_per_object(bpy.types.Operator):
+class AMBF_OT_estimate_inertial_offset_per_object(Operator):
     bl_idname = "ambf.estimate_inertial_offset_per_object"
     bl_label = "Estimate Inertial Offset"
     bl_description = "Automatically Estimate the Inertial Offsets for the Bodies"
@@ -1776,7 +1778,7 @@ class AMBF_OT_estimate_inertial_offset_per_object(bpy.types.Operator):
         return {'FINISHED'}
 
 
-class AMBF_OT_estimate_shape_offset_per_object(bpy.types.Operator):
+class AMBF_OT_estimate_shape_offset_per_object(Operator):
     bl_idname = "ambf.estimate_shape_offset_per_object"
     bl_label = "Estimate Shape Offset Per Object"
     bl_description = "Automatically Estimate the Shape Offset for the Body (SINGULAR SHAPE ONLY)"
@@ -1793,7 +1795,7 @@ class AMBF_OT_estimate_shape_offset_per_object(bpy.types.Operator):
         return {'FINISHED'}
 
 
-class AMBF_OT_estimate_collision_shape_geometry_per_object(bpy.types.Operator):
+class AMBF_OT_estimate_collision_shape_geometry_per_object(Operator):
     bl_idname = "ambf.estimate_collision_shape_geometry_per_object"
     bl_label = "Estimate Collision Shape Geometry"
     bl_description = "Estimate Collision Shape Geometry"
@@ -1803,7 +1805,7 @@ class AMBF_OT_estimate_collision_shape_geometry_per_object(bpy.types.Operator):
         return {'FINISHED'}
 
 
-class AMBF_OT_estimate_inertia_per_object(bpy.types.Operator):
+class AMBF_OT_estimate_inertia_per_object(Operator):
     bl_idname = "ambf.estimate_inertia_per_object"
     bl_label = "Estimate Body Inertia"
     bl_description = "Estimate Body Inertia"
@@ -1820,7 +1822,7 @@ class AMBF_OT_estimate_inertia_per_object(bpy.types.Operator):
         return {'FINISHED'}
 
 
-class AMBF_OT_estimate_joint_controller_gain_per_object(bpy.types.Operator):
+class AMBF_OT_estimate_joint_controller_gain_per_object(Operator):
     bl_idname = "ambf.estimate_joint_controller_gain_per_object"
     bl_label = "Estimate Joint Controller Gains Per Object"
     bl_description = "Estimate Joint Controller Gains"
@@ -1831,7 +1833,7 @@ class AMBF_OT_estimate_joint_controller_gain_per_object(bpy.types.Operator):
         return {'FINISHED'}
 
 
-class AMBF_OT_auto_rename_joint_per_object(bpy.types.Operator):
+class AMBF_OT_auto_rename_joint_per_object(Operator):
     bl_idname = "ambf.auto_rename_joint_per_object"
     bl_label = "Automatically Rename Joint"
     bl_description = "Automatically Rename Joint as Parent-Child name"
@@ -1847,7 +1849,7 @@ class AMBF_OT_auto_rename_joint_per_object(bpy.types.Operator):
         return {'FINISHED'}
 
 
-class AMBF_OT_remove_object_namespaces(bpy.types.Operator):
+class AMBF_OT_remove_object_namespaces(Operator):
     bl_idname = "ambf.remove_object_namespaces"
     bl_label = "Remove Object Namespaces"
     bl_description = "This removes any current object namespaces"
@@ -1858,7 +1860,7 @@ class AMBF_OT_remove_object_namespaces(bpy.types.Operator):
         return {'FINISHED'}
 
 
-class AMBF_OT_load_ambf_file(bpy.types.Operator):
+class AMBF_OT_load_ambf_file(Operator):
     bl_idname = "ambf.load_ambf_file"
     bl_label = "Load AMBF Description File (ADF)"
     bl_description = "This loads an AMBF from the specified config file"
@@ -2558,7 +2560,7 @@ def collision_shape_show_update_cb(self, context):
 ##
 
 
-class AMBF_PT_create_adf(bpy.types.Panel):
+class AMBF_PT_create_adf(Panel):
     """Creates a Panel in the Tool Shelf"""
     bl_label = "LOAD, CREATE AND SAVE ADFs"
     bl_idname = "AMBF_PT_create_adf"
@@ -2566,7 +2568,7 @@ class AMBF_PT_create_adf(bpy.types.Panel):
     bl_region_type = 'UI'
     bl_category = "AMBF"
 
-    bpy.types.Scene.ambf_yaml_conf_path = bpy.props.StringProperty \
+    Scene.ambf_yaml_conf_path = StringProperty \
         (
             name="Config (Save To)",
             default="",
@@ -2574,7 +2576,7 @@ class AMBF_PT_create_adf(bpy.types.Panel):
             subtype='FILE_PATH'
         )
 
-    bpy.types.Scene.ambf_yaml_mesh_path = bpy.props.StringProperty \
+    Scene.ambf_yaml_mesh_path = StringProperty \
         (
             name="Meshes (Save To)",
             default="",
@@ -2582,7 +2584,7 @@ class AMBF_PT_create_adf(bpy.types.Panel):
             subtype='DIR_PATH'
         )
 
-    bpy.types.Scene.mesh_output_type = bpy.props.EnumProperty \
+    Scene.mesh_output_type = EnumProperty \
         (
             items=
             [
@@ -2595,14 +2597,14 @@ class AMBF_PT_create_adf(bpy.types.Panel):
             default='STL'
         )
 
-    bpy.types.Scene.mesh_max_vertices = bpy.props.IntProperty \
+    Scene.mesh_max_vertices = IntProperty \
         (
             name="",
             default=150,
             description="The maximum number of vertices the low resolution collision mesh is allowed to have",
         )
 
-    bpy.types.Scene.adjust_joint_pivots = bpy.props.BoolProperty \
+    Scene.adjust_joint_pivots = BoolProperty \
         (
             name="Adjust Child Pivots",
             default=False,
@@ -2610,14 +2612,14 @@ class AMBF_PT_create_adf(bpy.types.Panel):
                         "default (True) unless you want to debug the model or something advanced",
         )
 
-    bpy.types.Scene.ignore_inter_collision = bpy.props.BoolProperty \
+    Scene.ignore_inter_collision = BoolProperty \
         (
             name="Ignore Inter-Collision",
             default=True,
             description="Ignore collision between all the bodies in the scene (default = True)",
         )
 
-    bpy.types.Scene.external_ambf_yaml_filepath = bpy.props.StringProperty \
+    Scene.external_ambf_yaml_filepath = StringProperty \
         (
             name="AMBF Config",
             default="",
@@ -2625,14 +2627,14 @@ class AMBF_PT_create_adf(bpy.types.Panel):
             subtype='FILE_PATH'
         )
 
-    bpy.types.Scene.ambf_namespace = bpy.props.StringProperty \
+    Scene.ambf_namespace = StringProperty \
         (
             name="AMBF Namespace",
             default="/ambf/env/",
             description="The namespace for all bodies in this scene"
         )
 
-    bpy.types.Scene.ambf_rigid_body_show_collision_shapes = bpy.props.BoolProperty \
+    Scene.ambf_rigid_body_show_collision_shapes = BoolProperty \
         (
             name="Show Collision Shapes",
             default=False,
@@ -2640,34 +2642,34 @@ class AMBF_PT_create_adf(bpy.types.Panel):
         )
 
 
-    bpy.types.Scene.enable_forced_cleanup = bpy.props.BoolProperty \
+    Scene.enable_forced_cleanup = BoolProperty \
         (
             name="Enable Forced Cleanup",
             default=False
         )
 
-    bpy.types.Scene.ambf_save_high_res = bpy.props.BoolProperty \
+    Scene.ambf_save_high_res = BoolProperty \
         (
             name="High Res",
             default=True,
             description="Save High Res Meshes for Visual."
         )
 
-    bpy.types.Scene.ambf_save_low_res = bpy.props.BoolProperty \
+    Scene.ambf_save_low_res = BoolProperty \
         (
             name="Low Res",
             default=True,
             description="Save Low Res Meshes for Collision. Used only if the collision is set to MESH type"
         )
 
-    bpy.types.Scene.ambf_save_textures = bpy.props.BoolProperty \
+    Scene.ambf_save_textures = BoolProperty \
         (
             name="Textures",
             default=True,
             description="Save textures if defined for a body"
         )
 
-    bpy.types.Scene.ambf_save_selection_only = bpy.props.BoolProperty \
+    Scene.ambf_save_selection_only = BoolProperty \
         (
             name="Selection Only",
             default=False,
@@ -2874,7 +2876,7 @@ class AMBF_PT_create_adf(bpy.types.Panel):
         row.label(text="LEGACY:", icon='CONSOLE')
 
 
-class AMBF_PT_rigid_body_props(bpy.types.Panel):
+class AMBF_PT_rigid_body_props(Panel):
     """Add Rigid Body Properties"""
     bl_label = "AMBF RIGID BODY ADDITIONAL PROPERTIES"
     bl_idname = "AMBF_PT_rigid_body_props"
@@ -2882,15 +2884,15 @@ class AMBF_PT_rigid_body_props(bpy.types.Panel):
     bl_region_type = 'WINDOW'
     bl_context= "physics"
     
-    bpy.types.Object.ambf_enable_body_props = bpy.props.BoolProperty(name="Enable", default=False)
+    Object.ambf_enable_body_props = BoolProperty(name="Enable", default=False)
     
-    bpy.types.Object.ambf_linear_controller_p_gain = bpy.props.FloatProperty(name="Proportional Gain (P)", default=500, min=0)
-    bpy.types.Object.ambf_linear_controller_i_gain = bpy.props.FloatProperty(name="Integral Gain (I)", default=5, min=0)
-    bpy.types.Object.ambf_linear_controller_d_gain = bpy.props.FloatProperty(name="Damping Gain (D)", default=5, min=0)
+    Object.ambf_linear_controller_p_gain = FloatProperty(name="Proportional Gain (P)", default=500, min=0)
+    Object.ambf_linear_controller_i_gain = FloatProperty(name="Integral Gain (I)", default=5, min=0)
+    Object.ambf_linear_controller_d_gain = FloatProperty(name="Damping Gain (D)", default=5, min=0)
     
-    bpy.types.Object.ambf_angular_controller_p_gain = bpy.props.FloatProperty(name="Proportional Gain (P)", default=50, min=0)
-    bpy.types.Object.ambf_angular_controller_i_gain = bpy.props.FloatProperty(name="Integral Gain (I)", default=0.5, min=0)
-    bpy.types.Object.ambf_angular_controller_d_gain = bpy.props.FloatProperty(name="Damping Gain (D)", default=0.5, min=0)
+    Object.ambf_angular_controller_p_gain = FloatProperty(name="Proportional Gain (P)", default=50, min=0)
+    Object.ambf_angular_controller_i_gain = FloatProperty(name="Integral Gain (I)", default=0.5, min=0)
+    Object.ambf_angular_controller_d_gain = FloatProperty(name="Damping Gain (D)", default=0.5, min=0)
     
     @classmethod
     def poll(self, context):
@@ -2940,7 +2942,7 @@ class AMBF_PT_rigid_body_props(bpy.types.Panel):
         row.prop(context.object, 'ambf_angular_controller_d_gain')
         
         
-class AMBF_PT_joint_props(bpy.types.Panel):
+class AMBF_PT_joint_props(Panel):
     """Add Rigid Body Properties"""
     bl_label = "AMBF JOINT ADDITIONAL PROPERTIES"
     bl_idname = "AMBF_PT_joint_props"
@@ -2948,11 +2950,11 @@ class AMBF_PT_joint_props(bpy.types.Panel):
     bl_region_type = 'WINDOW'
     bl_context= "physics"
 
-    bpy.types.Object.ambf_enable_joint_props = bpy.props.BoolProperty(name="Enable", default=False)
-    bpy.types.Object.ambf_joint_controller_p_gain = bpy.props.FloatProperty(name="Proportional Gain (P)", default=500, min=0)
-    bpy.types.Object.ambf_joint_controller_i_gain = bpy.props.FloatProperty(name="Integral Gain (I)", default=5, min=0)
-    bpy.types.Object.ambf_joint_controller_d_gain = bpy.props.FloatProperty(name="Damping Gain (D)", default=5, min=0)
-    bpy.types.Object.ambf_joint_damping = bpy.props.FloatProperty(name="Joint Damping", default=0.0, min=0.0)
+    Object.ambf_enable_joint_props = BoolProperty(name="Enable", default=False)
+    Object.ambf_joint_controller_p_gain = FloatProperty(name="Proportional Gain (P)", default=500, min=0)
+    Object.ambf_joint_controller_i_gain = FloatProperty(name="Integral Gain (I)", default=5, min=0)
+    Object.ambf_joint_controller_d_gain = FloatProperty(name="Damping Gain (D)", default=5, min=0)
+    Object.ambf_joint_damping = FloatProperty(name="Joint Damping", default=0.0, min=0.0)
     
     @classmethod
     def poll(self, context):
@@ -2988,7 +2990,7 @@ class AMBF_PT_joint_props(bpy.types.Panel):
         row.prop(context.object, 'ambf_joint_controller_d_gain')
 
 
-class AMBF_OT_cleanup_all(bpy.types.Operator):
+class AMBF_OT_cleanup_all(Operator):
     """Add Rigid Body Properties"""
     bl_label = "CLEAN UP ALL"
     bl_idname = "ambf.ambf_cleanup_all"
@@ -2999,7 +3001,7 @@ class AMBF_OT_cleanup_all(bpy.types.Operator):
         return {'FINISHED'}
     
 
-class AMBF_OT_hide_all_joints(bpy.types.Operator):
+class AMBF_OT_hide_all_joints(Operator):
     """Add Joint Properties"""
     bl_label = "HIDE ALL JOINTS (TOGGLE)"
     bl_idname = "ambf.ambf_hide_all_joints"
@@ -3012,7 +3014,7 @@ class AMBF_OT_hide_all_joints(bpy.types.Operator):
         return {'FINISHED'}
 
 
-class AMBF_OT_hide_passive_joints(bpy.types.Operator):
+class AMBF_OT_hide_passive_joints(Operator):
     """Add Joint Properties"""
     bl_label = "HIDE PASSIVE JOINTS (TOGGLE)"
     bl_idname = "ambf.ambf_hide_passive_joints"
@@ -3026,7 +3028,7 @@ class AMBF_OT_hide_passive_joints(bpy.types.Operator):
         return {'FINISHED'}
 
 
-class AMBF_OT_ambf_rigid_body_cleanup(bpy.types.Operator):
+class AMBF_OT_ambf_rigid_body_cleanup(Operator):
     """Add Rigid Body Properties"""
     bl_label = "AMBF RIGID BODY CLEANUP"
     bl_idname = "ambf.ambf_rigid_body_cleanup"
@@ -3038,7 +3040,7 @@ class AMBF_OT_ambf_rigid_body_cleanup(bpy.types.Operator):
         return {'FINISHED'}
 
 
-class AMBF_OT_ambf_constraint_cleanup(bpy.types.Operator):
+class AMBF_OT_ambf_constraint_cleanup(Operator):
     """Add Rigid Body Properties"""
     bl_label = "AMBF CONSTRAINT CLEANUP"
     bl_idname = "ambf.ambf_constraint_cleanup"
@@ -3050,7 +3052,7 @@ class AMBF_OT_ambf_constraint_cleanup(bpy.types.Operator):
         return {'FINISHED'}
 
 
-class AMBF_OT_ambf_collision_shape_cleanup(bpy.types.Operator):
+class AMBF_OT_ambf_collision_shape_cleanup(Operator):
     """Add Rigid Body Properties"""
     bl_label = "AMBF COLLISION SHAPE CLEANUP"
     bl_idname = "ambf.ambf_collision_shape_cleanup"
@@ -3062,7 +3064,7 @@ class AMBF_OT_ambf_collision_shape_cleanup(bpy.types.Operator):
         return {'FINISHED'}
 
 
-class AMBF_OT_ambf_rigid_body_activate(bpy.types.Operator):
+class AMBF_OT_ambf_rigid_body_activate(Operator):
     """Add Rigid Body Properties"""
     bl_label = "AMBF RIGID BODY ACTIVATE"
     bl_idname = "ambf.ambf_rigid_body_activate"
@@ -3081,7 +3083,7 @@ class AMBF_OT_ambf_rigid_body_activate(bpy.types.Operator):
         return {'FINISHED'}
 
 
-class AMBF_OT_ambf_rigid_body_add_collision_shape(bpy.types.Operator):
+class AMBF_OT_ambf_rigid_body_add_collision_shape(Operator):
     """Add Rigid Body Properties"""
     bl_label = "ADD COLLISION SHAPE"
     bl_idname = "ambf.ambf_rigid_body_add_collision_shape"
@@ -3091,7 +3093,7 @@ class AMBF_OT_ambf_rigid_body_add_collision_shape(bpy.types.Operator):
         return {'FINISHED'}
 
 
-class AMBF_OT_ambf_rigid_body_remove_collision_shape(bpy.types.Operator):
+class AMBF_OT_ambf_rigid_body_remove_collision_shape(Operator):
     """Add Rigid Body Properties"""
     bl_label = "REMOVE COLLISION SHAPE"
     bl_idname = "ambf.ambf_rigid_body_remove_collision_shape"
@@ -3138,8 +3140,8 @@ def collision_shape_offset_update_cb(self, context):
 #
 
 
-class AMBF_PG_CollisionShapePropGroup(bpy.types.PropertyGroup):
-    ambf_rigid_body_collision_shape_radius: bpy.props.FloatProperty \
+class AMBF_PG_CollisionShapePropGroup(PropertyGroup):
+    ambf_rigid_body_collision_shape_radius: FloatProperty \
         (
             name='Radius',
             default=1.0,
@@ -3147,7 +3149,7 @@ class AMBF_PG_CollisionShapePropGroup(bpy.types.PropertyGroup):
             min=0.0001
         )
 
-    ambf_rigid_body_collision_shape_height: bpy.props.FloatProperty \
+    ambf_rigid_body_collision_shape_height: FloatProperty \
         (
             name='Height',
             default=1.0,
@@ -3155,7 +3157,7 @@ class AMBF_PG_CollisionShapePropGroup(bpy.types.PropertyGroup):
             min=0.0001
         )
 
-    ambf_rigid_body_collision_shape_xyz_dims: bpy.props.FloatVectorProperty \
+    ambf_rigid_body_collision_shape_xyz_dims: FloatVectorProperty \
         (
             name='Dimension (XYZ)',
             default=(1.0, 1.0, 1.0),
@@ -3165,11 +3167,11 @@ class AMBF_PG_CollisionShapePropGroup(bpy.types.PropertyGroup):
             subtype='XYZ',
         )
         
-    disable_update_cbs: bpy.props.BoolProperty(default=False)
+    disable_update_cbs: BoolProperty(default=False)
 
-    ambf_rigid_body_collision_shape_pointer: bpy.props.PointerProperty(name="Collision Shape", type=bpy.types.Object)
+    ambf_rigid_body_collision_shape_pointer: PointerProperty(name="Collision Shape", type=Object)
 
-    ambf_rigid_body_collision_shape: bpy.props.EnumProperty \
+    ambf_rigid_body_collision_shape: EnumProperty \
         (
             items=
             [
@@ -3184,7 +3186,7 @@ class AMBF_PG_CollisionShapePropGroup(bpy.types.PropertyGroup):
             default="BOX"
         )
 
-    ambf_rigid_body_collision_shape_axis: bpy.props.EnumProperty \
+    ambf_rigid_body_collision_shape_axis: EnumProperty \
         (
             name='Shape Axis',
             items=
@@ -3198,7 +3200,7 @@ class AMBF_PG_CollisionShapePropGroup(bpy.types.PropertyGroup):
             description='The direction the collision shape is aligned. Use for Cone, Cylinder and Capsule'
         )
 
-    ambf_rigid_body_linear_shape_offset: bpy.props.FloatVectorProperty \
+    ambf_rigid_body_linear_shape_offset: FloatVectorProperty \
         (
             name='Linear Shape Offset',
             default=(0.0, 0.0, 0.0),
@@ -3207,7 +3209,7 @@ class AMBF_PG_CollisionShapePropGroup(bpy.types.PropertyGroup):
             subtype='XYZ',
         )
 
-    ambf_rigid_body_angular_shape_offset: bpy.props.FloatVectorProperty \
+    ambf_rigid_body_angular_shape_offset: FloatVectorProperty \
         (
             name='Angular Shape Offset',
             default=(0.0, 0.0, 0.0),
@@ -3237,7 +3239,7 @@ def collision_shape_show_per_object_update_cb(self, context):
 #
 ##
 
-class AMBF_PT_ambf_rigid_body(bpy.types.Panel):
+class AMBF_PT_ambf_rigid_body(Panel):
     """Add Rigid Body Properties"""
     bl_label = "AMBF RIGID BODY PROPERTIES"
     bl_idname = "AMBF_PT_ambf_rigid_body"
@@ -3245,65 +3247,65 @@ class AMBF_PT_ambf_rigid_body(bpy.types.Panel):
     bl_region_type = 'WINDOW'
     bl_context = "physics"
     
-    bpy.types.Object.ambf_rigid_body_enable = bpy.props.BoolProperty(name="Enable AMBF Rigid Body", default=False)
+    Object.ambf_rigid_body_enable = BoolProperty(name="Enable AMBF Rigid Body", default=False)
 
-    bpy.types.Object.ambf_rigid_body_namespace = bpy.props.StringProperty(name="Namespace", default="")
+    Object.ambf_rigid_body_namespace = StringProperty(name="Namespace", default="")
     
-    bpy.types.Object.ambf_rigid_body_mass = bpy.props.FloatProperty(name="mass", default=1.0, min=0.0001)
+    Object.ambf_rigid_body_mass = FloatProperty(name="mass", default=1.0, min=0.0001)
     
-    bpy.types.Object.ambf_rigid_body_inertia_x = bpy.props.FloatProperty(name='Ix', default=1.0, min=0.0)
+    Object.ambf_rigid_body_inertia_x = FloatProperty(name='Ix', default=1.0, min=0.0)
     
-    bpy.types.Object.ambf_rigid_body_inertia_y = bpy.props.FloatProperty(name='Iy', default=1.0, min=0.0)
+    Object.ambf_rigid_body_inertia_y = FloatProperty(name='Iy', default=1.0, min=0.0)
     
-    bpy.types.Object.ambf_rigid_body_inertia_z = bpy.props.FloatProperty(name='Iz', default=1.0, min=0.0)
+    Object.ambf_rigid_body_inertia_z = FloatProperty(name='Iz', default=1.0, min=0.0)
     
-    bpy.types.Object.ambf_rigid_body_static_friction = bpy.props.FloatProperty(name="Static Friction", default=0.5, min=0.0, max=10.0)
+    Object.ambf_rigid_body_static_friction = FloatProperty(name="Static Friction", default=0.5, min=0.0, max=10.0)
 
-    bpy.types.Object.ambf_rigid_body_rolling_friction = bpy.props.FloatProperty(name="Rolling Friction", default=0.0, min=0.0, max=1.0)
+    Object.ambf_rigid_body_rolling_friction = FloatProperty(name="Rolling Friction", default=0.0, min=0.0, max=1.0)
     
-    bpy.types.Object.ambf_rigid_body_restitution = bpy.props.FloatProperty(name="Restitution", default=0.1, min=0.0, max=1.0)
+    Object.ambf_rigid_body_restitution = FloatProperty(name="Restitution", default=0.1, min=0.0, max=1.0)
     
-    bpy.types.Object.ambf_rigid_body_enable_collision_margin = bpy.props.BoolProperty(name="Collision Margin", default=False)
+    Object.ambf_rigid_body_enable_collision_margin = BoolProperty(name="Collision Margin", default=False)
 
-    bpy.types.Object.ambf_rigid_body_show_collision_shapes_per_object = bpy.props.BoolProperty(name="Show Collision Shapes", default=False, update=collision_shape_show_per_object_update_cb)
+    Object.ambf_rigid_body_show_collision_shapes_per_object = BoolProperty(name="Show Collision Shapes", default=False, update=collision_shape_show_per_object_update_cb)
     
-    bpy.types.Object.ambf_rigid_body_collision_margin = bpy.props.FloatProperty(name="Margin", default=0.001, min=-0.1, max=1.0)
+    Object.ambf_rigid_body_collision_margin = FloatProperty(name="Margin", default=0.001, min=-0.1, max=1.0)
     
-    bpy.types.Object.ambf_rigid_body_linear_damping = bpy.props.FloatProperty(name="Linear Damping", default=0.04, min=0.0, max=1.0)
+    Object.ambf_rigid_body_linear_damping = FloatProperty(name="Linear Damping", default=0.04, min=0.0, max=1.0)
     
-    bpy.types.Object.ambf_rigid_body_angular_damping = bpy.props.FloatProperty(name="Angular Damping", default=0.1, min=0.0, max=1.0)
+    Object.ambf_rigid_body_angular_damping = FloatProperty(name="Angular Damping", default=0.1, min=0.0, max=1.0)
 
-    bpy.types.Object.ambf_rigid_body_enable_controllers = bpy.props.BoolProperty(name="Enable Controllers", default=False)
+    Object.ambf_rigid_body_enable_controllers = BoolProperty(name="Enable Controllers", default=False)
 
-    bpy.types.Object.ambf_rigid_body_linear_controller_p_gain = bpy.props.FloatProperty(name="Proportional Gain (P)", default=10, min=0)
+    Object.ambf_rigid_body_linear_controller_p_gain = FloatProperty(name="Proportional Gain (P)", default=10, min=0)
 
-    bpy.types.Object.ambf_rigid_body_linear_controller_i_gain = bpy.props.FloatProperty(name="Integral Gain (I)", default=0, min=0)
+    Object.ambf_rigid_body_linear_controller_i_gain = FloatProperty(name="Integral Gain (I)", default=0, min=0)
 
-    bpy.types.Object.ambf_rigid_body_linear_controller_d_gain = bpy.props.FloatProperty(name="Damping Gain (D)", default=1, min=0)
+    Object.ambf_rigid_body_linear_controller_d_gain = FloatProperty(name="Damping Gain (D)", default=1, min=0)
 
-    bpy.types.Object.ambf_rigid_body_angular_controller_p_gain = bpy.props.FloatProperty(name="Proportional Gain (P)", default=10, min=0)
+    Object.ambf_rigid_body_angular_controller_p_gain = FloatProperty(name="Proportional Gain (P)", default=10, min=0)
 
-    bpy.types.Object.ambf_rigid_body_angular_controller_i_gain = bpy.props.FloatProperty(name="Integral Gain (I)", default=0, min=0)
+    Object.ambf_rigid_body_angular_controller_i_gain = FloatProperty(name="Integral Gain (I)", default=0, min=0)
 
-    bpy.types.Object.ambf_rigid_body_angular_controller_d_gain = bpy.props.FloatProperty(name="Damping Gain (D)", default=1, min=0)
+    Object.ambf_rigid_body_angular_controller_d_gain = FloatProperty(name="Damping Gain (D)", default=1, min=0)
 
-    bpy.types.Object.ambf_rigid_body_passive = bpy.props.BoolProperty(name="Is Passive?", default=False, description="If passive. this body will not be spawned as an AMBF communication object")
+    Object.ambf_rigid_body_passive = BoolProperty(name="Is Passive?", default=False, description="If passive. this body will not be spawned as an AMBF communication object")
     
-    bpy.types.Object.ambf_rigid_body_is_static = bpy.props.BoolProperty \
+    Object.ambf_rigid_body_is_static = BoolProperty \
         (
             name="Static",
             default=False,
             description="Is this object dynamic or static (mass = 0.0 Kg)"
         )
 
-    bpy.types.Object.ambf_rigid_body_specify_inertia= bpy.props.BoolProperty \
+    Object.ambf_rigid_body_specify_inertia= BoolProperty \
         (
             name="Specify Inertia",
             default=False,
             description="If not set explicitly, it is calculated automatically by AMBF"
         )
     
-    bpy.types.Object.ambf_rigid_body_collision_type= bpy.props.EnumProperty \
+    Object.ambf_rigid_body_collision_type= EnumProperty \
         (
             name='Collision Type',
             items=
@@ -3317,7 +3319,7 @@ class AMBF_PT_ambf_rigid_body(bpy.types.Panel):
             description='Choose between a singular or a compound collision that consists of multiple shapes'
         )
 
-    bpy.types.Object.ambf_rigid_body_collision_mesh_type= bpy.props.EnumProperty \
+    Object.ambf_rigid_body_collision_mesh_type= EnumProperty \
         (
             name='Collision Mesh Type',
             items=
@@ -3330,7 +3332,7 @@ class AMBF_PT_ambf_rigid_body(bpy.types.Panel):
             description='Choose between the type of the collision mesh. Avoid Concave Meshes if you can.'
         )
     
-    bpy.types.Object.ambf_rigid_body_collision_groups= bpy.props.BoolVectorProperty \
+    Object.ambf_rigid_body_collision_groups= BoolVectorProperty \
         (
             name='Collision Groups',
             size=20,
@@ -3339,7 +3341,7 @@ class AMBF_PT_ambf_rigid_body(bpy.types.Panel):
             subtype='LAYER'
         )
     
-    bpy.types.Object.ambf_rigid_body_linear_inertial_offset= bpy.props.FloatVectorProperty \
+    Object.ambf_rigid_body_linear_inertial_offset= FloatVectorProperty \
         (
             name='Linear Inertial Offset',
             default=(0.0, 0.0, 0.0),
@@ -3348,7 +3350,7 @@ class AMBF_PT_ambf_rigid_body(bpy.types.Panel):
             subtype='XYZ',
         )
     
-    bpy.types.Object.ambf_rigid_body_angular_inertial_offset= bpy.props.FloatVectorProperty \
+    Object.ambf_rigid_body_angular_inertial_offset= FloatVectorProperty \
         (
             name='Angular Inertial Offset',
             default=(0.0, 0.0, 0.0),
@@ -3356,7 +3358,7 @@ class AMBF_PT_ambf_rigid_body(bpy.types.Panel):
             subtype='EULER',
         )
     
-    bpy.types.Object.ambf_object_type= bpy.props.EnumProperty \
+    Object.ambf_object_type= EnumProperty \
         (
             name="Object Type",
             items=
@@ -3369,7 +3371,7 @@ class AMBF_PT_ambf_rigid_body(bpy.types.Panel):
             default='NONE'
         )
 
-    bpy.types.Object.ambf_rigid_body_controller_output_type= bpy.props.EnumProperty \
+    Object.ambf_rigid_body_controller_output_type= EnumProperty \
             (
             items=
             [
@@ -3381,19 +3383,19 @@ class AMBF_PT_ambf_rigid_body(bpy.types.Panel):
             description='The output of the controller fed to the simulation. Better to use (VELOCITY) with P <= 10, D <= 1'
         )
 
-    bpy.types.Object.ambf_rigid_body_publish_children_names= bpy.props.BoolProperty \
+    Object.ambf_rigid_body_publish_children_names= BoolProperty \
         (
             name="Publish Children Names",
             default=False
         )
 
-    bpy.types.Object.ambf_rigid_body_publish_joint_names= bpy.props.BoolProperty \
+    Object.ambf_rigid_body_publish_joint_names= BoolProperty \
         (
             name="Publish Joint Names",
             default=False
         )
 
-    bpy.types.Object.ambf_rigid_body_publish_joint_positions= bpy.props.BoolProperty \
+    Object.ambf_rigid_body_publish_joint_positions= BoolProperty \
         (
             name="Publish Joint Positions",
             default=False
@@ -3647,7 +3649,7 @@ class AMBF_PT_ambf_rigid_body(bpy.types.Panel):
         col.prop(prop, 'ambf_rigid_body_angular_shape_offset')
             
             
-class AMBF_OT_ambf_constraint_activate(bpy.types.Operator):
+class AMBF_OT_ambf_constraint_activate(Operator):
     """Add Rigid Body Properties"""
     bl_label = "AMBF CONSTRAINT ACTIVATE"
     bl_idname = "ambf.ambf_constraint_activate"
@@ -3663,7 +3665,7 @@ class AMBF_OT_ambf_constraint_activate(bpy.types.Operator):
         return {'FINISHED'}
     
 
-class AMBF_PT_ambf_constraint(bpy.types.Panel):
+class AMBF_PT_ambf_constraint(Panel):
     """Add Rigid Body Properties"""
     bl_label = "AMBF CONSTRAINT PROPERTIES"
     bl_idname = "AMBF_PT_ambf_constraint"
@@ -3671,41 +3673,41 @@ class AMBF_PT_ambf_constraint(bpy.types.Panel):
     bl_region_type = 'WINDOW'
     bl_context= "physics"
     
-    bpy.types.Object.ambf_constraint_enable = bpy.props.BoolProperty(name="Enable", default=False)
+    Object.ambf_constraint_enable = BoolProperty(name="Enable", default=False)
     
-    bpy.types.Object.ambf_constraint_parent = bpy.props.PointerProperty(name="Parent", type=bpy.types.Object)
+    Object.ambf_constraint_parent = PointerProperty(name="Parent", type=Object)
     
-    bpy.types.Object.ambf_constraint_child = bpy.props.PointerProperty(name="Child", type=bpy.types.Object)
+    Object.ambf_constraint_child = PointerProperty(name="Child", type=Object)
     
-    bpy.types.Object.ambf_constraint_name = bpy.props.StringProperty(name="Name", default="")
+    Object.ambf_constraint_name = StringProperty(name="Name", default="")
     
-    bpy.types.Object.ambf_constraint_enable_controller_gains = bpy.props.BoolProperty(name="Enable Controller Gains", default=False)
+    Object.ambf_constraint_enable_controller_gains = BoolProperty(name="Enable Controller Gains", default=False)
     
-    bpy.types.Object.ambf_constraint_controller_p_gain = bpy.props.FloatProperty(name="Proportional Gain (P)", default=10, min=0)
+    Object.ambf_constraint_controller_p_gain = FloatProperty(name="Proportional Gain (P)", default=10, min=0)
     
-    bpy.types.Object.ambf_constraint_controller_i_gain = bpy.props.FloatProperty(name="Integral Gain (I)", default=0, min=0)
+    Object.ambf_constraint_controller_i_gain = FloatProperty(name="Integral Gain (I)", default=0, min=0)
 
-    bpy.types.Object.ambf_constraint_controller_d_gain = bpy.props.FloatProperty(name="Damping Gain (D)", default=1, min=0)
+    Object.ambf_constraint_controller_d_gain = FloatProperty(name="Damping Gain (D)", default=1, min=0)
     
-    bpy.types.Object.ambf_constraint_damping = bpy.props.FloatProperty(name="Joint Damping", default=0.7, min=0.0)
+    Object.ambf_constraint_damping = FloatProperty(name="Joint Damping", default=0.7, min=0.0)
 
-    bpy.types.Object.ambf_constraint_stiffness = bpy.props.FloatProperty(name="Joint Stiffness", default=10.0, min=0.0)
+    Object.ambf_constraint_stiffness = FloatProperty(name="Joint Stiffness", default=10.0, min=0.0)
 
-    bpy.types.Object.ambf_constraint_equilibrium_point = bpy.props.FloatProperty(name="Equilibrium Point", default=0.0)
+    Object.ambf_constraint_equilibrium_point = FloatProperty(name="Equilibrium Point", default=0.0)
 
-    bpy.types.Object.ambf_constraint_limits_enable = bpy.props.BoolProperty(name="Enable Limits", default=True)
+    Object.ambf_constraint_limits_enable = BoolProperty(name="Enable Limits", default=True)
 
-    bpy.types.Object.ambf_constraint_passive = bpy.props.BoolProperty(name="Is Passive?", default=False)
+    Object.ambf_constraint_passive = BoolProperty(name="Is Passive?", default=False)
 
-    bpy.types.Object.ambf_constraint_enable_feedback = bpy.props.BoolProperty(name="Enable Feedback", default=False)
+    Object.ambf_constraint_enable_feedback = BoolProperty(name="Enable Feedback", default=False)
 
-    bpy.types.Object.ambf_constraint_limits_lower = bpy.props.FloatProperty(name="Low", default=-60, min=-359, max=359)
+    Object.ambf_constraint_limits_lower = FloatProperty(name="Low", default=-60, min=-359, max=359)
 
-    bpy.types.Object.ambf_constraint_limits_higher = bpy.props.FloatProperty(name="High", default=60, min=-359, max=359)
+    Object.ambf_constraint_limits_higher = FloatProperty(name="High", default=60, min=-359, max=359)
 
-    bpy.types.Object.ambf_constraint_max_motor_impulse = bpy.props.FloatProperty(name="Max Motor Impulse", default=0.05, min=0.0)
+    Object.ambf_constraint_max_motor_impulse = FloatProperty(name="Max Motor Impulse", default=0.05, min=0.0)
     
-    bpy.types.Object.ambf_constraint_axis= bpy.props.EnumProperty \
+    Object.ambf_constraint_axis= EnumProperty \
         (
             name='Axis',
             items=
@@ -3717,7 +3719,7 @@ class AMBF_PT_ambf_constraint(bpy.types.Panel):
             default='Z'
         )
 
-    bpy.types.Object.ambf_constraint_cone_twist_limits= bpy.props.FloatVectorProperty \
+    Object.ambf_constraint_cone_twist_limits= FloatVectorProperty \
         (
             name='Cone Twist Swing Limits (XYZ)',
             default=(1.2, 1.2, 1.2),
@@ -3726,7 +3728,7 @@ class AMBF_PT_ambf_constraint(bpy.types.Panel):
             subtype='XYZ',
         )
     
-    bpy.types.Object.ambf_constraint_type= bpy.props.EnumProperty \
+    Object.ambf_constraint_type= EnumProperty \
         (
             items=
             [
@@ -3744,7 +3746,7 @@ class AMBF_PT_ambf_constraint(bpy.types.Panel):
             default='REVOLUTE'
         )
 
-    bpy.types.Object.ambf_constraint_controller_output_type= bpy.props.EnumProperty \
+    Object.ambf_constraint_controller_output_type= EnumProperty \
         (
             items=
             [
@@ -3951,7 +3953,7 @@ def register():
     from bpy.utils import register_class
     for cls in custom_classes:
         register_class(cls)
-    bpy.types.Object.ambf_collision_shape_prop_collection = bpy.props.CollectionProperty(type=AMBF_PG_CollisionShapePropGroup)
+    Object.ambf_collision_shape_prop_collection = CollectionProperty(type=AMBF_PG_CollisionShapePropGroup)
 
 def unregister():
     from bpy.utils import unregister_class
