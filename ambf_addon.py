@@ -1308,6 +1308,10 @@ class AMBF_OT_generate_ambf_file(Operator):
             joint_data['type'] = 'p2p'
         elif joint_obj_handle.ambf_constraint_type == 'CONE_TWIST':
             joint_data['type'] = 'cone twist'
+        elif joint_obj_handle.ambf_constraint_type == 'SIX_DOF':
+            joint_data['type'] = 'six dof'
+        elif joint_obj_handle.ambf_constraint_type == 'SIX_DOF_SPRING':
+            joint_data['type'] = 'six dof spring'
 
         if joint_obj_handle.ambf_constraint_type in ['REVOLUTE', 'TORSION_SPRING']:
             if joint_obj_handle.ambf_constraint_limits_enable:
@@ -1341,6 +1345,59 @@ class AMBF_OT_generate_ambf_file(Operator):
                     'y': round(joint_obj_handle.ambf_constraint_cone_twist_limits[1], 4),
                     'z': round(joint_obj_handle.ambf_constraint_cone_twist_limits[2], 4)}
             joint_data['joint limits'] = lims
+
+        if joint_obj_handle.ambf_constraint_type in ['SIX_DOF', 'SIX_DOF_SPRING']:
+            ang_lims_low = {'x': round(joint_obj_handle.ambf_constraint_six_dof_limits_low_angular[0], 4),
+                            'y': round(joint_obj_handle.ambf_constraint_six_dof_limits_low_angular[1], 4),
+                            'z': round(joint_obj_handle.ambf_constraint_six_dof_limits_low_angular[2], 4)}
+
+            ang_lims_hig = {'x': round(joint_obj_handle.ambf_constraint_six_dof_limits_high_angular[0], 4),
+                            'y': round(joint_obj_handle.ambf_constraint_six_dof_limits_high_angular[1], 4),
+                            'z': round(joint_obj_handle.ambf_constraint_six_dof_limits_high_angular[2], 4)}
+
+            lin_lims_low = {'x': round(joint_obj_handle.ambf_constraint_six_dof_limits_low_linear[0], 4),
+                            'y': round(joint_obj_handle.ambf_constraint_six_dof_limits_low_linear[1], 4),
+                            'z': round(joint_obj_handle.ambf_constraint_six_dof_limits_low_linear[2], 4)}
+
+            lin_lims_hig = {'x': round(joint_obj_handle.ambf_constraint_six_dof_limits_high_linear[0], 4),
+                            'y': round(joint_obj_handle.ambf_constraint_six_dof_limits_high_linear[1], 4),
+                            'z': round(joint_obj_handle.ambf_constraint_six_dof_limits_high_linear[2], 4)}
+
+            joint_data['joint limits'] = {'angular': {'low': ang_lims_low, 'high': ang_lims_hig},
+                                          'linear': {'low': lin_lims_low, 'high': lin_lims_hig}}
+
+            if joint_obj_handle.ambf_constraint_type == 'SIX_DOF_SPRING':
+                ang_stiffness = {'x': round(joint_obj_handle.ambf_constraint_six_dof_stiffness_angular[0], 4),
+                                 'y': round(joint_obj_handle.ambf_constraint_six_dof_stiffness_angular[1], 4),
+                                 'z': round(joint_obj_handle.ambf_constraint_six_dof_stiffness_angular[2], 4)}
+
+                lin_stiffness = {'x': round(joint_obj_handle.ambf_constraint_six_dof_stiffness_linear[0], 4),
+                                 'y': round(joint_obj_handle.ambf_constraint_six_dof_stiffness_linear[1], 4),
+                                 'z': round(joint_obj_handle.ambf_constraint_six_dof_stiffness_linear[2], 4)}
+
+                joint_data['stiffness'] = {'angular': ang_stiffness, 'linear': lin_stiffness}
+
+                ang_damping = {'x': round(joint_obj_handle.ambf_constraint_six_dof_damping_angular[0], 4),
+                               'y': round(joint_obj_handle.ambf_constraint_six_dof_damping_angular[1], 4),
+                               'z': round(joint_obj_handle.ambf_constraint_six_dof_damping_angular[2], 4)}
+
+                lin_damping = {'x': round(joint_obj_handle.ambf_constraint_six_dof_damping_linear[0], 4),
+                               'y': round(joint_obj_handle.ambf_constraint_six_dof_damping_linear[1], 4),
+                               'z': round(joint_obj_handle.ambf_constraint_six_dof_damping_linear[2], 4)}
+
+                joint_data['damping'] = {'angular': ang_damping, 'linear': lin_damping}
+
+                ang_equilib = {'x': round(joint_obj_handle.ambf_constraint_six_dof_equilibrium_angular[0], 4),
+                               'y': round(joint_obj_handle.ambf_constraint_six_dof_equilibrium_angular[1], 4),
+                               'z': round(joint_obj_handle.ambf_constraint_six_dof_equilibrium_angular[2], 4)}
+
+                lin_equilib = {'x': round(joint_obj_handle.ambf_constraint_six_dof_equilibrium_linear[0], 4),
+                               'y': round(joint_obj_handle.ambf_constraint_six_dof_equilibrium_linear[1], 4),
+                               'z': round(joint_obj_handle.ambf_constraint_six_dof_equilibrium_linear[2], 4)}
+
+                joint_data['equilibrium point'] = {'angular': ang_equilib, 'linear': lin_equilib}
+
+
 
         # Set the joint controller gains data from the joint controller props
         if joint_obj_handle.ambf_constraint_enable_controller_gains:
@@ -2219,6 +2276,10 @@ class AMBF_OT_load_ambf_file(Operator):
                 joint_type = 'FIXED'
             elif joint_data['type'] in ['cone twist']:
                 joint_type = 'CONE_TWIST'
+            elif joint_data['type'] in ['six dof']:
+                joint_type = 'SIX_DOF'
+            elif joint_data['type'] in ['six dof spring']:
+                joint_type = 'SIX_DOF_SPRING'
 
         return joint_type
     
@@ -2433,6 +2494,48 @@ class AMBF_OT_load_ambf_file(Operator):
                 joint_obj_handle.ambf_constraint_cone_twist_limits[0] = joint_data['joint limits']["x"]
                 joint_obj_handle.ambf_constraint_cone_twist_limits[1] = joint_data['joint limits']["y"]
                 joint_obj_handle.ambf_constraint_cone_twist_limits[2] = joint_data['joint limits']["z"]
+            elif joint_type in ['SIX_DOF', 'SIX_DOF_SPRING']:
+                joint_obj_handle.ambf_constraint_six_dof_limits_low_angular[0] = joint_data['joint limits']["angular"]["low"]["x"]
+                joint_obj_handle.ambf_constraint_six_dof_limits_low_angular[1] = joint_data['joint limits']["angular"]["low"]["y"]
+                joint_obj_handle.ambf_constraint_six_dof_limits_low_angular[2] = joint_data['joint limits']["angular"]["low"]["z"]
+
+                joint_obj_handle.ambf_constraint_six_dof_limits_high_angular[0] = joint_data['joint limits']["angular"]["high"]["x"]
+                joint_obj_handle.ambf_constraint_six_dof_limits_high_angular[1] = joint_data['joint limits']["angular"]["high"]["y"]
+                joint_obj_handle.ambf_constraint_six_dof_limits_high_angular[2] = joint_data['joint limits']["angular"]["high"]["z"]
+
+                joint_obj_handle.ambf_constraint_six_dof_limits_low_linear[0] = joint_data['joint limits']["linear"]["low"]["x"]
+                joint_obj_handle.ambf_constraint_six_dof_limits_low_linear[1] = joint_data['joint limits']["linear"]["low"]["y"]
+                joint_obj_handle.ambf_constraint_six_dof_limits_low_linear[2] = joint_data['joint limits']["linear"]["low"]["z"]
+
+                joint_obj_handle.ambf_constraint_six_dof_limits_high_linear[0] = joint_data['joint limits']["linear"]["high"]["x"]
+                joint_obj_handle.ambf_constraint_six_dof_limits_high_linear[1] = joint_data['joint limits']["linear"]["high"]["y"]
+                joint_obj_handle.ambf_constraint_six_dof_limits_high_linear[2] = joint_data['joint limits']["linear"]["high"]["z"]
+
+                if joint_type == 'SIX_DOF_SPRING':
+                    joint_obj_handle.ambf_constraint_six_dof_stiffness_angular[0] = joint_data['stiffness']["angular"]["x"]
+                    joint_obj_handle.ambf_constraint_six_dof_stiffness_angular[1] = joint_data['stiffness']["angular"]["y"]
+                    joint_obj_handle.ambf_constraint_six_dof_stiffness_angular[2] = joint_data['stiffness']["angular"]["z"]
+
+                    joint_obj_handle.ambf_constraint_six_dof_stiffness_linear[0] = joint_data['stiffness']["linear"]["x"]
+                    joint_obj_handle.ambf_constraint_six_dof_stiffness_linear[1] = joint_data['stiffness']["linear"]["y"]
+                    joint_obj_handle.ambf_constraint_six_dof_stiffness_linear[2] = joint_data['stiffness']["linear"]["z"]
+
+                    joint_obj_handle.ambf_constraint_six_dof_damping_angular[0] = joint_data['damping']["angular"]["x"]
+                    joint_obj_handle.ambf_constraint_six_dof_damping_angular[1] = joint_data['damping']["angular"]["y"]
+                    joint_obj_handle.ambf_constraint_six_dof_damping_angular[2] = joint_data['damping']["angular"]["z"]
+
+                    joint_obj_handle.ambf_constraint_six_dof_damping_linear[0] = joint_data['damping']["linear"]["x"]
+                    joint_obj_handle.ambf_constraint_six_dof_damping_linear[1] = joint_data['damping']["linear"]["y"]
+                    joint_obj_handle.ambf_constraint_six_dof_damping_linear[2] = joint_data['damping']["linear"]["z"]
+
+                    joint_obj_handle.ambf_constraint_six_dof_equilibrium_angular[0] = joint_data['equilibrium point']["angular"]["x"]
+                    joint_obj_handle.ambf_constraint_six_dof_equilibrium_angular[1] = joint_data['equilibrium point']["angular"]["y"]
+                    joint_obj_handle.ambf_constraint_six_dof_equilibrium_angular[2] = joint_data['equilibrium point']["angular"]["z"]
+
+                    joint_obj_handle.ambf_constraint_six_dof_equilibrium_linear[0] = joint_data['equilibrium point']["linear"]["x"]
+                    joint_obj_handle.ambf_constraint_six_dof_equilibrium_linear[1] = joint_data['equilibrium point']["linear"]["y"]
+                    joint_obj_handle.ambf_constraint_six_dof_equilibrium_linear[2] = joint_data['equilibrium point']["linear"]["z"]
+
 
                 
         self.set_default_ambf_constraint_axis(joint_obj_handle)
@@ -2440,18 +2543,19 @@ class AMBF_OT_load_ambf_file(Operator):
         if not limits_defined:
             joint_obj_handle.ambf_constraint_limits_enable = False
 
-        if 'damping' in joint_data:
-            joint_obj_handle.ambf_constraint_damping = joint_data['damping']
+        if joint_type != 'SIX_DOF_SPRING':
+            if 'damping' in joint_data:
+                joint_obj_handle.ambf_constraint_damping = joint_data['damping']
 
-        if 'stiffness' in joint_data:
-            if joint_type in ['LINEAR_SPRING', 'TORSION_SPRING']:
-                joint_obj_handle.ambf_constraint_stiffness = joint_data['stiffness']
-                if 'equilibrium point' in joint_data:
-                    joint_obj_handle.ambf_constraint_equilibrium_point = joint_data['equilibrium point']
-                else:
-                    # Set the eq point midway between lower and upper limit
-                    joint_obj_handle.ambf_constraint_equilibrium_point = (joint_obj_handle.ambf_constraint_limits_lower
-                                                                          + joint_obj_handle.ambf_constraint_limits_higher) / 2.0
+            if 'stiffness' in joint_data:
+                if joint_type in ['LINEAR_SPRING', 'TORSION_SPRING']:
+                    joint_obj_handle.ambf_constraint_stiffness = joint_data['stiffness']
+                    if 'equilibrium point' in joint_data:
+                        joint_obj_handle.ambf_constraint_equilibrium_point = joint_data['equilibrium point']
+                    else:
+                        # Set the eq point midway between lower and upper limit
+                        joint_obj_handle.ambf_constraint_equilibrium_point = (joint_obj_handle.ambf_constraint_limits_lower
+                                                                              + joint_obj_handle.ambf_constraint_limits_higher) / 2.0
 
                 
         if 'enable feedback' in joint_data:
@@ -3721,9 +3825,93 @@ class AMBF_PT_ambf_constraint(Panel):
 
     Object.ambf_constraint_cone_twist_limits= FloatVectorProperty \
         (
-            name='Cone Twist Swing Limits (XYZ)',
+            name='Cone Twist Swing Limits',
             default=(1.2, 1.2, 1.2),
             min=0.0,
+            options={'PROPORTIONAL'},
+            subtype='XYZ',
+        )
+
+    Object.ambf_constraint_six_dof_limits_low_angular = FloatVectorProperty \
+        (
+            name='Low: Limits Angular',
+            default=(-1.2, -1.2, -1.2),
+            options={'PROPORTIONAL'},
+            subtype='XYZ',
+        )
+
+    Object.ambf_constraint_six_dof_limits_high_angular = FloatVectorProperty \
+        (
+            name='High: Limits Angular',
+            default=(1.2, 1.2, 1.2),
+            options={'PROPORTIONAL'},
+            subtype='XYZ',
+        )
+
+    Object.ambf_constraint_six_dof_limits_low_linear = FloatVectorProperty \
+        (
+            name='Low: Limits Linear',
+            default=(-1, -1, -1),
+            options={'PROPORTIONAL'},
+            subtype='XYZ',
+        )
+
+    Object.ambf_constraint_six_dof_limits_high_linear = FloatVectorProperty \
+        (
+            name='High: Limits Linear',
+            default=(1, 1, 1),
+            options={'PROPORTIONAL'},
+            subtype='XYZ',
+        )
+
+    Object.ambf_constraint_six_dof_stiffness_angular = FloatVectorProperty \
+        (
+            name='Stiffness Angular',
+            default=(1., 1., 1.),
+            min=0.0,
+            options={'PROPORTIONAL'},
+            subtype='XYZ',
+        )
+
+    Object.ambf_constraint_six_dof_stiffness_linear = FloatVectorProperty \
+        (
+            name='Stiffness Linear',
+            default=(1., 1., 1.),
+            min=0.0,
+            options={'PROPORTIONAL'},
+            subtype='XYZ',
+        )
+
+    Object.ambf_constraint_six_dof_damping_angular = FloatVectorProperty \
+        (
+            name='Damping Angular',
+            default=(1., 1., 1.),
+            min=0.0,
+            options={'PROPORTIONAL'},
+            subtype='XYZ',
+        )
+
+    Object.ambf_constraint_six_dof_damping_linear = FloatVectorProperty \
+        (
+            name='Damping Linear',
+            default=(1., 1., 1.),
+            min=0.0,
+            options={'PROPORTIONAL'},
+            subtype='XYZ',
+        )
+
+    Object.ambf_constraint_six_dof_equilibrium_angular = FloatVectorProperty \
+        (
+            name='Equilibrium Angular',
+            default=(0., 0., 0.),
+            options={'PROPORTIONAL'},
+            subtype='XYZ',
+        )
+
+    Object.ambf_constraint_six_dof_equilibrium_linear = FloatVectorProperty \
+        (
+            name='Equilibrium Linear',
+            default=(0., 0., 0.),
             options={'PROPORTIONAL'},
             subtype='XYZ',
         )
@@ -3896,13 +4084,62 @@ class AMBF_PT_ambf_constraint(Panel):
                     col.scale_y = 2.0
                     col.prop(context.object, 'ambf_constraint_max_motor_impulse')
             elif context.object.ambf_constraint_type in ['CONE_TWIST']:
+                row = layout.row()
+                row.label(text="Limits")
                 box = layout.box()
                 col = box.column()
                 col.prop(context.object, 'ambf_constraint_cone_twist_limits')
             elif context.object.ambf_constraint_type in ['SIX_DOF', 'SIX_DOF_SPRING']:
-                if context.object.ambf_constraint_type == 'SIX_DOF_SPRING':
-                    pass
 
+                row = layout.row()
+                row.label(text="Limits")
+                box = layout.box()
+
+                col = box.column()
+                split = col.split(factor=0.5)
+                col = split.column()
+                col.prop(context.object, 'ambf_constraint_six_dof_limits_low_angular')
+                col = split.column()
+                col.prop(context.object, 'ambf_constraint_six_dof_limits_high_angular')
+
+                col = box.column()
+                split = col.split(factor=0.5)
+                col = split.column()
+                col.prop(context.object, 'ambf_constraint_six_dof_limits_low_linear')
+                col = split.column()
+                col.prop(context.object, 'ambf_constraint_six_dof_limits_high_linear')
+
+                if context.object.ambf_constraint_type == 'SIX_DOF_SPRING':
+
+                    row = layout.row()
+                    row.label(text="Angular (Stiffness / Damping)")
+                    box = layout.box()
+                    col = box.column()
+                    split = col.split(factor=0.5)
+                    col = split.column()
+                    col.prop(context.object, 'ambf_constraint_six_dof_stiffness_angular')
+                    col = split.column()
+                    col.prop(context.object, 'ambf_constraint_six_dof_damping_angular')
+
+
+                    row = layout.row()
+                    row.label(text="Linear (Stiffness / Damping)")
+                    box = layout.box()
+                    col = box.column()
+                    split = col.split(factor=0.5)
+                    col = split.column()
+                    col.prop(context.object, 'ambf_constraint_six_dof_stiffness_linear')
+                    col = split.column()
+                    col.prop(context.object, 'ambf_constraint_six_dof_damping_linear')
+
+
+                    row = layout.row()
+                    row.label(text="Equilibrium Point")
+                    box = layout.box()
+                    col = box.column()
+                    col.prop(context.object, 'ambf_constraint_six_dof_equilibrium_angular')
+                    col = box.column()
+                    col.prop(context.object, 'ambf_constraint_six_dof_equilibrium_linear')
 
             layout.separator()
 
