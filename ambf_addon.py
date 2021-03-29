@@ -1288,14 +1288,19 @@ class AMBF_OT_generate_ambf_file(Operator):
 
     # Get the joints axis as a vector
     def get_axis_of_ambf_constraint(self, joint_obj_handle):
-        if joint_obj_handle.ambf_constraint_axis == 'X':
-            joint_axis = mathutils.Vector([1, 0, 0])
-        elif joint_obj_handle.ambf_constraint_axis == 'Y':
-            joint_axis = mathutils.Vector([0, 1, 0])
-        elif joint_obj_handle.ambf_constraint_axis == 'Z':
-            joint_axis = mathutils.Vector([0, 0, 1])
+        joint_axis = mathutils.Vector([0, 0, 1])
+        # If the constraint is multi DOF, ignore checking for the axis and always return n_z
+        if joint_obj_handle.ambf_constraint_type in ['CONE_TWIST', 'SIX_DOF', 'SIX_DOF_SPRING']:
+            return mathutils.Vector([0, 0, 1])
         else:
-            print("ERROR! JOINT AXES NOT UNDERSTOOD")
+            if joint_obj_handle.ambf_constraint_axis == 'X':
+                joint_axis = mathutils.Vector([1, 0, 0])
+            elif joint_obj_handle.ambf_constraint_axis == 'Y':
+                joint_axis = mathutils.Vector([0, 1, 0])
+            elif joint_obj_handle.ambf_constraint_axis == 'Z':
+                joint_axis = mathutils.Vector([0, 0, 1])
+            else:
+                print("ERROR! JOINT AXES NOT UNDERSTOOD")
 
         return joint_axis
 
@@ -2322,7 +2327,7 @@ class AMBF_OT_load_ambf_file(Operator):
     
     def set_default_ambf_constraint_axis(self, joint_obj_handle):
         if joint_obj_handle.ambf_object_type == 'CONSTRAINT':
-            if joint_obj_handle.ambf_constraint_type in ['REVOLUTE', 'TORSION_SPRING']:
+            if joint_obj_handle.ambf_constraint_type in ['REVOLUTE', 'TORSION_SPRING', 'CONE_TWIST', 'SIX_DOF', 'SIX_DOF_SPRING']:
                 joint_obj_handle.ambf_constraint_axis = 'Z'
             elif joint_obj_handle.ambf_constraint_type in ['PRISMATIC', 'LINEAR_SPRING']:
                 joint_obj_handle.ambf_constraint_axis = 'X'
