@@ -1231,19 +1231,56 @@ class AMBF_OT_generate_ambf_file(Operator):
         r_c_w = child_obj_handle.matrix_world.to_3x3().copy()
         r_c_p_blender = r_w_p @ r_c_w
         r_angular_offset = r_p_c_ambf @ r_c_p_blender
-        offset_axis_angle = r_angular_offset.to_quaternion().to_axis_angle()
+        child_offset_axis_angle = r_angular_offset.to_quaternion().to_axis_angle()
 
-        if abs(offset_axis_angle[1]) > 0.01:
-            offset_angle = round(offset_axis_angle[1], 4)
+        if abs(child_offset_axis_angle[1]) > 0.0:
+            offset_angle = round(child_offset_axis_angle[1], 4)
 
-            if abs(1.0 - child_axis.dot(offset_axis_angle[0])) < 0.1:
+            if abs(1.0 - child_axis.dot(child_offset_axis_angle[0])) < 0.1:
                 joint_data['offset'] = offset_angle
                 # print ': SAME DIRECTION'
-            elif abs(1.0 + child_axis.dot(offset_axis_angle[0])) < 0.1:
+            elif abs(1.0 + child_axis.dot(child_offset_axis_angle[0])) < 0.1:
                 joint_data['offset'] = -offset_angle
                 # print ': OPPOSITE DIRECTION'
             else:
-                print('ERROR: (', sys._getframe().f_code.co_name, ') (', joint_data['name'], ') SHOULD\'NT GET HERE')
+                print('ERROR: CALCULATION OF CHILD OFFSET: (', sys._getframe().f_code.co_name, ') (', joint_data['name'], ') SHOULD\'NT GET HERE: ', offset_angle)
+                print("CHILD AXIS ", child_axis)
+                print("PARENT AXIS ", parent_axis)
+                print("CHILD OFFSET AXIS ", child_offset_axis_angle[0])
+                print("DOT(ch_axis, ch_off_axis ", child_axis.dot(child_offset_axis_angle[0]))
+                print("CHILD OFFSET ANGLE ", child_offset_axis_angle[1])
+
+        # Should also do the same for joint
+        joint_axis = mathutils.Vector(constraint_axis[0:3])
+        r_j_p_ambf = rot_matrix_from_vecs(joint_axis, parent_axis)
+        r_p_j_ambf = r_j_p_ambf.to_3x3().copy()
+        r_p_j_ambf.invert()
+        t_p_w = parent_obj_handle.matrix_world.copy()
+        r_w_p = t_p_w.to_3x3().copy()
+        r_w_p.invert()
+        r_j_w_blender = joint_obj_handle.matrix_world.to_3x3().copy()
+        r_j_p_blender = r_w_p @ r_j_w_blender
+        r_angular_offset = r_p_j_ambf @ r_j_p_blender
+        joint_offset_axis_angle = r_angular_offset.to_quaternion().to_axis_angle()
+
+        if abs(joint_offset_axis_angle[1]) > 0.0:
+            joint_offset_angle = round(joint_offset_axis_angle[1], 4)
+
+            if abs(1.0 - joint_axis.dot(joint_offset_axis_angle[0])) < 0.1:
+                joint_data['joint offset'] = joint_offset_angle
+                # print ': SAME DIRECTION'
+            elif abs(1.0 + joint_axis.dot(joint_offset_axis_angle[0])) < 0.1:
+                joint_data['joint offset'] = -joint_offset_angle
+                # print ': OPPOSITE DIRECTION'
+            else:
+                print('ERROR: CALCULATION OF PARENT OFFSET: (', sys._getframe().f_code.co_name, ') (', joint_data['name'], ') SHOULD\'NT GET HERE: ', joint_offset_angle)
+                print("JOINT AXIS ", joint_axis)
+                print("PARENT AXIS ", parent_axis)
+                print("JOINT OFFSET AXIS ", joint_offset_axis_angle[0])
+                print("DOT(jnt_axis, pa_off_axis ", joint_axis.dot(joint_offset_axis_angle[0]))
+                print("JOINT OFFSET ANGLE ", joint_offset_axis_angle[1])
+
+
 
         joint_yaml_name = self.add_joint_prefix_str(joint_data['name'])
         adf_data[joint_yaml_name] = joint_data
@@ -2366,11 +2403,23 @@ class AMBF_OT_load_ambf_file(Operator):
         # To fully define a child body's connection and pose in a parent body, just the joint pivots
         # and joint axis are not sufficient. We also need the joint offset which correctly defines
         # the initial pose of the child body in the parent body.
-        offset_angle = 0.0
-        if 'offset' in joint_data:
-            offset_angle = joint_data['offset']
+        parent_offset_angle = 0.0
+        if 'joint offset' in joint_data:
+            parent_offset_angle = joint_data['joint offset']
 
-        return offset_angle
+        return parent_offset_angle
+
+    def get_child_offset_angle(self, joint_data):
+        # To fully define a child body's connection and pose in a parent body, just the joint pivots
+        # and joint axis are not sufficient. We also need the joint offset which correctly defines
+        # the initial pose of the child body in the parent body.
+        child_offset_angle = 0.0
+        if 'offset' in joint_data:
+            child_offset_angle = joint_data['offset']
+        elif 'child offset' in joint_data:
+            child_offset_angle = joint_data['child offset']
+
+        return child_offset_angle
 
     def get_joint_in_world_transform(self, joint_data):
         parent_obj_handle, child_obj_handle = self.get_parent_and_child_object_handles(joint_data)
@@ -2397,14 +2446,14 @@ class AMBF_OT_load_ambf_file(Operator):
         R_j_p, r_j_p_angle = get_rot_mat_from_vecs(joint_axis, parent_axis)
 
         # Offset along constraint axis
-        T_c_offset_rot = mathutils.Matrix().Rotation(self.get_joint_offset_angle(joint_data), 4, parent_axis)
+        R_j_offset_rot = mathutils.Matrix().Rotation(self.get_joint_offset_angle(joint_data), 4, parent_axis)
 
         # Axis Alignment Offset resulting from adjusting the child bodies. If the child bodies are not
         # adjusted, this will be an identity matrix
 
         T_p_w_off = self._body_T_j_c[joint_data['parent']]
         # Transformation of child in parents frame
-        T_j_w = T_p_w @ T_p_w_off @ P_j_p @ T_c_offset_rot @ R_j_p
+        T_j_w = T_p_w @ T_p_w_off @ P_j_p @ R_j_offset_rot @ R_j_p
 
         return T_j_w
 
@@ -2444,14 +2493,14 @@ class AMBF_OT_load_ambf_file(Operator):
         P_c_j = P_j_c.copy()
         P_c_j.invert()
         # Offset along constraint axis
-        T_c_offset_rot = mathutils.Matrix().Rotation(self.get_joint_offset_angle(joint_data), 4, parent_axis)
+        R_j_offset_rot = mathutils.Matrix().Rotation(self.get_child_offset_angle(joint_data), 4, parent_axis)
 
         # Axis Alignment Offset resulting from adjusting the child bodies. If the child bodies are not
         # adjusted, this will be an identity matrix
 
         T_p_w_off = self._body_T_j_c[joint_data['parent']]
         # Transformation of child in parents frame
-        T_c_w = T_p_w @ T_p_w_off @ P_j_p @ T_c_offset_rot @ R_c_p @ P_c_j
+        T_c_w = T_p_w @ T_p_w_off @ P_j_p @ R_j_offset_rot @ R_c_p @ P_c_j
 
         return T_c_w
 
