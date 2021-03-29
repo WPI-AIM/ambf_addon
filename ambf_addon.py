@@ -92,13 +92,13 @@ def rot_matrix_from_vecs(v1, v2):
     vcross = v1.cross(v2)
     vdot = v1.dot(v2)
     rot_angle = v1.angle(v2)
-    if 1.0 - vdot < 0.1:
+    if abs(rot_angle) < 0.001:
         return out
-    elif 1.0 + vdot < 0.1:
-        # This is a more involved case, find out the orthogonal vector to vecA
+    if abs(rot_angle) > 3.14:
+        # Since the vectors are almost opposite, we need to define a rotation order
         nx = mathutils.Vector([1, 0, 0])
         temp_ang = v1.angle(nx)
-        if 0.1 < abs(temp_ang) < 3.13:
+        if 0.001 < abs(temp_ang) < 3.14:
             axis = v1.cross(nx)
             out = out.Rotation(rot_angle, 3, axis)
         else:
