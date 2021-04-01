@@ -2691,10 +2691,10 @@ def collision_shape_show_update_cb(self, context):
 ##
 
 
-class AMBF_PT_create_adf(Panel):
+class AMBF_PT_main_panel(Panel):
     """Creates a Panel in the Tool Shelf"""
     bl_label = "LOAD, CREATE AND SAVE ADFs"
-    bl_idname = "AMBF_PT_create_adf"
+    bl_idname = "AMBF_PT_main_panel"
     bl_space_type = 'VIEW_3D'
     bl_region_type = 'UI'
     bl_category = "AMBF"
@@ -3067,6 +3067,50 @@ def collision_shape_show_per_object_update_cb(self, context):
 #
 ##
 
+def draw_collision_shape_prop(context, prop, box):
+    sbox = box.box()
+    col = sbox.column()
+    col.prop(prop, 'ambf_collision_shape')
+    col.scale_y = 1.5
+
+    if prop.ambf_collision_shape in ['CYLINDER', 'CONE', 'CAPSULE']:
+        row = sbox.row()
+        split = row.split()
+
+        col = split.column()
+        col.prop(prop, 'ambf_collision_shape_axis')
+
+        col = split.column()
+        col.prop(prop, 'ambf_collision_shape_radius')
+
+        col = split.column()
+        col.prop(prop, 'ambf_collision_shape_height')
+
+    elif prop.ambf_collision_shape == 'SPHERE':
+        row = sbox.row()
+        row.prop(prop, 'ambf_collision_shape_radius')
+
+    elif prop.ambf_collision_shape == 'BOX':
+        col = sbox.column()
+        col.prop(prop, 'ambf_collision_shape_xyz_dims')
+
+
+    if context.object.ambf_collision_type == 'SINGULAR_SHAPE':
+        sbox.separator()
+        col = sbox.column()
+        col.operator("ambf.estimate_shape_offset_per_object")
+
+    sbox.separator()
+    col = sbox.column()
+    col = col.split(factor=0.5)
+    col.alignment = 'EXPAND'
+    col.prop(prop, 'ambf_collision_shape_linear_offset')
+
+    col = col.column()
+    col.alignment = 'EXPAND'
+    col.prop(prop, 'ambf_collision_shape_angular_offset')
+
+
 class AMBF_PT_ambf_rigid_body(Panel):
     """Add Rigid Body Properties"""
     bl_label = "AMBF RIGID BODY PROPERTIES"
@@ -3165,14 +3209,14 @@ class AMBF_PT_ambf_rigid_body(Panel):
                 col = box.column()
                 col.operator('ambf.estimate_collision_shape_geometry_per_object')
                 propgroup = context.object.ambf_collision_shape_prop_collection.items()[0][1]
-                self.draw_collision_shape_prop(context, propgroup, box)
+                draw_collision_shape_prop(context, propgroup, box)
                 
             elif context.object.ambf_collision_type == 'COMPOUND_SHAPE':
                 
                 cnt = len(context.object.ambf_collision_shape_prop_collection.items())
                 for i in range(cnt):
                     propgroup = context.object.ambf_collision_shape_prop_collection.items()[i][1]
-                    self.draw_collision_shape_prop(context, propgroup, box)
+                    draw_collision_shape_prop(context, propgroup, box)
                 row = box.row()
                 row.operator('ambf.ambf_rigid_body_add_collision_shape',  text='ADD SHAPE')
                 row = row.column()
@@ -3278,49 +3322,6 @@ class AMBF_PT_ambf_rigid_body(Panel):
             col = box.column()
             col.prop(context.object, 'ambf_rigid_body_publish_joint_positions')
             col.enabled = not context.object.ambf_rigid_body_passive
-            
-    def draw_collision_shape_prop(self, context, prop, box):
-        sbox = box.box()
-        col = sbox.column()
-        col.prop(prop, 'ambf_collision_shape')
-        col.scale_y = 1.5
-
-        if prop.ambf_collision_shape in ['CYLINDER', 'CONE', 'CAPSULE']:
-            row = sbox.row()
-            split = row.split()
-
-            col = split.column()
-            col.prop(prop, 'ambf_collision_shape_axis')
-
-            col = split.column()
-            col.prop(prop, 'ambf_collision_shape_radius')
-
-            col = split.column()
-            col.prop(prop, 'ambf_collision_shape_height')
-
-        elif prop.ambf_collision_shape == 'SPHERE':
-            row = sbox.row()
-            row.prop(prop, 'ambf_collision_shape_radius')
-
-        elif prop.ambf_collision_shape == 'BOX':
-            col = sbox.column()
-            col.prop(prop, 'ambf_collision_shape_xyz_dims')
-
-
-        if context.object.ambf_collision_type == 'SINGULAR_SHAPE':
-            sbox.separator()
-            col = sbox.column()
-            col.operator("ambf.estimate_shape_offset_per_object")
-
-        sbox.separator()
-        col = sbox.column()
-        col = col.split(factor=0.5)
-        col.alignment = 'EXPAND'
-        col.prop(prop, 'ambf_collision_shape_linear_offset')
-
-        col = col.column()
-        col.alignment = 'EXPAND'
-        col.prop(prop, 'ambf_collision_shape_angular_offset')
             
             
 class AMBF_OT_ambf_constraint_activate(Operator):
@@ -3664,7 +3665,7 @@ custom_classes = (AMBF_OT_toggle_low_res_mesh_modifiers_visibility,
                   AMBF_OT_auto_rename_joint_per_object,
                   AMBF_OT_ambf_rigid_body_activate,
                   AMBF_OT_ambf_constraint_activate,
-                  AMBF_PT_create_adf,
+                  AMBF_PT_main_panel,
                   AMBF_PT_ambf_rigid_body,
                   AMBF_PT_ambf_constraint)
 
@@ -3739,7 +3740,7 @@ def register():
             default=False,
             description="If not set explicitly, it is calculated automatically by AMBF"
         )
-    
+
     Object.ambf_rigid_body_linear_inertial_offset = FloatVectorProperty \
             (
             name='Linear Inertial Offset',
@@ -3756,7 +3757,7 @@ def register():
             options={'PROPORTIONAL'},
             subtype='EULER',
         )
-    
+
     Object.ambf_rigid_body_controller_output_type = EnumProperty \
             (
             items=
