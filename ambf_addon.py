@@ -141,10 +141,6 @@ def get_rot_mat_from_vecs(vecA, vecB):
 
 # Global Variables
 class CommonConfig:
-    # Since there isn't a convenient way of defining parallel linkages (hence detached joints) due to the
-    # limit on 1 parent per body. We use kind of a hack. This prefix is what we we search for it we find an
-    # empty body with the mentioned prefix.
-    detached_joint_prefix = ['redundant', 'Redundant', 'REDUNDANT', 'detached', 'Detached', 'DETACHED']
     namespace = ''
     num_collision_groups = 20
     # Some properties don't exist in Blender are supported in AMBF. If an AMBF file is loaded
@@ -846,7 +842,7 @@ def collision_shape_create_visual(obj_handle, shape_prop_group):
         coll_shape_obj_handle.hide_select = True
         coll_shape_obj_handle.show_transparent = True
         coll_shape_obj_handle.data.materials.append(CommonConfig.collision_shape_material)
-        hide_object(coll_shape_obj_handle, not obj_handle.ambf_rigid_body_show_collision_shapes_per_object)
+        hide_object(coll_shape_obj_handle, not obj_handle.ambf_collision_show_shapes_per_object)
 
         set_active_object(cur_active_obj_handle)
 
@@ -1022,8 +1018,8 @@ class AMBF_OT_generate_ambf_file(Operator):
 
             body_data['collision groups'] = [idx for idx, chk in enumerate(obj_handle.ambf_collision_groups) if chk == True]
 
-            if obj_handle.ambf_rigid_body_enable_collision_margin is True:
-                body_data['collision margin'] = round(obj_handle.ambf_rigid_body_collision_margin, 4)
+            if obj_handle.ambf_collision_margin_enable is True:
+                body_data['collision margin'] = round(obj_handle.ambf_collision_margin, 4)
 
             if obj_handle.ambf_collision_type == 'MESH':
                 body_data['collision mesh type'] = obj_handle.ambf_rigid_body_collision_mesh_type
@@ -1194,9 +1190,6 @@ class AMBF_OT_generate_ambf_file(Operator):
             parent_obj_handle, joint_obj_handle, constraint_axis)
         child_pivot, child_axis = self.compute_body_pivot_and_axis(
             child_obj_handle, joint_obj_handle, constraint_axis)
-        # Add this field to the joint data, it will come in handy for blender later
-
-        joint_data['detached'] = True
 
         parent_pivot_data = joint_data["parent pivot"]
         parent_axis_data = joint_data["parent axis"]
@@ -1731,9 +1724,9 @@ class AMBF_OT_generate_low_res_mesh_modifiers(Operator):
         return {'FINISHED'}
 
 
-class AMBF_OT_create_detached_joint(Operator):
-    bl_idname = "ambf.create_detached_joint"
-    bl_label = "Create Detached Joint"
+class AMBF_OT_create_joint(Operator):
+    bl_idname = "ambf.create_joint"
+    bl_label = "Create Joint"
     bl_description = "This creates an empty object that can be used to create closed loop mechanisms. Make" \
                      " sure to set the rigid body constraint (RBC) for this empty mesh and ideally parent this empty" \
                      " object with the parent body of its RBC"
@@ -1742,7 +1735,7 @@ class AMBF_OT_create_detached_joint(Operator):
         select_all_objects(False)
         bpy.ops.object.empty_add(type='PLAIN_AXES')
         active_obj_handle = get_active_object()
-        active_obj_handle.name = CommonConfig.detached_joint_prefix[0] + ' joint'
+        active_obj_handle.name = 'joint'
         return {'FINISHED'}
 
 
@@ -2146,8 +2139,8 @@ class AMBF_OT_load_ambf_file(Operator):
                 obj_handle.ambf_rigid_body_restitution = body_data['restitution']
 
             if 'collision margin' in body_data:
-                obj_handle.ambf_rigid_body_collision_margin = body_data['collision margin']
-                obj_handle.ambf_rigid_body_enable_collision_margin = True
+                obj_handle.ambf_collision_margin = body_data['collision margin']
+                obj_handle.ambf_collision_margin_enable = True
 
             if 'collision shape' in body_data:
                 obj_handle.ambf_collision_shape_prop_collection.add()
@@ -2332,27 +2325,6 @@ class AMBF_OT_load_ambf_file(Operator):
                 joint_obj_handle.ambf_constraint_axis = 'Z'
             elif joint_obj_handle.ambf_constraint_type in ['PRISMATIC', 'LINEAR_SPRING']:
                 joint_obj_handle.ambf_constraint_axis = 'X'
-
-    def is_detached_joint(self, joint_data):
-        _is_detached_joint = False
-
-        if 'redundant' in joint_data:
-            if joint_data['redundant'] is True or joint_data['redundant'] == 'True':
-                _is_detached_joint = True
-
-        if 'detached' in joint_data:
-            if joint_data['detached'] is True or joint_data['detached'] == 'True':
-                _is_detached_joint = True
-
-        return _is_detached_joint
-
-    def has_detached_prefix(self, joint_name):
-        _has_detached_prefix = False
-        for _detached_joint_name_str in CommonConfig.detached_joint_prefix:
-            if joint_name.rfind(_detached_joint_name_str) == 0:
-                _has_detached_prefix = True
-
-        return _has_detached_prefix
 
     def get_parent_and_child_object_handles(self, joint_data):
         parent_body_name = joint_data['parent']
@@ -2715,7 +2687,7 @@ def collision_shape_show_update_cb(self, context):
                 if coll_shape_obj is None:
                     collision_shape_create_visual(obj_handle, shape_prop_group)
                     coll_shape_obj = shape_prop_group.ambf_rigid_body_collision_shape_pointer
-                hide_object(coll_shape_obj, not context.scene.ambf_rigid_body_show_collision_shapes)
+                hide_object(coll_shape_obj, not context.scene.ambf_show_collision_shapes)
 ##
 
 
@@ -2812,7 +2784,7 @@ class AMBF_PT_create_adf(Panel):
         row = sbox.row()
         row.label(text="B. OPTIONAL (ALL BODIES)")
         
-        # Column for creating detached joint
+        # Column for creating joint
         col = sbox.column()
         col.operator('ambf.estimate_collision_shapes_geometry')
 
@@ -2829,7 +2801,7 @@ class AMBF_PT_create_adf(Panel):
         col.operator("ambf.estimate_joint_controller_gains")
 
         col = sbox.column()
-        col.prop(context.scene, "ambf_rigid_body_show_collision_shapes", toggle=True)
+        col.prop(context.scene, "ambf_show_collision_shapes", toggle=True)
 
         # Panel Label
         sbox = box.box()
@@ -2893,7 +2865,6 @@ class AMBF_PT_create_adf(Panel):
         row.alignment = 'CENTER'
         row.label(text="OPTIONAL HELPERS:", icon='OUTLINER_DATA_ARMATURE')
 
-        # Column for creating detached joint
         col = box.column()
         col.alignment = 'CENTER'
         col.operator("ambf.remove_object_namespaces")
@@ -2913,7 +2884,7 @@ class AMBF_PT_create_adf(Panel):
         
         row = box.row()
         row.scale_y = 1.5
-        row.operator("ambf.create_detached_joint")
+        row.operator("ambf.create_joint")
         
         
         ### SEPERATOR
@@ -3092,7 +3063,7 @@ def collision_shape_show_per_object_update_cb(self, context):
             if coll_shape_obj is None:
                 collision_shape_create_visual(obj_handle, shape_prop_group)
                 coll_shape_obj = shape_prop_group.ambf_rigid_body_collision_shape_pointer
-            hide_object(coll_shape_obj, not obj_handle.ambf_rigid_body_show_collision_shapes_per_object)
+            hide_object(coll_shape_obj, not obj_handle.ambf_collision_show_shapes_per_object)
 #
 ##
 
@@ -3211,18 +3182,18 @@ class AMBF_PT_ambf_rigid_body(Panel):
             
             box.separator()
             row = box.row()
-            row.prop(context.object, 'ambf_rigid_body_enable_collision_margin', toggle=True)
+            row.prop(context.object, 'ambf_collision_margin_enable', toggle=True)
             
             row = row.row()
-            row.enabled = context.object.ambf_rigid_body_enable_collision_margin
-            row.prop(context.object, 'ambf_rigid_body_collision_margin')
+            row.enabled = context.object.ambf_collision_margin_enable
+            row.prop(context.object, 'ambf_collision_margin')
             
             row = box.column()
             row.alignment = 'EXPAND'
             row.prop(context.object, 'ambf_collision_groups', toggle=True)
 
             col = box.column()
-            col.prop(context.object, 'ambf_rigid_body_show_collision_shapes_per_object', toggle=True)
+            col.prop(context.object, 'ambf_collision_show_shapes_per_object', toggle=True)
             col.scale_y = 1.5
             
             layout.separator()
@@ -3675,7 +3646,7 @@ custom_classes = (AMBF_OT_toggle_low_res_mesh_modifiers_visibility,
                   AMBF_OT_generate_ambf_file,
                   AMBF_OT_save_meshes,
                   AMBF_OT_load_ambf_file,
-                  AMBF_OT_create_detached_joint,
+                  AMBF_OT_create_joint,
                   AMBF_OT_remove_object_namespaces,
                   AMBF_OT_estimate_inertial_offsets,
                   AMBF_OT_estimate_shape_offsets,
@@ -3734,13 +3705,6 @@ def register():
 
     Object.ambf_rigid_body_restitution = FloatProperty(name="Restitution", default=0.1, min=0.0, max=1.0)
 
-    Object.ambf_rigid_body_enable_collision_margin = BoolProperty(name="Collision Margin", default=False)
-
-    Object.ambf_rigid_body_show_collision_shapes_per_object = BoolProperty(name="Show Collision Shapes", default=False,
-                                                                           update=collision_shape_show_per_object_update_cb)
-
-    Object.ambf_rigid_body_collision_margin = FloatProperty(name="Margin", default=0.001, min=-0.1, max=1.0)
-
     Object.ambf_rigid_body_linear_damping = FloatProperty(name="Linear Damping", default=0.04, min=0.0, max=1.0)
 
     Object.ambf_rigid_body_angular_damping = FloatProperty(name="Angular Damping", default=0.1, min=0.0, max=1.0)
@@ -3792,6 +3756,42 @@ def register():
             options={'PROPORTIONAL'},
             subtype='EULER',
         )
+    
+    Object.ambf_rigid_body_controller_output_type = EnumProperty \
+            (
+            items=
+            [
+                ('VELOCITY', 'VELOCITY', '', '', 0),
+                ('FORCE', 'FORCE', '', '', 1),
+            ],
+            name="Controller Output Type",
+            default='VELOCITY',
+            description='The output of the controller fed to the simulation. Better to use (VELOCITY) with P <= 10, D <= 1'
+        )
+
+    Object.ambf_rigid_body_publish_children_names = BoolProperty \
+            (
+            name="Publish Children Names",
+            default=False
+        )
+
+    Object.ambf_rigid_body_publish_joint_names = BoolProperty \
+            (
+            name="Publish Joint Names",
+            default=False
+        )
+
+    Object.ambf_rigid_body_publish_joint_positions = BoolProperty \
+            (
+            name="Publish Joint Positions",
+            default=False
+        )
+
+    Object.ambf_collision_margin_enable = BoolProperty(name="Enable Collision Margin", default=False)
+
+    Object.ambf_collision_show_shapes_per_object = BoolProperty(name="Show Collision Shapes", default=False, update=collision_shape_show_per_object_update_cb)
+
+    Object.ambf_collision_margin = FloatProperty(name="Margin", default=0.001, min=-0.1, max=1.0)
 
     Object.ambf_collision_type = EnumProperty \
             (
@@ -3828,35 +3828,23 @@ def register():
             options={'PROPORTIONAL'},
             subtype='LAYER'
         )
-
-    Object.ambf_rigid_body_controller_output_type = EnumProperty \
+    
+    Object.ambf_constraint_type = EnumProperty \
             (
             items=
             [
-                ('VELOCITY', 'VELOCITY', '', '', 0),
-                ('FORCE', 'FORCE', '', '', 1),
+                ('FIXED', 'Fixed', '', '', 0),
+                ('REVOLUTE', 'Revolute', '', '', 1),
+                ('PRISMATIC', 'Prismatic', '', '', 2),
+                ('LINEAR_SPRING', 'Linear Spring', '', '', 3),
+                ('TORSION_SPRING', 'Torsion Spring', '', '', 4),
+                ('P2P', 'p2p', '', '', 5),
+                ('CONE_TWIST', 'Cone Twist', '', '', 6),
+                ('SIX_DOF', 'Six DOF', '', '', 7),
+                ('SIX_DOF_SPRING', 'Six DOF Spring', '', '', 8),
             ],
-            name="Controller Output Type",
-            default='VELOCITY',
-            description='The output of the controller fed to the simulation. Better to use (VELOCITY) with P <= 10, D <= 1'
-        )
-
-    Object.ambf_rigid_body_publish_children_names = BoolProperty \
-            (
-            name="Publish Children Names",
-            default=False
-        )
-
-    Object.ambf_rigid_body_publish_joint_names = BoolProperty \
-            (
-            name="Publish Joint Names",
-            default=False
-        )
-
-    Object.ambf_rigid_body_publish_joint_positions = BoolProperty \
-            (
-            name="Publish Joint Positions",
-            default=False
+            name="Type",
+            default='REVOLUTE'
         )
 
     Object.ambf_constraint_enable = BoolProperty(name="Enable", default=False)
@@ -3998,24 +3986,6 @@ def register():
             subtype='XYZ',
         )
 
-    Object.ambf_constraint_type = EnumProperty \
-            (
-            items=
-            [
-                ('FIXED', 'Fixed', '', '', 0),
-                ('REVOLUTE', 'Revolute', '', '', 1),
-                ('PRISMATIC', 'Prismatic', '', '', 2),
-                ('LINEAR_SPRING', 'Linear Spring', '', '', 3),
-                ('TORSION_SPRING', 'Torsion Spring', '', '', 4),
-                ('P2P', 'p2p', '', '', 5),
-                ('CONE_TWIST', 'Cone Twist', '', '', 6),
-                ('SIX_DOF', 'Six DOF', '', '', 7),
-                ('SIX_DOF_SPRING', 'Six DOF Spring', '', '', 8),
-            ],
-            name="Type",
-            default='REVOLUTE'
-        )
-
     Object.ambf_constraint_controller_output_type = EnumProperty \
             (
             items=
@@ -4086,7 +4056,7 @@ def register():
             description="The namespace for all bodies in this scene"
         )
 
-    Scene.ambf_rigid_body_show_collision_shapes = BoolProperty \
+    Scene.ambf_show_collision_shapes = BoolProperty \
             (
             name="Show Collision Shapes",
             default=False,
