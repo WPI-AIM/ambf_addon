@@ -2926,104 +2926,6 @@ class AMBF_PT_create_adf(Panel):
         row.label(text="LEGACY:", icon='CONSOLE')
 
 
-class AMBF_PT_rigid_body_props(Panel):
-    """Add Rigid Body Properties"""
-    bl_label = "AMBF RIGID BODY ADDITIONAL PROPERTIES"
-    bl_idname = "AMBF_PT_rigid_body_props"
-    bl_space_type = 'PROPERTIES'
-    bl_region_type = 'WINDOW'
-    bl_context= "physics"
-    
-    @classmethod
-    def poll(self, context):
-        active = False
-        active_obj_handle = get_active_object()
-        if active_obj_handle:
-            if active_obj_handle.type == 'MESH':
-                if active_obj_handle.rigid_body:
-                    active = True
-        return active
-    
-    def draw(self, context):
-        layout = self.layout
-        
-        col = layout.column()
-        col.prop(context.object, 'ambf_enable_body_props')
-        
-        col = layout.column()
-        col.alignment = 'CENTER'
-        col.enabled = context.object.ambf_enable_body_props
-        col.label(text="BODY CONTROLLER GAINS")
-
-        col = col.column()
-        col.alignment = 'CENTER'
-        col.label(text="LINEAR GAINS:")
-        
-        row = col.row()
-        row.prop(context.object, 'ambf_linear_controller_p_gain')
-        
-        row = row.row()
-        row.prop(context.object, 'ambf_linear_controller_i_gain')
-
-        row = row.row()
-        row.prop(context.object, 'ambf_linear_controller_d_gain')
-        
-        col = col.column()
-        col.alignment = 'CENTER'
-        col.label(text="ANGULAR GAINS")
-        
-        row = col.row()
-        row.prop(context.object, 'ambf_angular_controller_p_gain')
-        
-        row = row.row()
-        row.prop(context.object, 'ambf_angular_controller_i_gain')
-
-        row = row.row()
-        row.prop(context.object, 'ambf_angular_controller_d_gain')
-        
-        
-class AMBF_PT_joint_props(Panel):
-    """Add Rigid Body Properties"""
-    bl_label = "AMBF JOINT ADDITIONAL PROPERTIES"
-    bl_idname = "AMBF_PT_joint_props"
-    bl_space_type = 'PROPERTIES'
-    bl_region_type = 'WINDOW'
-    bl_context= "physics"
-    
-    @classmethod
-    def poll(self, context):
-        has_detached_prefix = False
-        active_obj_handle = get_active_object()
-        if active_obj_handle: # Check if an obj_handle is active
-            if active_obj_handle.type in ['EMPTY', 'MESH']: # Check if the obj_handle is a mesh or an empty axis
-                if active_obj_handle.rigid_body_constraint: # Check if the obj_handle has a constraint
-                    if active_obj_handle.rigid_body_constraint.type in ['HINGE', 'SLIDER', 'GENERIC']: # Check if a valid constraint
-                        has_detached_prefix = True
-        return has_detached_prefix
-    
-    def draw(self, context):
-        layout = self.layout
-        
-        col = layout.column()
-        col.prop(context.object, 'ambf_enable_joint_props')
- 
-        col = layout.column()
-        col.alignment = 'CENTER'
-        col.enabled = context.object.ambf_enable_joint_props
-        col.prop(context.object, 'ambf_joint_damping')
-        
-        col.label(text="JOINT CONTROLLER GAINS")
-        
-        row = col.row()
-        row.prop(context.object, 'ambf_joint_controller_p_gain')
-        
-        row = row.row()
-        row.prop(context.object, 'ambf_joint_controller_i_gain')
-
-        row = row.row()
-        row.prop(context.object, 'ambf_joint_controller_d_gain')
-
-
 class AMBF_OT_cleanup_all(Operator):
     """Add Rigid Body Properties"""
     bl_label = "CLEAN UP ALL"
@@ -3957,16 +3859,6 @@ def register():
             default=False
         )
 
-    Object.ambf_enable_body_props = BoolProperty(name="Enable", default=False)
-
-    Object.ambf_linear_controller_p_gain = FloatProperty(name="Proportional Gain (P)", default=500, min=0)
-    Object.ambf_linear_controller_i_gain = FloatProperty(name="Integral Gain (I)", default=5, min=0)
-    Object.ambf_linear_controller_d_gain = FloatProperty(name="Damping Gain (D)", default=5, min=0)
-
-    Object.ambf_angular_controller_p_gain = FloatProperty(name="Proportional Gain (P)", default=50, min=0)
-    Object.ambf_angular_controller_i_gain = FloatProperty(name="Integral Gain (I)", default=0.5, min=0)
-    Object.ambf_angular_controller_d_gain = FloatProperty(name="Damping Gain (D)", default=0.5, min=0)
-
     Object.ambf_constraint_enable = BoolProperty(name="Enable", default=False)
 
     Object.ambf_constraint_parent = PointerProperty(name="Parent", type=Object)
@@ -4135,12 +4027,6 @@ def register():
             default='VELOCITY',
             description='The output of the controller fed to the simulation. Better to use (VELOCITY) with P <= 10, D <= 1'
         )
-
-    Object.ambf_enable_joint_props = BoolProperty(name="Enable", default=False)
-    Object.ambf_joint_controller_p_gain = FloatProperty(name="Proportional Gain (P)", default=500, min=0)
-    Object.ambf_joint_controller_i_gain = FloatProperty(name="Integral Gain (I)", default=5, min=0)
-    Object.ambf_joint_controller_d_gain = FloatProperty(name="Damping Gain (D)", default=5, min=0)
-    Object.ambf_joint_damping = FloatProperty(name="Joint Damping", default=0.0, min=0.0)
 
     Scene.adf_conf_path = StringProperty \
             (
