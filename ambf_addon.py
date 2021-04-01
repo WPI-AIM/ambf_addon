@@ -2727,115 +2727,6 @@ class AMBF_PT_create_adf(Panel):
     bl_region_type = 'UI'
     bl_category = "AMBF"
 
-    Scene.adf_conf_path = StringProperty \
-        (
-            name="Config (Save To)",
-            default="",
-            description="Define the root path of the project",
-            subtype='FILE_PATH'
-        )
-
-    Scene.adf_mesh_path = StringProperty \
-        (
-            name="Meshes (Save To)",
-            default="",
-            description = "Define the path to save to mesh files",
-            subtype='DIR_PATH'
-        )
-
-    Scene.mesh_output_type = EnumProperty \
-        (
-            items=
-            [
-                ('STL', 'STL', 'STL'),
-                ('OBJ', 'OBJ', 'OBJ'),
-                ('3DS', '3DS', '3DS'),
-                ('PLY', 'PLY', 'PLY')
-            ],
-            name="Mesh Type",
-            default='STL'
-        )
-
-    Scene.mesh_max_vertices = IntProperty \
-        (
-            name="",
-            default=150,
-            description="The maximum number of vertices the low resolution collision mesh is allowed to have",
-        )
-
-    Scene.adjust_joint_pivots = BoolProperty \
-        (
-            name="Adjust Child Pivots",
-            default=False,
-            description="If the child axis is offset from the joint axis, correct for this offset, keep this to "
-                        "default (True) unless you want to debug the model or something advanced",
-        )
-
-    Scene.ignore_inter_collision = BoolProperty \
-        (
-            name="Ignore Inter-Collision",
-            default=True,
-            description="Ignore collision between all the bodies in the scene (default = True)",
-        )
-
-    Scene.external_adf_filepath = StringProperty \
-        (
-            name="AMBF Config",
-            default="",
-            description="Load AMBF YAML FILE",
-            subtype='FILE_PATH'
-        )
-
-    Scene.ambf_namespace = StringProperty \
-        (
-            name="AMBF Namespace",
-            default="/ambf/env/",
-            description="The namespace for all bodies in this scene"
-        )
-
-    Scene.ambf_rigid_body_show_collision_shapes = BoolProperty \
-        (
-            name="Show Collision Shapes",
-            default=False,
-            update=collision_shape_show_update_cb
-        )
-
-
-    Scene.enable_forced_cleanup = BoolProperty \
-        (
-            name="Enable Forced Cleanup",
-            default=False
-        )
-
-    Scene.ambf_save_high_res = BoolProperty \
-        (
-            name="High Res",
-            default=True,
-            description="Save High Res Meshes for Visual."
-        )
-
-    Scene.ambf_save_low_res = BoolProperty \
-        (
-            name="Low Res",
-            default=True,
-            description="Save Low Res Meshes for Collision. Used only if the collision is set to MESH type"
-        )
-
-    Scene.ambf_save_textures = BoolProperty \
-        (
-            name="Textures",
-            default=True,
-            description="Save textures if defined for a body"
-        )
-
-    Scene.ambf_save_selection_only = BoolProperty \
-        (
-            name="Selection Only",
-            default=False,
-            description="Only save the meshes + textures for the selected object"
-        )
-
-
     setup_yaml()
 
     def draw(self, context):
@@ -3043,16 +2934,6 @@ class AMBF_PT_rigid_body_props(Panel):
     bl_region_type = 'WINDOW'
     bl_context= "physics"
     
-    Object.ambf_enable_body_props = BoolProperty(name="Enable", default=False)
-    
-    Object.ambf_linear_controller_p_gain = FloatProperty(name="Proportional Gain (P)", default=500, min=0)
-    Object.ambf_linear_controller_i_gain = FloatProperty(name="Integral Gain (I)", default=5, min=0)
-    Object.ambf_linear_controller_d_gain = FloatProperty(name="Damping Gain (D)", default=5, min=0)
-    
-    Object.ambf_angular_controller_p_gain = FloatProperty(name="Proportional Gain (P)", default=50, min=0)
-    Object.ambf_angular_controller_i_gain = FloatProperty(name="Integral Gain (I)", default=0.5, min=0)
-    Object.ambf_angular_controller_d_gain = FloatProperty(name="Damping Gain (D)", default=0.5, min=0)
-    
     @classmethod
     def poll(self, context):
         active = False
@@ -3108,12 +2989,6 @@ class AMBF_PT_joint_props(Panel):
     bl_space_type = 'PROPERTIES'
     bl_region_type = 'WINDOW'
     bl_context= "physics"
-
-    Object.ambf_enable_joint_props = BoolProperty(name="Enable", default=False)
-    Object.ambf_joint_controller_p_gain = FloatProperty(name="Proportional Gain (P)", default=500, min=0)
-    Object.ambf_joint_controller_i_gain = FloatProperty(name="Integral Gain (I)", default=5, min=0)
-    Object.ambf_joint_controller_d_gain = FloatProperty(name="Damping Gain (D)", default=5, min=0)
-    Object.ambf_joint_damping = FloatProperty(name="Joint Damping", default=0.0, min=0.0)
     
     @classmethod
     def poll(self, context):
@@ -3299,85 +3174,6 @@ def collision_shape_offset_update_cb(self, context):
 #
 
 
-class AMBF_PG_CollisionShapePropGroup(PropertyGroup):
-    ambf_rigid_body_collision_shape_radius: FloatProperty \
-        (
-            name='Radius',
-            default=1.0,
-            update=collision_shape_dims_update_cb,
-            min=0.0001
-        )
-
-    ambf_rigid_body_collision_shape_height: FloatProperty \
-        (
-            name='Height',
-            default=1.0,
-            update=collision_shape_dims_update_cb,
-            min=0.0001
-        )
-
-    ambf_rigid_body_collision_shape_xyz_dims: FloatVectorProperty \
-        (
-            name='Dimension (XYZ)',
-            default=(1.0, 1.0, 1.0),
-            min=0.0001,
-            options={'PROPORTIONAL'},
-            update=collision_shape_dims_update_cb,
-            subtype='XYZ',
-        )
-        
-    disable_update_cbs: BoolProperty(default=False)
-
-    ambf_rigid_body_collision_shape_pointer: PointerProperty(name="Collision Shape", type=Object)
-
-    ambf_rigid_body_collision_shape: EnumProperty \
-        (
-            items=
-            [
-                ('CONE', 'Cone', '', 'MESH_CONE', 0),
-                ('CYLINDER', 'Cylinder', '', 'MESH_CYLINDER', 1),
-                ('CAPSULE', 'Capsule', '', 'MESH_CAPSULE', 2),
-                ('SPHERE', 'Sphere', '', 'MESH_UVSPHERE', 3),
-                ('BOX', 'Box', '', 'MESH_CUBE', 4),
-            ],
-            name="Collision Shape",
-            update=collision_shape_type_update_cb,
-            default="BOX"
-        )
-
-    ambf_rigid_body_collision_shape_axis: EnumProperty \
-        (
-            name='Shape Axis',
-            items=
-            [
-                ('X', 'X', '', '', 0),
-                ('Y', 'Y', '', '', 1),
-                ('Z', 'Z', '', '', 2),
-            ],
-            default='Z',
-            update=collision_shape_axis_update_cb,
-            description='The direction the collision shape is aligned. Use for Cone, Cylinder and Capsule'
-        )
-
-    ambf_rigid_body_linear_shape_offset: FloatVectorProperty \
-        (
-            name='Linear Shape Offset',
-            default=(0.0, 0.0, 0.0),
-            options={'PROPORTIONAL'},
-            update=collision_shape_offset_update_cb,
-            subtype='XYZ',
-        )
-
-    ambf_rigid_body_angular_shape_offset: FloatVectorProperty \
-        (
-            name='Angular Shape Offset',
-            default=(0.0, 0.0, 0.0),
-            options={'PROPORTIONAL'},
-            update=collision_shape_offset_update_cb,
-            subtype='EULER',
-        )
-
-
 ##
 # Rigid Body Update Callbacks
 def rigid_body_collision_type_update_cb(self, context):
@@ -3405,160 +3201,6 @@ class AMBF_PT_ambf_rigid_body(Panel):
     bl_space_type = 'PROPERTIES'
     bl_region_type = 'WINDOW'
     bl_context = "physics"
-    
-    Object.ambf_rigid_body_enable = BoolProperty(name="Enable AMBF Rigid Body", default=False)
-
-    Object.ambf_rigid_body_namespace = StringProperty(name="Namespace", default="")
-    
-    Object.ambf_rigid_body_mass = FloatProperty(name="mass", default=1.0, min=0.0001)
-    
-    Object.ambf_rigid_body_inertia_x = FloatProperty(name='Ix', default=1.0, min=0.0)
-    
-    Object.ambf_rigid_body_inertia_y = FloatProperty(name='Iy', default=1.0, min=0.0)
-    
-    Object.ambf_rigid_body_inertia_z = FloatProperty(name='Iz', default=1.0, min=0.0)
-    
-    Object.ambf_rigid_body_static_friction = FloatProperty(name="Static Friction", default=0.5, min=0.0, max=10.0)
-
-    Object.ambf_rigid_body_rolling_friction = FloatProperty(name="Rolling Friction", default=0.0, min=0.0, max=1.0)
-    
-    Object.ambf_rigid_body_restitution = FloatProperty(name="Restitution", default=0.1, min=0.0, max=1.0)
-    
-    Object.ambf_rigid_body_enable_collision_margin = BoolProperty(name="Collision Margin", default=False)
-
-    Object.ambf_rigid_body_show_collision_shapes_per_object = BoolProperty(name="Show Collision Shapes", default=False, update=collision_shape_show_per_object_update_cb)
-    
-    Object.ambf_rigid_body_collision_margin = FloatProperty(name="Margin", default=0.001, min=-0.1, max=1.0)
-    
-    Object.ambf_rigid_body_linear_damping = FloatProperty(name="Linear Damping", default=0.04, min=0.0, max=1.0)
-    
-    Object.ambf_rigid_body_angular_damping = FloatProperty(name="Angular Damping", default=0.1, min=0.0, max=1.0)
-
-    Object.ambf_rigid_body_enable_controllers = BoolProperty(name="Enable Controllers", default=False)
-
-    Object.ambf_rigid_body_linear_controller_p_gain = FloatProperty(name="Proportional Gain (P)", default=10, min=0)
-
-    Object.ambf_rigid_body_linear_controller_i_gain = FloatProperty(name="Integral Gain (I)", default=0, min=0)
-
-    Object.ambf_rigid_body_linear_controller_d_gain = FloatProperty(name="Damping Gain (D)", default=1, min=0)
-
-    Object.ambf_rigid_body_angular_controller_p_gain = FloatProperty(name="Proportional Gain (P)", default=10, min=0)
-
-    Object.ambf_rigid_body_angular_controller_i_gain = FloatProperty(name="Integral Gain (I)", default=0, min=0)
-
-    Object.ambf_rigid_body_angular_controller_d_gain = FloatProperty(name="Damping Gain (D)", default=1, min=0)
-
-    Object.ambf_rigid_body_passive = BoolProperty(name="Is Passive?", default=False, description="If passive. this body will not be spawned as an AMBF communication object")
-    
-    Object.ambf_rigid_body_is_static = BoolProperty \
-        (
-            name="Static",
-            default=False,
-            description="Is this object dynamic or static (mass = 0.0 Kg)"
-        )
-
-    Object.ambf_rigid_body_specify_inertia= BoolProperty \
-        (
-            name="Specify Inertia",
-            default=False,
-            description="If not set explicitly, it is calculated automatically by AMBF"
-        )
-    
-    Object.ambf_rigid_body_collision_type= EnumProperty \
-        (
-            name='Collision Type',
-            items=
-            [
-                ('MESH', 'MESH', '', 'MESH_ICOSPHERE', 0),
-                ('SINGULAR_SHAPE', 'Singular Shape', '', 'MESH_CUBE', 1),
-                ('COMPOUND_SHAPE', 'Compound Shape', '', 'OUTLINER_OB_GROUP_INSTANCE', 2),
-            ],
-            default='MESH',
-            update=rigid_body_collision_type_update_cb,
-            description='Choose between a singular or a compound collision that consists of multiple shapes'
-        )
-
-    Object.ambf_rigid_body_collision_mesh_type= EnumProperty \
-        (
-            name='Collision Mesh Type',
-            items=
-            [
-                ('CONCAVE_MESH', 'Concave Mesh', '', 'MESH_ICOSPHERE', 0),
-                ('CONVEX_MESH', 'Convex Mesh', '', 'MESH_CUBE', 1),
-                ('CONVEX_HULL', 'Convex Hull', '', 'OUTLINER_OB_GROUP_INSTANCE', 2),
-            ],
-            default='CONVEX_HULL',
-            description='Choose between the type of the collision mesh. Avoid Concave Meshes if you can.'
-        )
-    
-    Object.ambf_rigid_body_collision_groups= BoolVectorProperty \
-        (
-            name='Collision Groups',
-            size=20,
-            default=(0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0),
-            options={'PROPORTIONAL'},
-            subtype='LAYER'
-        )
-    
-    Object.ambf_rigid_body_linear_inertial_offset= FloatVectorProperty \
-        (
-            name='Linear Inertial Offset',
-            default=(0.0, 0.0, 0.0),
-            options={'PROPORTIONAL'},
-            update=collision_shape_offset_update_cb,
-            subtype='XYZ',
-        )
-    
-    Object.ambf_rigid_body_angular_inertial_offset= FloatVectorProperty \
-        (
-            name='Angular Inertial Offset',
-            default=(0.0, 0.0, 0.0),
-            options={'PROPORTIONAL'},
-            subtype='EULER',
-        )
-    
-    Object.ambf_object_type= EnumProperty \
-        (
-            name="Object Type",
-            items=
-            [
-                ('NONE', 'None', '', '', 0),
-                ('RIGID_BODY', 'RIGID_BODY', '', '', 1),
-                ('CONSTRAINT', 'CONSTRAINT', '', '', 2),
-                ('COLLISION_SHAPE', 'COLLISION_SHAPE', '', '', 3),
-            ],
-            default='NONE'
-        )
-
-    Object.ambf_rigid_body_controller_output_type= EnumProperty \
-            (
-            items=
-            [
-                ('VELOCITY', 'VELOCITY', '', '', 0),
-                ('FORCE', 'FORCE', '', '', 1),
-            ],
-            name="Controller Output Type",
-            default='VELOCITY',
-            description='The output of the controller fed to the simulation. Better to use (VELOCITY) with P <= 10, D <= 1'
-        )
-
-    Object.ambf_rigid_body_publish_children_names= BoolProperty \
-        (
-            name="Publish Children Names",
-            default=False
-        )
-
-    Object.ambf_rigid_body_publish_joint_names= BoolProperty \
-        (
-            name="Publish Joint Names",
-            default=False
-        )
-
-    Object.ambf_rigid_body_publish_joint_positions= BoolProperty \
-        (
-            name="Publish Joint Positions",
-            default=False
-        )
     
     @classmethod
     def poll(self, context):
@@ -3832,175 +3474,6 @@ class AMBF_PT_ambf_constraint(Panel):
     bl_region_type = 'WINDOW'
     bl_context= "physics"
     
-    Object.ambf_constraint_enable = BoolProperty(name="Enable", default=False)
-    
-    Object.ambf_constraint_parent = PointerProperty(name="Parent", type=Object)
-    
-    Object.ambf_constraint_child = PointerProperty(name="Child", type=Object)
-    
-    Object.ambf_constraint_name = StringProperty(name="Name", default="")
-    
-    Object.ambf_constraint_enable_controller_gains = BoolProperty(name="Enable Controller Gains", default=False)
-    
-    Object.ambf_constraint_controller_p_gain = FloatProperty(name="Proportional Gain (P)", default=10, min=0)
-    
-    Object.ambf_constraint_controller_i_gain = FloatProperty(name="Integral Gain (I)", default=0, min=0)
-
-    Object.ambf_constraint_controller_d_gain = FloatProperty(name="Damping Gain (D)", default=1, min=0)
-    
-    Object.ambf_constraint_damping = FloatProperty(name="Joint Damping", default=0.7, min=0.0)
-
-    Object.ambf_constraint_stiffness = FloatProperty(name="Joint Stiffness", default=10.0, min=0.0)
-
-    Object.ambf_constraint_equilibrium_point = FloatProperty(name="Equilibrium Point", default=0.0)
-
-    Object.ambf_constraint_limits_enable = BoolProperty(name="Enable Limits", default=True)
-
-    Object.ambf_constraint_passive = BoolProperty(name="Is Passive?", default=False)
-
-    Object.ambf_constraint_enable_feedback = BoolProperty(name="Enable Feedback", default=False)
-
-    Object.ambf_constraint_limits_lower = FloatProperty(name="Low", default=-60, min=-359, max=359)
-
-    Object.ambf_constraint_limits_higher = FloatProperty(name="High", default=60, min=-359, max=359)
-
-    Object.ambf_constraint_max_motor_impulse = FloatProperty(name="Max Motor Impulse", default=0.05, min=0.0)
-    
-    Object.ambf_constraint_axis= EnumProperty \
-        (
-            name='Axis',
-            items=
-            [
-                ('X', 'X', '', '', 0),
-                ('Y', 'Y', '', '', 1),
-                ('Z', 'Z', '', '', 2),
-            ],
-            default='Z'
-        )
-
-    Object.ambf_constraint_cone_twist_limits= FloatVectorProperty \
-        (
-            name='Cone Twist Swing Limits (Degrees)',
-            default=(60, 60, 60),
-            min=0.0,
-            options={'PROPORTIONAL'},
-            subtype='XYZ',
-        )
-
-    Object.ambf_constraint_six_dof_limits_low_angular = FloatVectorProperty \
-        (
-            name='Low: Limits Angular (Degrees)',
-            default=(-60, -60, -60),
-            options={'PROPORTIONAL'},
-            subtype='XYZ',
-        )
-
-    Object.ambf_constraint_six_dof_limits_high_angular = FloatVectorProperty \
-        (
-            name='High: Limits Angular (Degrees)',
-            default=(60, 60, 60),
-            options={'PROPORTIONAL'},
-            subtype='XYZ',
-        )
-
-    Object.ambf_constraint_six_dof_limits_low_linear = FloatVectorProperty \
-        (
-            name='Low: Limits Linear',
-            default=(-1, -1, -1),
-            options={'PROPORTIONAL'},
-            subtype='XYZ',
-        )
-
-    Object.ambf_constraint_six_dof_limits_high_linear = FloatVectorProperty \
-        (
-            name='High: Limits Linear',
-            default=(1, 1, 1),
-            options={'PROPORTIONAL'},
-            subtype='XYZ',
-        )
-
-    Object.ambf_constraint_six_dof_stiffness_angular = FloatVectorProperty \
-        (
-            name='Stiffness Angular',
-            default=(1., 1., 1.),
-            min=0.0,
-            options={'PROPORTIONAL'},
-            subtype='XYZ',
-        )
-
-    Object.ambf_constraint_six_dof_stiffness_linear = FloatVectorProperty \
-        (
-            name='Stiffness Linear',
-            default=(1., 1., 1.),
-            min=0.0,
-            options={'PROPORTIONAL'},
-            subtype='XYZ',
-        )
-
-    Object.ambf_constraint_six_dof_damping_angular = FloatVectorProperty \
-        (
-            name='Damping Angular',
-            default=(1., 1., 1.),
-            min=0.0,
-            options={'PROPORTIONAL'},
-            subtype='XYZ',
-        )
-
-    Object.ambf_constraint_six_dof_damping_linear = FloatVectorProperty \
-        (
-            name='Damping Linear',
-            default=(1., 1., 1.),
-            min=0.0,
-            options={'PROPORTIONAL'},
-            subtype='XYZ',
-        )
-
-    Object.ambf_constraint_six_dof_equilibrium_angular = FloatVectorProperty \
-        (
-            name='Equilibrium Angular (Degrees)',
-            default=(0., 0., 0.),
-            options={'PROPORTIONAL'},
-            subtype='XYZ',
-        )
-
-    Object.ambf_constraint_six_dof_equilibrium_linear = FloatVectorProperty \
-        (
-            name='Equilibrium Linear',
-            default=(0., 0., 0.),
-            options={'PROPORTIONAL'},
-            subtype='XYZ',
-        )
-    
-    Object.ambf_constraint_type= EnumProperty \
-        (
-            items=
-            [
-                ('FIXED', 'Fixed', '', '', 0),
-                ('REVOLUTE', 'Revolute', '', '', 1),
-                ('PRISMATIC', 'Prismatic', '', '', 2),
-                ('LINEAR_SPRING', 'Linear Spring', '', '', 3),
-                ('TORSION_SPRING', 'Torsion Spring', '', '', 4),
-                ('P2P', 'p2p', '', '', 5),
-                ('CONE_TWIST', 'Cone Twist', '', '', 6),
-                ('SIX_DOF', 'Six DOF', '', '', 7),
-                ('SIX_DOF_SPRING', 'Six DOF Spring', '', '', 8),
-            ],
-            name="Type",
-            default='REVOLUTE'
-        )
-
-    Object.ambf_constraint_controller_output_type= EnumProperty \
-        (
-            items=
-            [
-                ('VELOCITY', 'VELOCITY', '', '', 0),
-                ('FORCE', 'FORCE', '', '', 1),
-            ],
-            name="Controller Output Type",
-            default='VELOCITY',
-            description='The output of the controller fed to the simulation. Better to use (VELOCITY) with P <= 10, D <= 1'
-        )
-    
     @classmethod
     def poll(self, context):
         active = False
@@ -4208,6 +3681,85 @@ class AMBF_PT_ambf_constraint(Panel):
             col.prop(context.object, 'ambf_constraint_passive')
 
 
+class AMBF_PG_CollisionShapePropGroup(PropertyGroup):
+    ambf_rigid_body_collision_shape_radius: FloatProperty \
+            (
+            name='Radius',
+            default=1.0,
+            update=collision_shape_dims_update_cb,
+            min=0.0001
+        )
+
+    ambf_rigid_body_collision_shape_height: FloatProperty \
+            (
+            name='Height',
+            default=1.0,
+            update=collision_shape_dims_update_cb,
+            min=0.0001
+        )
+
+    ambf_rigid_body_collision_shape_xyz_dims: FloatVectorProperty \
+            (
+            name='Dimension (XYZ)',
+            default=(1.0, 1.0, 1.0),
+            min=0.0001,
+            options={'PROPORTIONAL'},
+            update=collision_shape_dims_update_cb,
+            subtype='XYZ',
+        )
+
+    disable_update_cbs: BoolProperty(default=False)
+
+    ambf_rigid_body_collision_shape_pointer: PointerProperty(name="Collision Shape", type=Object)
+
+    ambf_rigid_body_collision_shape: EnumProperty \
+            (
+            items=
+            [
+                ('CONE', 'Cone', '', 'MESH_CONE', 0),
+                ('CYLINDER', 'Cylinder', '', 'MESH_CYLINDER', 1),
+                ('CAPSULE', 'Capsule', '', 'MESH_CAPSULE', 2),
+                ('SPHERE', 'Sphere', '', 'MESH_UVSPHERE', 3),
+                ('BOX', 'Box', '', 'MESH_CUBE', 4),
+            ],
+            name="Collision Shape",
+            update=collision_shape_type_update_cb,
+            default="BOX"
+        )
+
+    ambf_rigid_body_collision_shape_axis: EnumProperty \
+            (
+            name='Shape Axis',
+            items=
+            [
+                ('X', 'X', '', '', 0),
+                ('Y', 'Y', '', '', 1),
+                ('Z', 'Z', '', '', 2),
+            ],
+            default='Z',
+            update=collision_shape_axis_update_cb,
+            description='The direction the collision shape is aligned. Use for Cone, Cylinder and Capsule'
+        )
+
+    ambf_rigid_body_linear_shape_offset: FloatVectorProperty \
+            (
+            name='Linear Shape Offset',
+            default=(0.0, 0.0, 0.0),
+            options={'PROPORTIONAL'},
+            update=collision_shape_offset_update_cb,
+            subtype='XYZ',
+        )
+
+    ambf_rigid_body_angular_shape_offset: FloatVectorProperty \
+            (
+            name='Angular Shape Offset',
+            default=(0.0, 0.0, 0.0),
+            options={'PROPORTIONAL'},
+            update=collision_shape_offset_update_cb,
+            subtype='EULER',
+        )
+
+
 custom_classes = (AMBF_OT_toggle_low_res_mesh_modifiers_visibility,
                   AMBF_PG_CollisionShapePropGroup,
                   AMBF_OT_cleanup_all,
@@ -4248,6 +3800,455 @@ def register():
     from bpy.utils import register_class
     for cls in custom_classes:
         register_class(cls)
+
+    Object.ambf_rigid_body_enable = BoolProperty(name="Enable AMBF Rigid Body", default=False)
+
+    Object.ambf_rigid_body_namespace = StringProperty(name="Namespace", default="")
+
+    Object.ambf_rigid_body_mass = FloatProperty(name="mass", default=1.0, min=0.0001)
+
+    Object.ambf_rigid_body_inertia_x = FloatProperty(name='Ix', default=1.0, min=0.0)
+
+    Object.ambf_rigid_body_inertia_y = FloatProperty(name='Iy', default=1.0, min=0.0)
+
+    Object.ambf_rigid_body_inertia_z = FloatProperty(name='Iz', default=1.0, min=0.0)
+
+    Object.ambf_rigid_body_static_friction = FloatProperty(name="Static Friction", default=0.5, min=0.0, max=10.0)
+
+    Object.ambf_rigid_body_rolling_friction = FloatProperty(name="Rolling Friction", default=0.0, min=0.0, max=1.0)
+
+    Object.ambf_rigid_body_restitution = FloatProperty(name="Restitution", default=0.1, min=0.0, max=1.0)
+
+    Object.ambf_rigid_body_enable_collision_margin = BoolProperty(name="Collision Margin", default=False)
+
+    Object.ambf_rigid_body_show_collision_shapes_per_object = BoolProperty(name="Show Collision Shapes", default=False,
+                                                                           update=collision_shape_show_per_object_update_cb)
+
+    Object.ambf_rigid_body_collision_margin = FloatProperty(name="Margin", default=0.001, min=-0.1, max=1.0)
+
+    Object.ambf_rigid_body_linear_damping = FloatProperty(name="Linear Damping", default=0.04, min=0.0, max=1.0)
+
+    Object.ambf_rigid_body_angular_damping = FloatProperty(name="Angular Damping", default=0.1, min=0.0, max=1.0)
+
+    Object.ambf_rigid_body_enable_controllers = BoolProperty(name="Enable Controllers", default=False)
+
+    Object.ambf_rigid_body_linear_controller_p_gain = FloatProperty(name="Proportional Gain (P)", default=10, min=0)
+
+    Object.ambf_rigid_body_linear_controller_i_gain = FloatProperty(name="Integral Gain (I)", default=0, min=0)
+
+    Object.ambf_rigid_body_linear_controller_d_gain = FloatProperty(name="Damping Gain (D)", default=1, min=0)
+
+    Object.ambf_rigid_body_angular_controller_p_gain = FloatProperty(name="Proportional Gain (P)", default=10, min=0)
+
+    Object.ambf_rigid_body_angular_controller_i_gain = FloatProperty(name="Integral Gain (I)", default=0, min=0)
+
+    Object.ambf_rigid_body_angular_controller_d_gain = FloatProperty(name="Damping Gain (D)", default=1, min=0)
+
+    Object.ambf_rigid_body_passive = BoolProperty(name="Is Passive?", default=False,
+                                                  description="If passive. this body will not be spawned as an AMBF communication object")
+
+    Object.ambf_rigid_body_is_static = BoolProperty \
+            (
+            name="Static",
+            default=False,
+            description="Is this object dynamic or static (mass = 0.0 Kg)"
+        )
+
+    Object.ambf_rigid_body_specify_inertia = BoolProperty \
+            (
+            name="Specify Inertia",
+            default=False,
+            description="If not set explicitly, it is calculated automatically by AMBF"
+        )
+
+    Object.ambf_rigid_body_collision_type = EnumProperty \
+            (
+            name='Collision Type',
+            items=
+            [
+                ('MESH', 'MESH', '', 'MESH_ICOSPHERE', 0),
+                ('SINGULAR_SHAPE', 'Singular Shape', '', 'MESH_CUBE', 1),
+                ('COMPOUND_SHAPE', 'Compound Shape', '', 'OUTLINER_OB_GROUP_INSTANCE', 2),
+            ],
+            default='MESH',
+            update=rigid_body_collision_type_update_cb,
+            description='Choose between a singular or a compound collision that consists of multiple shapes'
+        )
+
+    Object.ambf_rigid_body_collision_mesh_type = EnumProperty \
+            (
+            name='Collision Mesh Type',
+            items=
+            [
+                ('CONCAVE_MESH', 'Concave Mesh', '', 'MESH_ICOSPHERE', 0),
+                ('CONVEX_MESH', 'Convex Mesh', '', 'MESH_CUBE', 1),
+                ('CONVEX_HULL', 'Convex Hull', '', 'OUTLINER_OB_GROUP_INSTANCE', 2),
+            ],
+            default='CONVEX_HULL',
+            description='Choose between the type of the collision mesh. Avoid Concave Meshes if you can.'
+        )
+
+    Object.ambf_rigid_body_collision_groups = BoolVectorProperty \
+            (
+            name='Collision Groups',
+            size=20,
+            default=(0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0),
+            options={'PROPORTIONAL'},
+            subtype='LAYER'
+        )
+
+    Object.ambf_rigid_body_linear_inertial_offset = FloatVectorProperty \
+            (
+            name='Linear Inertial Offset',
+            default=(0.0, 0.0, 0.0),
+            options={'PROPORTIONAL'},
+            update=collision_shape_offset_update_cb,
+            subtype='XYZ',
+        )
+
+    Object.ambf_rigid_body_angular_inertial_offset = FloatVectorProperty \
+            (
+            name='Angular Inertial Offset',
+            default=(0.0, 0.0, 0.0),
+            options={'PROPORTIONAL'},
+            subtype='EULER',
+        )
+
+    Object.ambf_object_type = EnumProperty \
+            (
+            name="Object Type",
+            items=
+            [
+                ('NONE', 'None', '', '', 0),
+                ('RIGID_BODY', 'RIGID_BODY', '', '', 1),
+                ('CONSTRAINT', 'CONSTRAINT', '', '', 2),
+                ('COLLISION_SHAPE', 'COLLISION_SHAPE', '', '', 3),
+            ],
+            default='NONE'
+        )
+
+    Object.ambf_rigid_body_controller_output_type = EnumProperty \
+            (
+            items=
+            [
+                ('VELOCITY', 'VELOCITY', '', '', 0),
+                ('FORCE', 'FORCE', '', '', 1),
+            ],
+            name="Controller Output Type",
+            default='VELOCITY',
+            description='The output of the controller fed to the simulation. Better to use (VELOCITY) with P <= 10, D <= 1'
+        )
+
+    Object.ambf_rigid_body_publish_children_names = BoolProperty \
+            (
+            name="Publish Children Names",
+            default=False
+        )
+
+    Object.ambf_rigid_body_publish_joint_names = BoolProperty \
+            (
+            name="Publish Joint Names",
+            default=False
+        )
+
+    Object.ambf_rigid_body_publish_joint_positions = BoolProperty \
+            (
+            name="Publish Joint Positions",
+            default=False
+        )
+
+    Object.ambf_enable_body_props = BoolProperty(name="Enable", default=False)
+
+    Object.ambf_linear_controller_p_gain = FloatProperty(name="Proportional Gain (P)", default=500, min=0)
+    Object.ambf_linear_controller_i_gain = FloatProperty(name="Integral Gain (I)", default=5, min=0)
+    Object.ambf_linear_controller_d_gain = FloatProperty(name="Damping Gain (D)", default=5, min=0)
+
+    Object.ambf_angular_controller_p_gain = FloatProperty(name="Proportional Gain (P)", default=50, min=0)
+    Object.ambf_angular_controller_i_gain = FloatProperty(name="Integral Gain (I)", default=0.5, min=0)
+    Object.ambf_angular_controller_d_gain = FloatProperty(name="Damping Gain (D)", default=0.5, min=0)
+
+    Object.ambf_constraint_enable = BoolProperty(name="Enable", default=False)
+
+    Object.ambf_constraint_parent = PointerProperty(name="Parent", type=Object)
+
+    Object.ambf_constraint_child = PointerProperty(name="Child", type=Object)
+
+    Object.ambf_constraint_name = StringProperty(name="Name", default="")
+
+    Object.ambf_constraint_enable_controller_gains = BoolProperty(name="Enable Controller Gains", default=False)
+
+    Object.ambf_constraint_controller_p_gain = FloatProperty(name="Proportional Gain (P)", default=10, min=0)
+
+    Object.ambf_constraint_controller_i_gain = FloatProperty(name="Integral Gain (I)", default=0, min=0)
+
+    Object.ambf_constraint_controller_d_gain = FloatProperty(name="Damping Gain (D)", default=1, min=0)
+
+    Object.ambf_constraint_damping = FloatProperty(name="Joint Damping", default=0.7, min=0.0)
+
+    Object.ambf_constraint_stiffness = FloatProperty(name="Joint Stiffness", default=10.0, min=0.0)
+
+    Object.ambf_constraint_equilibrium_point = FloatProperty(name="Equilibrium Point", default=0.0)
+
+    Object.ambf_constraint_limits_enable = BoolProperty(name="Enable Limits", default=True)
+
+    Object.ambf_constraint_passive = BoolProperty(name="Is Passive?", default=False)
+
+    Object.ambf_constraint_enable_feedback = BoolProperty(name="Enable Feedback", default=False)
+
+    Object.ambf_constraint_limits_lower = FloatProperty(name="Low", default=-60, min=-359, max=359)
+
+    Object.ambf_constraint_limits_higher = FloatProperty(name="High", default=60, min=-359, max=359)
+
+    Object.ambf_constraint_max_motor_impulse = FloatProperty(name="Max Motor Impulse", default=0.05, min=0.0)
+
+    Object.ambf_constraint_axis = EnumProperty \
+            (
+            name='Axis',
+            items=
+            [
+                ('X', 'X', '', '', 0),
+                ('Y', 'Y', '', '', 1),
+                ('Z', 'Z', '', '', 2),
+            ],
+            default='Z'
+        )
+
+    Object.ambf_constraint_cone_twist_limits = FloatVectorProperty \
+            (
+            name='Cone Twist Swing Limits (Degrees)',
+            default=(60, 60, 60),
+            min=0.0,
+            options={'PROPORTIONAL'},
+            subtype='XYZ',
+        )
+
+    Object.ambf_constraint_six_dof_limits_low_angular = FloatVectorProperty \
+            (
+            name='Low: Limits Angular (Degrees)',
+            default=(-60, -60, -60),
+            options={'PROPORTIONAL'},
+            subtype='XYZ',
+        )
+
+    Object.ambf_constraint_six_dof_limits_high_angular = FloatVectorProperty \
+            (
+            name='High: Limits Angular (Degrees)',
+            default=(60, 60, 60),
+            options={'PROPORTIONAL'},
+            subtype='XYZ',
+        )
+
+    Object.ambf_constraint_six_dof_limits_low_linear = FloatVectorProperty \
+            (
+            name='Low: Limits Linear',
+            default=(-1, -1, -1),
+            options={'PROPORTIONAL'},
+            subtype='XYZ',
+        )
+
+    Object.ambf_constraint_six_dof_limits_high_linear = FloatVectorProperty \
+            (
+            name='High: Limits Linear',
+            default=(1, 1, 1),
+            options={'PROPORTIONAL'},
+            subtype='XYZ',
+        )
+
+    Object.ambf_constraint_six_dof_stiffness_angular = FloatVectorProperty \
+            (
+            name='Stiffness Angular',
+            default=(1., 1., 1.),
+            min=0.0,
+            options={'PROPORTIONAL'},
+            subtype='XYZ',
+        )
+
+    Object.ambf_constraint_six_dof_stiffness_linear = FloatVectorProperty \
+            (
+            name='Stiffness Linear',
+            default=(1., 1., 1.),
+            min=0.0,
+            options={'PROPORTIONAL'},
+            subtype='XYZ',
+        )
+
+    Object.ambf_constraint_six_dof_damping_angular = FloatVectorProperty \
+            (
+            name='Damping Angular',
+            default=(1., 1., 1.),
+            min=0.0,
+            options={'PROPORTIONAL'},
+            subtype='XYZ',
+        )
+
+    Object.ambf_constraint_six_dof_damping_linear = FloatVectorProperty \
+            (
+            name='Damping Linear',
+            default=(1., 1., 1.),
+            min=0.0,
+            options={'PROPORTIONAL'},
+            subtype='XYZ',
+        )
+
+    Object.ambf_constraint_six_dof_equilibrium_angular = FloatVectorProperty \
+            (
+            name='Equilibrium Angular (Degrees)',
+            default=(0., 0., 0.),
+            options={'PROPORTIONAL'},
+            subtype='XYZ',
+        )
+
+    Object.ambf_constraint_six_dof_equilibrium_linear = FloatVectorProperty \
+            (
+            name='Equilibrium Linear',
+            default=(0., 0., 0.),
+            options={'PROPORTIONAL'},
+            subtype='XYZ',
+        )
+
+    Object.ambf_constraint_type = EnumProperty \
+            (
+            items=
+            [
+                ('FIXED', 'Fixed', '', '', 0),
+                ('REVOLUTE', 'Revolute', '', '', 1),
+                ('PRISMATIC', 'Prismatic', '', '', 2),
+                ('LINEAR_SPRING', 'Linear Spring', '', '', 3),
+                ('TORSION_SPRING', 'Torsion Spring', '', '', 4),
+                ('P2P', 'p2p', '', '', 5),
+                ('CONE_TWIST', 'Cone Twist', '', '', 6),
+                ('SIX_DOF', 'Six DOF', '', '', 7),
+                ('SIX_DOF_SPRING', 'Six DOF Spring', '', '', 8),
+            ],
+            name="Type",
+            default='REVOLUTE'
+        )
+
+    Object.ambf_constraint_controller_output_type = EnumProperty \
+            (
+            items=
+            [
+                ('VELOCITY', 'VELOCITY', '', '', 0),
+                ('FORCE', 'FORCE', '', '', 1),
+            ],
+            name="Controller Output Type",
+            default='VELOCITY',
+            description='The output of the controller fed to the simulation. Better to use (VELOCITY) with P <= 10, D <= 1'
+        )
+
+    Object.ambf_enable_joint_props = BoolProperty(name="Enable", default=False)
+    Object.ambf_joint_controller_p_gain = FloatProperty(name="Proportional Gain (P)", default=500, min=0)
+    Object.ambf_joint_controller_i_gain = FloatProperty(name="Integral Gain (I)", default=5, min=0)
+    Object.ambf_joint_controller_d_gain = FloatProperty(name="Damping Gain (D)", default=5, min=0)
+    Object.ambf_joint_damping = FloatProperty(name="Joint Damping", default=0.0, min=0.0)
+
+    Scene.adf_conf_path = StringProperty \
+            (
+            name="Config (Save To)",
+            default="",
+            description="Define the root path of the project",
+            subtype='FILE_PATH'
+        )
+
+    Scene.adf_mesh_path = StringProperty \
+            (
+            name="Meshes (Save To)",
+            default="",
+            description="Define the path to save to mesh files",
+            subtype='DIR_PATH'
+        )
+
+    Scene.mesh_output_type = EnumProperty \
+            (
+            items=
+            [
+                ('STL', 'STL', 'STL'),
+                ('OBJ', 'OBJ', 'OBJ'),
+                ('3DS', '3DS', '3DS'),
+                ('PLY', 'PLY', 'PLY')
+            ],
+            name="Mesh Type",
+            default='STL'
+        )
+
+    Scene.mesh_max_vertices = IntProperty \
+            (
+            name="",
+            default=150,
+            description="The maximum number of vertices the low resolution collision mesh is allowed to have",
+        )
+
+    Scene.adjust_joint_pivots = BoolProperty \
+            (
+            name="Adjust Child Pivots",
+            default=False,
+            description="If the child axis is offset from the joint axis, correct for this offset, keep this to "
+                        "default (True) unless you want to debug the model or something advanced",
+        )
+
+    Scene.ignore_inter_collision = BoolProperty \
+            (
+            name="Ignore Inter-Collision",
+            default=True,
+            description="Ignore collision between all the bodies in the scene (default = True)",
+        )
+
+    Scene.external_adf_filepath = StringProperty \
+            (
+            name="AMBF Config",
+            default="",
+            description="Load AMBF YAML FILE",
+            subtype='FILE_PATH'
+        )
+
+    Scene.ambf_namespace = StringProperty \
+            (
+            name="AMBF Namespace",
+            default="/ambf/env/",
+            description="The namespace for all bodies in this scene"
+        )
+
+    Scene.ambf_rigid_body_show_collision_shapes = BoolProperty \
+            (
+            name="Show Collision Shapes",
+            default=False,
+            update=collision_shape_show_update_cb
+        )
+
+    Scene.enable_forced_cleanup = BoolProperty \
+            (
+            name="Enable Forced Cleanup",
+            default=False
+        )
+
+    Scene.ambf_save_high_res = BoolProperty \
+            (
+            name="High Res",
+            default=True,
+            description="Save High Res Meshes for Visual."
+        )
+
+    Scene.ambf_save_low_res = BoolProperty \
+            (
+            name="Low Res",
+            default=True,
+            description="Save Low Res Meshes for Collision. Used only if the collision is set to MESH type"
+        )
+
+    Scene.ambf_save_textures = BoolProperty \
+            (
+            name="Textures",
+            default=True,
+            description="Save textures if defined for a body"
+        )
+
+    Scene.ambf_save_selection_only = BoolProperty \
+            (
+            name="Selection Only",
+            default=False,
+            description="Only save the meshes + textures for the selected object"
+        )
+
     Object.ambf_collision_shape_prop_collection = CollectionProperty(type=AMBF_PG_CollisionShapePropGroup)
 
 def unregister():
