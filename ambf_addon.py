@@ -584,10 +584,10 @@ def calculate_principal_inertia(obj_handle):
     # Calculate Ixx, Iyy and Izz
     mass = obj_handle.ambf_rigid_body_mass
     # For now, handle the calculation of the compound shape inertia as the convex hull's inertia
-    if obj_handle.ambf_rigid_body_collision_type in ['MESH', 'COMPOUND_SHAPE']:
+    if obj_handle.ambf_collision_type in ['MESH', 'COMPOUND_SHAPE']:
         I = inertia_of_mesh(obj_handle)
 
-    elif obj_handle.ambf_rigid_body_collision_type == 'SINGULAR_SHAPE':
+    elif obj_handle.ambf_collision_type == 'SINGULAR_SHAPE':
         prop_group = obj_handle.ambf_collision_shape_prop_collection.items()[0]
         coll_shape_obj_handle = prop_group[1]
 
@@ -687,7 +687,7 @@ def estimate_collision_shape_geometry(obj_handle):
             add_collision_shape_property(obj_handle)
         # Don't bother if the shape is a compound shape for now. Let the
         # user calculate the geometries.
-        if obj_handle.ambf_rigid_body_collision_type in ['MESH', 'SINGULAR_SHAPE']:
+        if obj_handle.ambf_collision_type in ['MESH', 'SINGULAR_SHAPE']:
             dims = obj_handle.dimensions.copy()
             prop_group = obj_handle.ambf_collision_shape_prop_collection.items()[0][1]
             # Now we need to find out the geometry of the shape
@@ -958,7 +958,7 @@ class AMBF_OT_generate_ambf_file(Operator):
         obj_handle_name = remove_namespace_prefix(obj_handle.name)
 
         body_yaml_name = self.add_body_prefix_str(obj_handle_name)
-        output_mesh = bpy.context.scene.mesh_output_type
+        output_mesh = bpy.context.scene.ambf_meshes_save_type
         body_data['name'] = obj_handle_name
         
         body_data['passive'] = obj_handle.ambf_rigid_body_passive
@@ -1020,14 +1020,14 @@ class AMBF_OT_generate_ambf_file(Operator):
             body_data['damping'] = {'linear': round(obj_handle.ambf_rigid_body_linear_damping, 4),
                                     'angular': round(obj_handle.ambf_rigid_body_angular_damping, 4)}
 
-            body_data['collision groups'] = [idx for idx, chk in enumerate(obj_handle.ambf_rigid_body_collision_groups) if chk == True]
+            body_data['collision groups'] = [idx for idx, chk in enumerate(obj_handle.ambf_collision_groups) if chk == True]
 
             if obj_handle.ambf_rigid_body_enable_collision_margin is True:
                 body_data['collision margin'] = round(obj_handle.ambf_rigid_body_collision_margin, 4)
 
-            if obj_handle.ambf_rigid_body_collision_type == 'MESH':
+            if obj_handle.ambf_collision_type == 'MESH':
                 body_data['collision mesh type'] = obj_handle.ambf_rigid_body_collision_mesh_type
-            elif obj_handle.ambf_rigid_body_collision_type == 'SINGULAR_SHAPE':
+            elif obj_handle.ambf_collision_type == 'SINGULAR_SHAPE':
                 shape_prop_group = obj_handle.ambf_collision_shape_prop_collection.items()[0][1]
                 body_data['collision shape'] = shape_prop_group.ambf_rigid_body_collision_shape
                 bcg = OrderedDict()
@@ -1054,7 +1054,7 @@ class AMBF_OT_generate_ambf_file(Operator):
                 offset['orientation']['p'] = round(shape_prop_group.ambf_rigid_body_angular_shape_offset[1], 4)
                 offset['orientation']['y'] = round(shape_prop_group.ambf_rigid_body_angular_shape_offset[2], 4)
                 body_data['collision offset'] = offset
-            elif obj_handle.ambf_rigid_body_collision_type == 'COMPOUND_SHAPE':
+            elif obj_handle.ambf_collision_type == 'COMPOUND_SHAPE':
                 if 'collision shape' in body_data:
                     del body_data['collision shape']
                 compound_shape = []
@@ -1458,7 +1458,7 @@ class AMBF_OT_generate_ambf_file(Operator):
 
     def generate_adf(self):
         num_objs = len(bpy.data.objects)
-        save_to = bpy.path.abspath(self._context.scene.adf_conf_path)
+        save_to = bpy.path.abspath(self._context.scene.ambf_adf_path)
         filename = os.path.basename(save_to)
         save_dir = os.path.dirname(save_to)
         if not filename:
@@ -1476,13 +1476,13 @@ class AMBF_OT_generate_ambf_file(Operator):
         self._adf['bodies'] = []
         self._adf['joints'] = []
         print('SAVE PATH', bpy.path.abspath(save_dir))
-        print('AMBF CONFIG PATH', bpy.path.abspath(self._context.scene.adf_mesh_path))
-        rel_mesh_path = os.path.relpath(bpy.path.abspath(self._context.scene.adf_mesh_path), bpy.path.abspath(save_dir))
+        print('AMBF CONFIG PATH', bpy.path.abspath(self._context.scene.ambf_meshes_path))
+        rel_mesh_path = os.path.relpath(bpy.path.abspath(self._context.scene.ambf_meshes_path), bpy.path.abspath(save_dir))
 
         self._adf['high resolution path'] = rel_mesh_path + '/high_res/'
         self._adf['low resolution path'] = rel_mesh_path + '/low_res/'
 
-        self._adf['ignore inter-collision'] = self._context.scene.ignore_inter_collision
+        self._adf['ignore inter-collision'] = self._context.scene.ambf_ignore_inter_collision
 
         update_global_namespace(self._context)
 
@@ -1683,12 +1683,12 @@ class AMBF_OT_save_meshes(Operator):
         # First deselect all objects
         select_all_objects(False)
 
-        save_path = bpy.path.abspath(context.scene.adf_mesh_path)
+        save_path = bpy.path.abspath(context.scene.ambf_meshes_path)
         high_res_path = os.path.join(save_path, 'high_res/')
         low_res_path = os.path.join(save_path, 'low_res/')
         os.makedirs(high_res_path, exist_ok=True)
         os.makedirs(low_res_path, exist_ok=True)
-        mesh_type = bpy.context.scene.mesh_output_type
+        mesh_type = bpy.context.scene.ambf_meshes_save_type
 
         mesh_name_mat_list = self.set_all_meshes_to_origin()
         if context.scene.ambf_save_selection_only:
@@ -1717,7 +1717,7 @@ class AMBF_OT_generate_low_res_mesh_modifiers(Operator):
         for obj_handle in bpy.data.objects:
             select_object(obj_handle, False)
 
-        vertices_max = context.scene.mesh_max_vertices
+        vertices_max = context.scene.ambf_mesh_max_vertices
         # Select each obj_handle iteratively and generate its low-res mesh
         for obj_handle in bpy.data.objects:
             if obj_handle.type == 'MESH' and is_object_hidden(obj_handle) is False:
@@ -1794,7 +1794,7 @@ class AMBF_OT_estimate_shape_offsets(Operator):
         cur_active_obj = get_active_object()
         for obj_handle in bpy.data.objects:
             if obj_handle.ambf_object_type == 'RIGID_BODY' and obj_handle.type == 'MESH':
-                if obj_handle.ambf_rigid_body_collision_type == 'SINGULAR_SHAPE':
+                if obj_handle.ambf_collision_type == 'SINGULAR_SHAPE':
                     set_active_object(obj_handle)
                     prop_group = obj_handle.ambf_collision_shape_prop_collection.items()[0][1]
                     local_com = compute_local_com(obj_handle)
@@ -1886,7 +1886,7 @@ class AMBF_OT_estimate_shape_offset_per_object(Operator):
     def execute(self, context):
         obj_handle = context.object
         if obj_handle.ambf_object_type == 'RIGID_BODY' and obj_handle.type == 'MESH':
-            if obj_handle.ambf_rigid_body_collision_type == 'SINGULAR_SHAPE':
+            if obj_handle.ambf_collision_type == 'SINGULAR_SHAPE':
                 prop_group = obj_handle.ambf_collision_shape_prop_collection.items()[0][1]
                 local_com = compute_local_com(obj_handle)
                 prop_group.ambf_rigid_body_linear_shape_offset[0] = local_com[0]
@@ -2183,7 +2183,7 @@ class AMBF_OT_load_ambf_file(Operator):
                     ocs.ambf_rigid_body_angular_shape_offset[1] = obj_handle.ambf_rigid_body_angular_inertial_offset[1]
                     ocs.ambf_rigid_body_angular_shape_offset[2] = obj_handle.ambf_rigid_body_angular_inertial_offset[2]
                 
-                obj_handle.ambf_rigid_body_collision_type = 'SINGULAR_SHAPE'
+                obj_handle.ambf_collision_type = 'SINGULAR_SHAPE'
             elif 'compound collision shape' in body_data:
                 shape_count = 0
                 for shape_item in body_data['compound collision shape']:
@@ -2210,7 +2210,7 @@ class AMBF_OT_load_ambf_file(Operator):
                     ocs.ambf_rigid_body_angular_shape_offset[1] = shape_item['offset']['orientation']['p']
                     ocs.ambf_rigid_body_angular_shape_offset[2] = shape_item['offset']['orientation']['y']
                     
-                obj_handle.ambf_rigid_body_collision_type = 'COMPOUND_SHAPE'
+                obj_handle.ambf_collision_type = 'COMPOUND_SHAPE'
             else:
                 # Since the shape is neither a single or a compound shape, it is a mesh based collision.
                 # Now figure out what type of collision mesh is used. (CONCAVE_MESH, CONVEX_MESH or CONVEX_HULL)
@@ -2223,10 +2223,10 @@ class AMBF_OT_load_ambf_file(Operator):
             if 'collision groups' in body_data:
                 col_groups = body_data['collision groups']
                 # First clear existing collision group of 0
-                obj_handle.ambf_rigid_body_collision_groups[0] = False
+                obj_handle.ambf_collision_groups[0] = False
                 for group in col_groups:
                     if 0 <= group < 20:
-                        obj_handle.ambf_rigid_body_collision_groups[group] = True
+                        obj_handle.ambf_collision_groups[group] = True
                     else:
                         print('WARNING, Collision Group Outside [0-20]')
                         
@@ -2669,7 +2669,7 @@ class AMBF_OT_load_ambf_file(Operator):
         CommonConfig.loaded_joint_map[child_obj_handle.rigid_body_constraint] = joint_data
 
     def execute(self, context):
-        self._yaml_filepath = str(bpy.path.abspath(context.scene['external_adf_filepath']))
+        self._yaml_filepath = str(bpy.path.abspath(context.scene['ambf_load_adf_filepath']))
         print(self._yaml_filepath)
         yaml_file = open(self._yaml_filepath)
         
@@ -2708,7 +2708,7 @@ class AMBF_OT_load_ambf_file(Operator):
 ##
 def collision_shape_show_update_cb(self, context):
     for obj_handle in bpy.data.objects:
-        if obj_handle.ambf_rigid_body_collision_type in ['SINGULAR_SHAPE', 'COMPOUND_SHAPE']:
+        if obj_handle.ambf_collision_type in ['SINGULAR_SHAPE', 'COMPOUND_SHAPE']:
             for prop_tuple in obj_handle.ambf_collision_shape_prop_collection.items():
                 shape_prop_group = prop_tuple[1]
                 coll_shape_obj = shape_prop_group.ambf_rigid_body_collision_shape_pointer
@@ -2741,10 +2741,10 @@ class AMBF_PT_create_adf(Panel):
         layout = self.layout
         
         col = layout.column()
-        col.prop(context.scene, 'enable_forced_cleanup')
+        col.prop(context.scene, 'ambf_enable_forced_cleanup')
         
         box = layout.box()
-        box.enabled = context.scene.enable_forced_cleanup
+        box.enabled = context.scene.ambf_enable_forced_cleanup
         box.label(text='WARNING! CLEAN UP ALL OBJECTS')
 
         col = box.column()
@@ -2774,7 +2774,7 @@ class AMBF_PT_create_adf(Panel):
         # Load
         col = box.column()
         col.alignment = 'CENTER'
-        col.prop(context.scene, 'external_adf_filepath')
+        col.prop(context.scene, 'ambf_load_adf_filepath')
         
         col = box.column()
         col.alignment = 'CENTER'
@@ -2801,7 +2801,7 @@ class AMBF_PT_create_adf(Panel):
         row = split.row()
         row.label(text='Coll Mesh Max Verts: ')
         row = split.row()
-        row.prop(context.scene, 'mesh_max_vertices')
+        row.prop(context.scene, 'ambf_mesh_max_vertices')
         
         # Low Res Mesh Modifier Button
         col = sbox.column()
@@ -2838,12 +2838,12 @@ class AMBF_PT_create_adf(Panel):
 
         # Meshes Save Location
         col = sbox.column()
-        col.prop(context.scene, 'adf_mesh_path')
+        col.prop(context.scene, 'ambf_meshes_path')
 
         # Select the Mesh-Type for saving the meshes
         col = sbox.column()
         col.alignment = 'CENTER'
-        col.prop(context.scene, 'mesh_output_type')
+        col.prop(context.scene, 'ambf_meshes_save_type')
 
         row = sbox.row()
         row.prop(context.scene, 'ambf_save_high_res')
@@ -2870,7 +2870,7 @@ class AMBF_PT_create_adf(Panel):
         # Ignore Inter Collision Button
         col = sbox.column()
         col.alignment = 'CENTER'
-        col.prop(context.scene, "ignore_inter_collision")
+        col.prop(context.scene, "ambf_ignore_inter_collision")
         
         # AMBF Namespace
         col = sbox.column()
@@ -2879,7 +2879,7 @@ class AMBF_PT_create_adf(Panel):
         
         # Config File Save Location
         col = sbox.column()
-        col.prop(context.scene, 'adf_conf_path', text='Save As')
+        col.prop(context.scene, 'ambf_adf_path', text='Save As')
 
         col = sbox.column()
         col.alignment = 'CENTER'
@@ -3063,7 +3063,7 @@ def collision_shape_type_update_cb(self, context):
         if shape_prop_group.ambf_rigid_body_collision_shape_pointer:
             bpy.data.objects.remove(shape_prop_group.ambf_rigid_body_collision_shape_pointer)
 
-    if obj_handle.ambf_rigid_body_collision_type in ['SINGULAR_SHAPE', 'COMPOUND_SHAPE']:
+    if obj_handle.ambf_collision_type in ['SINGULAR_SHAPE', 'COMPOUND_SHAPE']:
         for prop_tuple in obj_handle.ambf_collision_shape_prop_collection.items():
             collision_shape_create_visual(obj_handle, prop_tuple[1])
 
@@ -3085,7 +3085,7 @@ def rigid_body_collision_type_update_cb(self, context):
 
 def collision_shape_show_per_object_update_cb(self, context):
     obj_handle = context.object
-    if obj_handle.ambf_rigid_body_collision_type in ['SINGULAR_SHAPE', 'COMPOUND_SHAPE']:
+    if obj_handle.ambf_collision_type in ['SINGULAR_SHAPE', 'COMPOUND_SHAPE']:
         for prop_tuple in obj_handle.ambf_collision_shape_prop_collection.items():
             shape_prop_group = prop_tuple[1]
             coll_shape_obj = shape_prop_group.ambf_rigid_body_collision_shape_pointer
@@ -3182,21 +3182,21 @@ class AMBF_PT_ambf_rigid_body(Panel):
 
             box = layout.box()
             row = box.row()
-            row.prop(context.object, 'ambf_rigid_body_collision_type')
+            row.prop(context.object, 'ambf_collision_type')
 
-            if context.object.ambf_rigid_body_collision_type == 'MESH':
+            if context.object.ambf_collision_type == 'MESH':
 
                 col = box.column()
                 col.prop(context.object, 'ambf_rigid_body_collision_mesh_type')
 
-            elif context.object.ambf_rigid_body_collision_type == 'SINGULAR_SHAPE':
+            elif context.object.ambf_collision_type == 'SINGULAR_SHAPE':
 
                 col = box.column()
                 col.operator('ambf.estimate_collision_shape_geometry_per_object')
                 propgroup = context.object.ambf_collision_shape_prop_collection.items()[0][1]
                 self.draw_collision_shape_prop(context, propgroup, box)
                 
-            elif context.object.ambf_rigid_body_collision_type == 'COMPOUND_SHAPE':
+            elif context.object.ambf_collision_type == 'COMPOUND_SHAPE':
                 
                 cnt = len(context.object.ambf_collision_shape_prop_collection.items())
                 for i in range(cnt):
@@ -3219,7 +3219,7 @@ class AMBF_PT_ambf_rigid_body(Panel):
             
             row = box.column()
             row.alignment = 'EXPAND'
-            row.prop(context.object, 'ambf_rigid_body_collision_groups', toggle=True)
+            row.prop(context.object, 'ambf_collision_groups', toggle=True)
 
             col = box.column()
             col.prop(context.object, 'ambf_rigid_body_show_collision_shapes_per_object', toggle=True)
@@ -3336,7 +3336,7 @@ class AMBF_PT_ambf_rigid_body(Panel):
             col.prop(prop, 'ambf_rigid_body_collision_shape_xyz_dims')
 
 
-        if context.object.ambf_rigid_body_collision_type == 'SINGULAR_SHAPE':
+        if context.object.ambf_collision_type == 'SINGULAR_SHAPE':
             sbox.separator()
             col = sbox.column()
             col.operator("ambf.estimate_shape_offset_per_object")
@@ -3702,6 +3702,19 @@ def register():
     from bpy.utils import register_class
     for cls in custom_classes:
         register_class(cls)
+        
+    Object.ambf_object_type = EnumProperty \
+            (
+            name="Object Type",
+            items=
+            [
+                ('NONE', 'None', '', '', 0),
+                ('RIGID_BODY', 'RIGID_BODY', '', '', 1),
+                ('CONSTRAINT', 'CONSTRAINT', '', '', 2),
+                ('COLLISION_SHAPE', 'COLLISION_SHAPE', '', '', 3),
+            ],
+            default='NONE'
+        )
 
     Object.ambf_rigid_body_enable = BoolProperty(name="Enable AMBF Rigid Body", default=False)
 
@@ -3762,43 +3775,7 @@ def register():
             default=False,
             description="If not set explicitly, it is calculated automatically by AMBF"
         )
-
-    Object.ambf_rigid_body_collision_type = EnumProperty \
-            (
-            name='Collision Type',
-            items=
-            [
-                ('MESH', 'MESH', '', 'MESH_ICOSPHERE', 0),
-                ('SINGULAR_SHAPE', 'Singular Shape', '', 'MESH_CUBE', 1),
-                ('COMPOUND_SHAPE', 'Compound Shape', '', 'OUTLINER_OB_GROUP_INSTANCE', 2),
-            ],
-            default='MESH',
-            update=rigid_body_collision_type_update_cb,
-            description='Choose between a singular or a compound collision that consists of multiple shapes'
-        )
-
-    Object.ambf_rigid_body_collision_mesh_type = EnumProperty \
-            (
-            name='Collision Mesh Type',
-            items=
-            [
-                ('CONCAVE_MESH', 'Concave Mesh', '', 'MESH_ICOSPHERE', 0),
-                ('CONVEX_MESH', 'Convex Mesh', '', 'MESH_CUBE', 1),
-                ('CONVEX_HULL', 'Convex Hull', '', 'OUTLINER_OB_GROUP_INSTANCE', 2),
-            ],
-            default='CONVEX_HULL',
-            description='Choose between the type of the collision mesh. Avoid Concave Meshes if you can.'
-        )
-
-    Object.ambf_rigid_body_collision_groups = BoolVectorProperty \
-            (
-            name='Collision Groups',
-            size=20,
-            default=(0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0),
-            options={'PROPORTIONAL'},
-            subtype='LAYER'
-        )
-
+    
     Object.ambf_rigid_body_linear_inertial_offset = FloatVectorProperty \
             (
             name='Linear Inertial Offset',
@@ -3816,17 +3793,40 @@ def register():
             subtype='EULER',
         )
 
-    Object.ambf_object_type = EnumProperty \
+    Object.ambf_collision_type = EnumProperty \
             (
-            name="Object Type",
+            name='Collision Type',
             items=
             [
-                ('NONE', 'None', '', '', 0),
-                ('RIGID_BODY', 'RIGID_BODY', '', '', 1),
-                ('CONSTRAINT', 'CONSTRAINT', '', '', 2),
-                ('COLLISION_SHAPE', 'COLLISION_SHAPE', '', '', 3),
+                ('MESH', 'MESH', '', 'MESH_ICOSPHERE', 0),
+                ('SINGULAR_SHAPE', 'Singular Shape', '', 'MESH_CUBE', 1),
+                ('COMPOUND_SHAPE', 'Compound Shape', '', 'OUTLINER_OB_GROUP_INSTANCE', 2),
             ],
-            default='NONE'
+            default='MESH',
+            update=rigid_body_collision_type_update_cb,
+            description='Choose between a singular or a compound collision that consists of multiple shapes'
+        )
+
+    Object.ambf_collision_mesh_type = EnumProperty \
+            (
+            name='Collision Mesh Type',
+            items=
+            [
+                ('CONCAVE_MESH', 'Concave Mesh', '', 'MESH_ICOSPHERE', 0),
+                ('CONVEX_MESH', 'Convex Mesh', '', 'MESH_CUBE', 1),
+                ('CONVEX_HULL', 'Convex Hull', '', 'OUTLINER_OB_GROUP_INSTANCE', 2),
+            ],
+            default='CONVEX_HULL',
+            description='Choose between the type of the collision mesh. Avoid Concave Meshes if you can.'
+        )
+
+    Object.ambf_collision_groups = BoolVectorProperty \
+            (
+            name='Collision Groups',
+            size=20,
+            default=(0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0),
+            options={'PROPORTIONAL'},
+            subtype='LAYER'
         )
 
     Object.ambf_rigid_body_controller_output_type = EnumProperty \
@@ -4028,7 +4028,7 @@ def register():
             description='The output of the controller fed to the simulation. Better to use (VELOCITY) with P <= 10, D <= 1'
         )
 
-    Scene.adf_conf_path = StringProperty \
+    Scene.ambf_adf_path = StringProperty \
             (
             name="Config (Save To)",
             default="",
@@ -4036,7 +4036,7 @@ def register():
             subtype='FILE_PATH'
         )
 
-    Scene.adf_mesh_path = StringProperty \
+    Scene.ambf_meshes_path = StringProperty \
             (
             name="Meshes (Save To)",
             default="",
@@ -4044,7 +4044,7 @@ def register():
             subtype='DIR_PATH'
         )
 
-    Scene.mesh_output_type = EnumProperty \
+    Scene.ambf_meshes_save_type = EnumProperty \
             (
             items=
             [
@@ -4057,29 +4057,21 @@ def register():
             default='STL'
         )
 
-    Scene.mesh_max_vertices = IntProperty \
+    Scene.ambf_mesh_max_vertices = IntProperty \
             (
             name="",
             default=150,
             description="The maximum number of vertices the low resolution collision mesh is allowed to have",
         )
 
-    Scene.adjust_joint_pivots = BoolProperty \
-            (
-            name="Adjust Child Pivots",
-            default=False,
-            description="If the child axis is offset from the joint axis, correct for this offset, keep this to "
-                        "default (True) unless you want to debug the model or something advanced",
-        )
-
-    Scene.ignore_inter_collision = BoolProperty \
+    Scene.ambf_ignore_inter_collision = BoolProperty \
             (
             name="Ignore Inter-Collision",
             default=True,
             description="Ignore collision between all the bodies in the scene (default = True)",
         )
 
-    Scene.external_adf_filepath = StringProperty \
+    Scene.ambf_load_adf_filepath = StringProperty \
             (
             name="AMBF Config",
             default="",
@@ -4101,7 +4093,7 @@ def register():
             update=collision_shape_show_update_cb
         )
 
-    Scene.enable_forced_cleanup = BoolProperty \
+    Scene.ambf_enable_forced_cleanup = BoolProperty \
             (
             name="Enable Forced Cleanup",
             default=False
