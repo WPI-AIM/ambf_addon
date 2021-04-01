@@ -1022,7 +1022,7 @@ class AMBF_OT_generate_ambf_file(Operator):
                 body_data['collision margin'] = round(obj_handle.ambf_collision_margin, 4)
 
             if obj_handle.ambf_collision_type == 'MESH':
-                body_data['collision mesh type'] = obj_handle.ambf_rigid_body_collision_mesh_type
+                body_data['collision mesh type'] = obj_handle.ambf_collision_mesh_type
             elif obj_handle.ambf_collision_type == 'SINGULAR_SHAPE':
                 shape_prop_group = obj_handle.ambf_collision_shape_prop_collection.items()[0][1]
                 body_data['collision shape'] = shape_prop_group.ambf_collision_shape
@@ -2208,10 +2208,10 @@ class AMBF_OT_load_ambf_file(Operator):
                 # Since the shape is neither a single or a compound shape, it is a mesh based collision.
                 # Now figure out what type of collision mesh is used. (CONCAVE_MESH, CONVEX_MESH or CONVEX_HULL)
                 if 'collision mesh type' in body_data:
-                    obj_handle.ambf_rigid_body_collision_mesh_type = body_data['collision mesh type']
+                    obj_handle.ambf_collision_mesh_type = body_data['collision mesh type']
                 else:
                     # For backward compatibility, the default collision mesh type used to be CONCAVE_MESH
-                    obj_handle.ambf_rigid_body_collision_mesh_type = 'CONCAVE_MESH'
+                    obj_handle.ambf_collision_mesh_type = 'CONCAVE_MESH'
 
             if 'collision groups' in body_data:
                 col_groups = body_data['collision groups']
@@ -3202,7 +3202,7 @@ class AMBF_PT_ambf_rigid_body(Panel):
             if context.object.ambf_collision_type == 'MESH':
 
                 col = box.column()
-                col.prop(context.object, 'ambf_rigid_body_collision_mesh_type')
+                col.prop(context.object, 'ambf_collision_mesh_type')
 
             elif context.object.ambf_collision_type == 'SINGULAR_SHAPE':
 
