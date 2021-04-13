@@ -348,6 +348,11 @@ def select_object(obj_handle, select=True):
     obj_handle.select_set(select)
 
 
+def select_objects(obj_handles, select=True):
+    for obj_handle in obj_handles:
+        select_object(obj_handle, select)
+
+
 def select_all_objects(select):
     # First deselect all objects
     for obj_handle in bpy.data.objects:
@@ -377,6 +382,10 @@ def get_active_object():
 def set_active_object(active_object):
    # bpy.context.scene.objects.active = active_object
     bpy.context.view_layer.objects.active = active_object
+
+
+def get_selected_objects():
+    return bpy.context.selected_objects
 
 
 def make_obj1_parent_of_obj2(obj1, obj2):
@@ -1788,7 +1797,10 @@ class AMBF_OT_save_meshes(Operator):
         select_object(obj_handle, False)
 
     def save_meshes(self, context):
-        # First deselect all objects
+        # Get the list of currently selected objects
+        selected_objects = get_selected_objects()
+
+        # Now deselect all objects
         select_all_objects(False)
 
         save_path = bpy.path.abspath(context.scene.ambf_meshes_path)
@@ -1800,14 +1812,17 @@ class AMBF_OT_save_meshes(Operator):
 
         mesh_name_mat_list = self.set_all_meshes_to_origin()
         if context.scene.ambf_save_selection_only:
-            obj_handle = get_active_object()
-            self.save_body_textures(context, obj_handle, high_res_path)
-            self.save_body_meshes(context, obj_handle, mesh_type, high_res_path, low_res_path)
+            for obj_handle in selected_objects:
+                self.save_body_textures(context, obj_handle, high_res_path)
+                self.save_body_meshes(context, obj_handle, mesh_type, high_res_path, low_res_path)
         else:
             for obj_handle in bpy.data.objects:
                 self.save_body_textures(context, obj_handle, high_res_path)
                 self.save_body_meshes(context, obj_handle, mesh_type, high_res_path, low_res_path)
         self.reset_meshes_to_original_position(mesh_name_mat_list)
+
+        # Now reselect the objects that we selected prior to saving meshes
+        select_objects(selected_objects, True)
 
 
 class AMBF_OT_generate_low_res_mesh_modifiers(Operator):
