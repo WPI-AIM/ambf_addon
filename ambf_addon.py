@@ -2810,6 +2810,9 @@ class AMBF_OT_load_ambf_file(Operator):
         for joint_name in joints_list:
             self.load_ambf_joint(joint_name)
 
+        # Set the model ignore collision flag
+        context.scene.ambf_ignore_inter_collision = self._adf_data['ignore inter-collision']
+
         # print('Printing Blender Remapped Body Names')
         # print(self._blender_remapped_body_names)
         return {'FINISHED'}
