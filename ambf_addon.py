@@ -106,6 +106,10 @@ def represent_dictionary_order(self, dict_data):
     return self.represent_mapping('tag:yaml.org,2002:map', dict_data.items())
 
 
+def ambf_round(val):
+    return round(val, bpy.context.scene.ambf_precision)
+
+
 def setup_yaml():
     yaml.add_representer(OrderedDict, represent_dictionary_order)
 
@@ -155,7 +159,7 @@ def vec_norm(v):
 
 def round_vec(v):
     for i in range(0, 3):
-        v[i] = round(v[i], 4)
+        v[i] = ambf_round(v[i])
     return v
 
 
@@ -681,9 +685,9 @@ def calculate_principal_inertia(obj_handle):
     I[0] = I[0] + mass * (off[1] ** 2 + off[2] ** 2)
     I[1] = I[1] + mass * (off[0] ** 2 + off[2] ** 2)
     I[2] = I[2] + mass * (off[0] ** 2 + off[1] ** 2)
-    ix = round(I[0], 4)
-    iy = round(I[1], 4)
-    iz = round(I[2], 4)
+    ix = ambf_round(I[0])
+    iy = ambf_round(I[1])
+    iz = ambf_round(I[2])
     print(ix, iy, iz)
     return I
 
@@ -787,9 +791,9 @@ def collision_shape_update_dimensions(shape_prop):
     ly = shape_prop.ambf_collision_shape_xyz_dims[1]
     lz = shape_prop.ambf_collision_shape_xyz_dims[2]
     
-    lx = round(lx, 4)
-    ly = round(ly, 4)
-    lz = round(lz, 4)
+    lx = ambf_round(lx)
+    ly = ambf_round(ly)
+    lz = ambf_round(lz)
 
     dim_old = coll_shape_obj_handle.dimensions.copy()
     scale_old = coll_shape_obj_handle.scale.copy()
@@ -1095,12 +1099,12 @@ class AMBF_OT_generate_ambf_file(Operator):
         world_rot = obj_handle.matrix_world.to_euler()
         body_pos = body_data['location']['position']
         body_rot = body_data['location']['orientation']
-        body_pos['x'] = round(world_pos.x, 4)
-        body_pos['y'] = round(world_pos.y, 4)
-        body_pos['z'] = round(world_pos.z, 4)
-        body_rot['r'] = round(world_rot[0], 4)
-        body_rot['p'] = round(world_rot[1], 4)
-        body_rot['y'] = round(world_rot[2], 4)
+        body_pos['x'] = ambf_round(world_pos.x)
+        body_pos['y'] = ambf_round(world_pos.y)
+        body_pos['z'] = ambf_round(world_pos.z)
+        body_rot['r'] = ambf_round(world_rot[0])
+        body_rot['p'] = ambf_round(world_rot[1])
+        body_rot['y'] = ambf_round(world_rot[2])
 
         if obj_handle.type == 'EMPTY':
             body_data['mesh'] = ''
@@ -1112,9 +1116,9 @@ class AMBF_OT_generate_ambf_file(Operator):
                 else:
                     body_data['mass'] = obj_handle.ambf_rigid_body_mass
                     if obj_handle.ambf_rigid_body_specify_inertia:
-                        body_data['inertia'] = {'ix': round(obj_handle.ambf_rigid_body_inertia_x, 4),
-                                                'iy': round(obj_handle.ambf_rigid_body_inertia_y, 4),
-                                                'iz': round(obj_handle.ambf_rigid_body_inertia_z, 4)}
+                        body_data['inertia'] = {'ix': ambf_round(obj_handle.ambf_rigid_body_inertia_x),
+                                                'iy': ambf_round(obj_handle.ambf_rigid_body_inertia_y),
+                                                'iz': ambf_round(obj_handle.ambf_rigid_body_inertia_z)}
                     else:
                         body_data['inertia'] = {'ix': 0.01, 'iy': 0.01, 'iz': 0.01}
 
@@ -1123,27 +1127,27 @@ class AMBF_OT_generate_ambf_file(Operator):
             if obj_handle.ambf_rigid_body_is_static:
                 body_data['mass'] = 0.0
             else:
-                body_data['mass'] = round(obj_handle.ambf_rigid_body_mass, 4)
+                body_data['mass'] = ambf_round(obj_handle.ambf_rigid_body_mass)
                 if obj_handle.ambf_rigid_body_specify_inertia:
-                    body_data['inertia'] = {'ix': round(obj_handle.ambf_rigid_body_inertia_x, 4),
-                                            'iy': round(obj_handle.ambf_rigid_body_inertia_y, 4),
-                                            'iz': round(obj_handle.ambf_rigid_body_inertia_z, 4)}
+                    body_data['inertia'] = {'ix': ambf_round(obj_handle.ambf_rigid_body_inertia_x),
+                                            'iy': ambf_round(obj_handle.ambf_rigid_body_inertia_y),
+                                            'iz': ambf_round(obj_handle.ambf_rigid_body_inertia_z)}
                 else:
                     # We can delete the inertia as it will be estimated in AMBF
                     del body_data['inertia']
 
-            body_data['friction'] = {'static': round(obj_handle.ambf_rigid_body_static_friction, 4),
-                                     'rolling': round(obj_handle.ambf_rigid_body_rolling_friction, 4)}
+            body_data['friction'] = {'static': ambf_round(obj_handle.ambf_rigid_body_static_friction),
+                                     'rolling': ambf_round(obj_handle.ambf_rigid_body_rolling_friction)}
 
-            body_data['restitution'] = round(obj_handle.ambf_rigid_body_restitution, 4)
+            body_data['restitution'] = ambf_round(obj_handle.ambf_rigid_body_restitution)
 
-            body_data['damping'] = {'linear': round(obj_handle.ambf_rigid_body_linear_damping, 4),
-                                    'angular': round(obj_handle.ambf_rigid_body_angular_damping, 4)}
+            body_data['damping'] = {'linear': ambf_round(obj_handle.ambf_rigid_body_linear_damping),
+                                    'angular': ambf_round(obj_handle.ambf_rigid_body_angular_damping)}
 
             body_data['collision groups'] = [idx for idx, chk in enumerate(obj_handle.ambf_collision_groups) if chk == True]
 
             if obj_handle.ambf_collision_margin_enable is True:
-                body_data['collision margin'] = round(obj_handle.ambf_collision_margin, 4)
+                body_data['collision margin'] = ambf_round(obj_handle.ambf_collision_margin)
 
             if obj_handle.ambf_collision_type == 'MESH':
                 body_data['collision mesh type'] = obj_handle.ambf_collision_mesh_type
@@ -1155,24 +1159,24 @@ class AMBF_OT_generate_ambf_file(Operator):
                 # Now we need to find out the geometry of the shape
                 if shape_prop_group.ambf_collision_shape == 'BOX':
                     bcg = get_xyz_ordered_dict()
-                    bcg['x'] = round(shape_prop_group.ambf_collision_shape_xyz_dims[0], 4)
-                    bcg['y'] = round(shape_prop_group.ambf_collision_shape_xyz_dims[1], 4)
-                    bcg['z'] = round(shape_prop_group.ambf_collision_shape_xyz_dims[2], 4)
+                    bcg['x'] = ambf_round(shape_prop_group.ambf_collision_shape_xyz_dims[0])
+                    bcg['y'] = ambf_round(shape_prop_group.ambf_collision_shape_xyz_dims[1])
+                    bcg['z'] = ambf_round(shape_prop_group.ambf_collision_shape_xyz_dims[2])
                 elif shape_prop_group.ambf_collision_shape == 'SPHERE':
-                    bcg = {'radius': round(shape_prop_group.ambf_collision_shape_radius, 4)}
+                    bcg = {'radius': ambf_round(shape_prop_group.ambf_collision_shape_radius)}
                 elif shape_prop_group.ambf_collision_shape in ['CONE', 'CYLINDER', 'CAPSULE']:
-                    bcg = {'radius': round(shape_prop_group.ambf_collision_shape_radius, 4),
-                           'height': round(shape_prop_group.ambf_collision_shape_height, 4),
+                    bcg = {'radius': ambf_round(shape_prop_group.ambf_collision_shape_radius),
+                           'height': ambf_round(shape_prop_group.ambf_collision_shape_height),
                            'axis': shape_prop_group.ambf_collision_shape_axis}
                 body_data['collision geometry'] = bcg
 
                 offset = get_pose_ordered_dict()
-                offset['position']['x'] = round(shape_prop_group.ambf_collision_shape_linear_offset[0], 4)
-                offset['position']['y'] = round(shape_prop_group.ambf_collision_shape_linear_offset[1], 4)
-                offset['position']['z'] = round(shape_prop_group.ambf_collision_shape_linear_offset[2], 4)
-                offset['orientation']['r'] = round(shape_prop_group.ambf_collision_shape_angular_offset[0], 4)
-                offset['orientation']['p'] = round(shape_prop_group.ambf_collision_shape_angular_offset[1], 4)
-                offset['orientation']['y'] = round(shape_prop_group.ambf_collision_shape_angular_offset[2], 4)
+                offset['position']['x'] = ambf_round(shape_prop_group.ambf_collision_shape_linear_offset[0])
+                offset['position']['y'] = ambf_round(shape_prop_group.ambf_collision_shape_linear_offset[1])
+                offset['position']['z'] = ambf_round(shape_prop_group.ambf_collision_shape_linear_offset[2])
+                offset['orientation']['r'] = ambf_round(shape_prop_group.ambf_collision_shape_angular_offset[0])
+                offset['orientation']['p'] = ambf_round(shape_prop_group.ambf_collision_shape_angular_offset[1])
+                offset['orientation']['y'] = ambf_round(shape_prop_group.ambf_collision_shape_angular_offset[2])
                 body_data['collision offset'] = offset
             elif obj_handle.ambf_collision_type == 'COMPOUND_SHAPE':
                 if 'collision shape' in body_data:
@@ -1187,15 +1191,15 @@ class AMBF_OT_generate_ambf_file(Operator):
                     bcg['geometry'] = OrderedDict()
                     # Now we need to find out the geometry of the shape
                     if shape_prop_group.ambf_collision_shape == 'BOX':
-                        bcg['geometry'] = {'x': round(shape_prop_group.ambf_collision_shape_xyz_dims[0], 4),
-                                           'y': round(shape_prop_group.ambf_collision_shape_xyz_dims[1], 4),
-                                           'z': round(shape_prop_group.ambf_collision_shape_xyz_dims[2], 4)}
+                        bcg['geometry'] = {'x': ambf_round(shape_prop_group.ambf_collision_shape_xyz_dims[0]),
+                                           'y': ambf_round(shape_prop_group.ambf_collision_shape_xyz_dims[1]),
+                                           'z': ambf_round(shape_prop_group.ambf_collision_shape_xyz_dims[2])}
                     elif shape_prop_group.ambf_collision_shape == 'SPHERE':
-                        bcg['geometry'] = {'radius': round(shape_prop_group.ambf_collision_shape_radius, 4)}
+                        bcg['geometry'] = {'radius': ambf_round(shape_prop_group.ambf_collision_shape_radius)}
                     elif shape_prop_group.ambf_collision_shape in ['CONE', 'CYLINDER', 'CAPSULE']:
                         geometry = dict({'radius': 0, 'height': 0, 'axis': 'Z'})
-                        geometry['radius'] = round(shape_prop_group.ambf_collision_shape_radius, 4)
-                        geometry['height'] = round(shape_prop_group.ambf_collision_shape_height, 4)
+                        geometry['radius'] = ambf_round(shape_prop_group.ambf_collision_shape_radius)
+                        geometry['height'] = ambf_round(shape_prop_group.ambf_collision_shape_height)
                         geometry['axis'] = shape_prop_group.ambf_collision_shape_axis
                         bcg['geometry'] = geometry
 
@@ -1214,9 +1218,9 @@ class AMBF_OT_generate_ambf_file(Operator):
 
             body_data['mesh'] = obj_handle_name + '.' + output_mesh
             xyz_inertial_off = get_xyz_ordered_dict()
-            xyz_inertial_off['x'] = round(obj_handle.ambf_rigid_body_linear_inertial_offset[0], 4)
-            xyz_inertial_off['y'] = round(obj_handle.ambf_rigid_body_linear_inertial_offset[1], 4)
-            xyz_inertial_off['z'] = round(obj_handle.ambf_rigid_body_linear_inertial_offset[2], 4)
+            xyz_inertial_off['x'] = ambf_round(obj_handle.ambf_rigid_body_linear_inertial_offset[0])
+            xyz_inertial_off['y'] = ambf_round(obj_handle.ambf_rigid_body_linear_inertial_offset[1])
+            xyz_inertial_off['z'] = ambf_round(obj_handle.ambf_rigid_body_linear_inertial_offset[2])
 
             body_data['inertial offset']['position'] = xyz_inertial_off
 
@@ -1229,34 +1233,34 @@ class AMBF_OT_generate_ambf_file(Operator):
                                                  'transparency': 1.0}
 
                 mat = obj_handle.data.materials[0]
-                body_data['color components']['diffuse']['r'] = round(mat.diffuse_color[0], 4)
-                body_data['color components']['diffuse']['g'] = round(mat.diffuse_color[1], 4)
-                body_data['color components']['diffuse']['b'] = round(mat.diffuse_color[2], 4)
+                body_data['color components']['diffuse']['r'] = ambf_round(mat.diffuse_color[0])
+                body_data['color components']['diffuse']['g'] = ambf_round(mat.diffuse_color[1])
+                body_data['color components']['diffuse']['b'] = ambf_round(mat.diffuse_color[2])
 
                 spec_r = mat.diffuse_color[0] * mat.specular_intensity
                 spec_g = mat.diffuse_color[1] * mat.specular_intensity
                 spec_b = mat.diffuse_color[1] * mat.specular_intensity
 
-                body_data['color components']['specular']['r'] = round(spec_r, 4)
-                body_data['color components']['specular']['g'] = round(spec_g, 4)
-                body_data['color components']['specular']['b'] = round(spec_b, 4)
+                body_data['color components']['specular']['r'] = ambf_round(spec_r)
+                body_data['color components']['specular']['g'] = ambf_round(spec_g)
+                body_data['color components']['specular']['b'] = ambf_round(spec_b)
 
                 body_data['color components']['ambient']['level'] = 1.0
 
-                body_data['color components']['transparency'] = round(mat.diffuse_color[3], 4)
+                body_data['color components']['transparency'] = ambf_round(mat.diffuse_color[3])
 
             # Set the body controller data from the controller props
             if obj_handle.ambf_rigid_body_enable_controllers is True:
                 _controller_gains = OrderedDict()
                 _lin_gains = OrderedDict()
                 _ang_gains = OrderedDict()
-                _lin_gains['P'] = round(obj_handle.ambf_rigid_body_linear_controller_p_gain, 4)
-                _lin_gains['I'] = round(obj_handle.ambf_rigid_body_linear_controller_i_gain, 4)
-                _lin_gains['D'] = round(obj_handle.ambf_rigid_body_linear_controller_d_gain, 4)
+                _lin_gains['P'] = ambf_round(obj_handle.ambf_rigid_body_linear_controller_p_gain)
+                _lin_gains['I'] = ambf_round(obj_handle.ambf_rigid_body_linear_controller_i_gain)
+                _lin_gains['D'] = ambf_round(obj_handle.ambf_rigid_body_linear_controller_d_gain)
 
-                _ang_gains['P'] = round(obj_handle.ambf_rigid_body_angular_controller_p_gain, 4)
-                _ang_gains['I'] = round(obj_handle.ambf_rigid_body_angular_controller_i_gain, 4)
-                _ang_gains['D'] = round(obj_handle.ambf_rigid_body_angular_controller_d_gain, 4)
+                _ang_gains['P'] = ambf_round(obj_handle.ambf_rigid_body_angular_controller_p_gain)
+                _ang_gains['I'] = ambf_round(obj_handle.ambf_rigid_body_angular_controller_i_gain)
+                _ang_gains['D'] = ambf_round(obj_handle.ambf_rigid_body_angular_controller_d_gain)
 
                 _controller_gains['linear'] = _lin_gains
                 _controller_gains['angular'] = _ang_gains
@@ -1317,21 +1321,21 @@ class AMBF_OT_generate_ambf_file(Operator):
 
         parent_pivot_data = joint_data["parent pivot"]
         parent_axis_data = joint_data["parent axis"]
-        parent_pivot_data['x'] = round(parent_pivot.x, 4)
-        parent_pivot_data['y'] = round(parent_pivot.y, 4)
-        parent_pivot_data['z'] = round(parent_pivot.z, 4)
-        parent_axis_data['x'] = round(parent_axis.x, 4)
-        parent_axis_data['y'] = round(parent_axis.y, 4)
-        parent_axis_data['z'] = round(parent_axis.z, 4)
+        parent_pivot_data['x'] = ambf_round(parent_pivot.x)
+        parent_pivot_data['y'] = ambf_round(parent_pivot.y)
+        parent_pivot_data['z'] = ambf_round(parent_pivot.z)
+        parent_axis_data['x'] = ambf_round(parent_axis.x)
+        parent_axis_data['y'] = ambf_round(parent_axis.y)
+        parent_axis_data['z'] = ambf_round(parent_axis.z)
 
         child_pivot_data = joint_data["child pivot"]
         child_axis_data = joint_data["child axis"]
-        child_pivot_data['x'] = round(child_pivot.x, 4)
-        child_pivot_data['y'] = round(child_pivot.y, 4)
-        child_pivot_data['z'] = round(child_pivot.z, 4)
-        child_axis_data['x'] = round(child_axis.x, 4)
-        child_axis_data['y'] = round(child_axis.y, 4)
-        child_axis_data['z'] = round(child_axis.z, 4)
+        child_pivot_data['x'] = ambf_round(child_pivot.x)
+        child_pivot_data['y'] = ambf_round(child_pivot.y)
+        child_pivot_data['z'] = ambf_round(child_pivot.z)
+        child_axis_data['x'] = ambf_round(child_axis.x)
+        child_axis_data['y'] = ambf_round(child_axis.y)
+        child_axis_data['z'] = ambf_round(child_axis.z)
 
         # This method assigns joint limits, joint_type, joint damping and stiffness for spring joints
         self.assign_joint_params_from_ambf_constraint(joint_obj_handle, joint_data)
@@ -1351,7 +1355,7 @@ class AMBF_OT_generate_ambf_file(Operator):
         child_offset_axis_angle = r_angular_offset.to_quaternion().to_axis_angle()
 
         if abs(child_offset_axis_angle[1]) > 0.0:
-            offset_angle = round(child_offset_axis_angle[1], 4)
+            offset_angle = ambf_round(child_offset_axis_angle[1])
 
             if abs(1.0 - child_axis.dot(child_offset_axis_angle[0])) < 0.1:
                 joint_data['offset'] = offset_angle
@@ -1381,7 +1385,7 @@ class AMBF_OT_generate_ambf_file(Operator):
         joint_offset_axis_angle = r_angular_offset.to_quaternion().to_axis_angle()
 
         if abs(joint_offset_axis_angle[1]) > 0.0:
-            joint_offset_angle = round(joint_offset_axis_angle[1], 4)
+            joint_offset_angle = ambf_round(joint_offset_axis_angle[1])
 
             if abs(1.0 - joint_axis.dot(joint_offset_axis_angle[0])) < 0.1:
                 joint_data['joint offset'] = joint_offset_angle
@@ -1474,8 +1478,8 @@ class AMBF_OT_generate_ambf_file(Operator):
 
         if joint_obj_handle.ambf_constraint_type in ['REVOLUTE', 'TORSION_SPRING']:
             if joint_obj_handle.ambf_constraint_limits_enable:
-                joint_data['joint limits'] = {'low': round(math.radians(joint_obj_handle.ambf_constraint_limits_lower), 4),
-                                        'high': round(math.radians(joint_obj_handle.ambf_constraint_limits_higher), 4)}
+                joint_data['joint limits'] = {'low': ambf_round(math.radians(joint_obj_handle.ambf_constraint_limits_lower)),
+                                        'high': ambf_round(math.radians(joint_obj_handle.ambf_constraint_limits_higher))}
             else:
                 del joint_data['joint limits']
 
@@ -1483,61 +1487,61 @@ class AMBF_OT_generate_ambf_file(Operator):
 
         elif joint_obj_handle.ambf_constraint_type in ['PRISMATIC', 'LINEAR_SPRING']:
             if joint_obj_handle.ambf_constraint_limits_enable:
-                joint_data['joint limits'] = {'low': round(joint_obj_handle.ambf_constraint_limits_lower, 4),
-                                        'high': round(joint_obj_handle.ambf_constraint_limits_higher, 4)}
+                joint_data['joint limits'] = {'low': ambf_round(joint_obj_handle.ambf_constraint_limits_lower),
+                                        'high': ambf_round(joint_obj_handle.ambf_constraint_limits_higher)}
             else:
                 del joint_data['joint limits']
 
             joint_data['max motor impulse'] = joint_obj_handle.ambf_constraint_max_motor_impulse
 
         elif joint_obj_handle.ambf_constraint_type == 'CONE_TWIST':
-            lims = {'x': round(math.radians(joint_obj_handle.ambf_constraint_cone_twist_limits[0]), 4),
-                    'y': round(math.radians(joint_obj_handle.ambf_constraint_cone_twist_limits[1]), 4),
-                    'z': round(math.radians(joint_obj_handle.ambf_constraint_cone_twist_limits[2]), 4)}
+            lims = {'x', ambf_round(math.radians(joint_obj_handle.ambf_constraint_cone_twist_limits[0])),
+                    'y', ambf_round(math.radians(joint_obj_handle.ambf_constraint_cone_twist_limits[1])),
+                    'z', ambf_round(math.radians(joint_obj_handle.ambf_constraint_cone_twist_limits[2]))}
             joint_data['joint limits'] = lims
 
         elif joint_obj_handle.ambf_constraint_type in ['SIX_DOF', 'SIX_DOF_SPRING']:
-            ang_lims_low = {'x': round(math.radians(joint_obj_handle.ambf_constraint_six_dof_limits_low_angular[0]), 4),
-                            'y': round(math.radians(joint_obj_handle.ambf_constraint_six_dof_limits_low_angular[1]), 4),
-                            'z': round(math.radians(joint_obj_handle.ambf_constraint_six_dof_limits_low_angular[2]), 4)}
+            ang_lims_low = {'x': ambf_round(math.radians(joint_obj_handle.ambf_constraint_six_dof_limits_low_angular[0])),
+                            'y': ambf_round(math.radians(joint_obj_handle.ambf_constraint_six_dof_limits_low_angular[1])),
+                            'z': ambf_round(math.radians(joint_obj_handle.ambf_constraint_six_dof_limits_low_angular[2]))}
 
-            ang_lims_hig = {'x': round(math.radians(joint_obj_handle.ambf_constraint_six_dof_limits_high_angular[0]), 4),
-                            'y': round(math.radians(joint_obj_handle.ambf_constraint_six_dof_limits_high_angular[1]), 4),
-                            'z': round(math.radians(joint_obj_handle.ambf_constraint_six_dof_limits_high_angular[2]), 4)}
+            ang_lims_hig = {'x': ambf_round(math.radians(joint_obj_handle.ambf_constraint_six_dof_limits_high_angular[0])),
+                            'y': ambf_round(math.radians(joint_obj_handle.ambf_constraint_six_dof_limits_high_angular[1])),
+                            'z': ambf_round(math.radians(joint_obj_handle.ambf_constraint_six_dof_limits_high_angular[2]))}
 
-            lin_lims_low = {'x': round(joint_obj_handle.ambf_constraint_six_dof_limits_low_linear[0], 4),
-                            'y': round(joint_obj_handle.ambf_constraint_six_dof_limits_low_linear[1], 4),
-                            'z': round(joint_obj_handle.ambf_constraint_six_dof_limits_low_linear[2], 4)}
+            lin_lims_low = {'x': ambf_round(joint_obj_handle.ambf_constraint_six_dof_limits_low_linear[0]),
+                            'y': ambf_round(joint_obj_handle.ambf_constraint_six_dof_limits_low_linear[1]),
+                            'z': ambf_round(joint_obj_handle.ambf_constraint_six_dof_limits_low_linear[2])}
 
-            lin_lims_hig = {'x': round(joint_obj_handle.ambf_constraint_six_dof_limits_high_linear[0], 4),
-                            'y': round(joint_obj_handle.ambf_constraint_six_dof_limits_high_linear[1], 4),
-                            'z': round(joint_obj_handle.ambf_constraint_six_dof_limits_high_linear[2], 4)}
+            lin_lims_hig = {'x': ambf_round(joint_obj_handle.ambf_constraint_six_dof_limits_high_linear[0]),
+                            'y': ambf_round(joint_obj_handle.ambf_constraint_six_dof_limits_high_linear[1]),
+                            'z': ambf_round(joint_obj_handle.ambf_constraint_six_dof_limits_high_linear[2])}
 
             joint_data['joint limits'] = {'angular': {'low': ang_lims_low, 'high': ang_lims_hig},
                                           'linear': {'low': lin_lims_low, 'high': lin_lims_hig}}
 
         if joint_obj_handle.ambf_constraint_type in ['LINEAR_SPRING', 'TORSION_SPRING']:
-            joint_data['stiffness'] = round(joint_obj_handle.ambf_constraint_stiffness, 4)
-            joint_data['equilibrium point'] = round(math.radians(joint_obj_handle.ambf_constraint_equilibrium_point), 4)
+            joint_data['stiffness'] = ambf_round(joint_obj_handle.ambf_constraint_stiffness)
+            joint_data['equilibrium point'] = ambf_round(math.radians(joint_obj_handle.ambf_constraint_equilibrium_point))
 
         elif joint_obj_handle.ambf_constraint_type == 'SIX_DOF_SPRING':
-            ang_stiffness = {'x': round(joint_obj_handle.ambf_constraint_six_dof_stiffness_angular[0], 4),
-                             'y': round(joint_obj_handle.ambf_constraint_six_dof_stiffness_angular[1], 4),
-                             'z': round(joint_obj_handle.ambf_constraint_six_dof_stiffness_angular[2], 4)}
+            ang_stiffness = {'x': ambf_round(joint_obj_handle.ambf_constraint_six_dof_stiffness_angular[0]),
+                             'y': ambf_round(joint_obj_handle.ambf_constraint_six_dof_stiffness_angular[1]),
+                             'z': ambf_round(joint_obj_handle.ambf_constraint_six_dof_stiffness_angular[2])}
 
-            lin_stiffness = {'x': round(joint_obj_handle.ambf_constraint_six_dof_stiffness_linear[0], 4),
-                             'y': round(joint_obj_handle.ambf_constraint_six_dof_stiffness_linear[1], 4),
-                             'z': round(joint_obj_handle.ambf_constraint_six_dof_stiffness_linear[2], 4)}
+            lin_stiffness = {'x': ambf_round(joint_obj_handle.ambf_constraint_six_dof_stiffness_linear[0]),
+                             'y': ambf_round(joint_obj_handle.ambf_constraint_six_dof_stiffness_linear[1]),
+                             'z': ambf_round(joint_obj_handle.ambf_constraint_six_dof_stiffness_linear[2])}
 
             joint_data['stiffness'] = {'angular': ang_stiffness, 'linear': lin_stiffness}
 
-            ang_equilib = {'x': round(math.radians(joint_obj_handle.ambf_constraint_six_dof_equilibrium_angular[0]), 4),
-                           'y': round(math.radians(joint_obj_handle.ambf_constraint_six_dof_equilibrium_angular[1]), 4),
-                           'z': round(math.radians(joint_obj_handle.ambf_constraint_six_dof_equilibrium_angular[2]), 4)}
+            ang_equilib = {'x': ambf_round(math.radians(joint_obj_handle.ambf_constraint_six_dof_equilibrium_angular[0])),
+                           'y': ambf_round(math.radians(joint_obj_handle.ambf_constraint_six_dof_equilibrium_angular[1])),
+                           'z': ambf_round(math.radians(joint_obj_handle.ambf_constraint_six_dof_equilibrium_angular[2]))}
 
-            lin_equilib = {'x': round(joint_obj_handle.ambf_constraint_six_dof_equilibrium_linear[0], 4),
-                           'y': round(joint_obj_handle.ambf_constraint_six_dof_equilibrium_linear[1], 4),
-                           'z': round(joint_obj_handle.ambf_constraint_six_dof_equilibrium_linear[2], 4)}
+            lin_equilib = {'x': ambf_round(joint_obj_handle.ambf_constraint_six_dof_equilibrium_linear[0]),
+                           'y': ambf_round(joint_obj_handle.ambf_constraint_six_dof_equilibrium_linear[1]),
+                           'z': ambf_round(joint_obj_handle.ambf_constraint_six_dof_equilibrium_linear[2])}
 
             joint_data['equilibrium point'] = {'angular': ang_equilib, 'linear': lin_equilib}
 
@@ -1546,15 +1550,15 @@ class AMBF_OT_generate_ambf_file(Operator):
                 del joint_data['stiffness']
 
         if joint_obj_handle.ambf_constraint_type in ['REVOLUTE', 'TORSION_SPRING', 'PRISMATIC', 'LINEAR_SPRING', 'CONE_TWIST']:
-            joint_data['damping'] = round(joint_obj_handle.ambf_constraint_damping, 4)
+            joint_data['damping'] = ambf_round(joint_obj_handle.ambf_constraint_damping)
 
         elif joint_obj_handle.ambf_constraint_type == 'SIX_DOF_SPRING':
-            ang_damping = {'x': round(joint_obj_handle.ambf_constraint_six_dof_damping_angular[0], 4),
-                           'y': round(joint_obj_handle.ambf_constraint_six_dof_damping_angular[1], 4),
-                           'z': round(joint_obj_handle.ambf_constraint_six_dof_damping_angular[2], 4)}
-            lin_damping = {'x': round(joint_obj_handle.ambf_constraint_six_dof_damping_linear[0], 4),
-                           'y': round(joint_obj_handle.ambf_constraint_six_dof_damping_linear[1], 4),
-                           'z': round(joint_obj_handle.ambf_constraint_six_dof_damping_linear[2], 4)}
+            ang_damping = {'x': ambf_round(joint_obj_handle.ambf_constraint_six_dof_damping_angular[0]),
+                           'y': ambf_round(joint_obj_handle.ambf_constraint_six_dof_damping_angular[1]),
+                           'z': ambf_round(joint_obj_handle.ambf_constraint_six_dof_damping_angular[2])}
+            lin_damping = {'x': ambf_round(joint_obj_handle.ambf_constraint_six_dof_damping_linear[0]),
+                           'y': ambf_round(joint_obj_handle.ambf_constraint_six_dof_damping_linear[1]),
+                           'z': ambf_round(joint_obj_handle.ambf_constraint_six_dof_damping_linear[2])}
             joint_data['damping'] = {'angular': ang_damping, 'linear': lin_damping}
 
 
@@ -1562,9 +1566,9 @@ class AMBF_OT_generate_ambf_file(Operator):
         # Set the joint controller gains data from the joint controller props
         if joint_obj_handle.ambf_constraint_enable_controller_gains:
             _gains = OrderedDict()
-            joint_data['controller']['P'] = round(joint_obj_handle.ambf_constraint_controller_p_gain, 4)
-            joint_data['controller']['I'] = round(joint_obj_handle.ambf_constraint_controller_i_gain, 4)
-            joint_data['controller']['D'] = round(joint_obj_handle.ambf_constraint_controller_d_gain, 4)
+            joint_data['controller']['P'] = ambf_round(joint_obj_handle.ambf_constraint_controller_p_gain)
+            joint_data['controller']['I'] = ambf_round(joint_obj_handle.ambf_constraint_controller_i_gain)
+            joint_data['controller']['D'] = ambf_round(joint_obj_handle.ambf_constraint_controller_d_gain)
             joint_data['controller output type'] = joint_obj_handle.ambf_constraint_controller_output_type
         else:
             del joint_data['controller']
@@ -3116,6 +3120,11 @@ class AMBF_PT_main_panel(Panel):
         col = sbox.column()
         col.alignment = 'CENTER'
         col.prop(context.scene, "ambf_ignore_inter_collision")
+
+        # Ignore Inter Collision Button
+        col = sbox.column()
+        col.alignment = 'CENTER'
+        col.prop(context.scene, "ambf_precision")
         
         # AMBF Namespace
         col = sbox.column()
@@ -4174,6 +4183,13 @@ def register():
             name="Ignore Inter-Collision",
             default=True,
             description="Ignore collision between all the bodies in the scene (default = True)",
+        )
+
+    Scene.ambf_precision = IntProperty \
+            (
+            name="Precision",
+            default=5,
+            description="Precision of scalar and vector variables to be written",
         )
 
     Scene.ambf_load_adf_filepath = StringProperty \
