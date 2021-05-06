@@ -1144,6 +1144,8 @@ class AMBF_OT_generate_ambf_file(Operator):
             body_data['damping'] = {'linear': ambf_round(obj_handle.ambf_rigid_body_linear_damping),
                                     'angular': ambf_round(obj_handle.ambf_rigid_body_angular_damping)}
 
+            body_data['visible'] = obj_handle.ambf_object_visible
+
             body_data['collision groups'] = [idx for idx, chk in enumerate(obj_handle.ambf_collision_groups) if chk == True]
 
             if obj_handle.ambf_collision_margin_enable is True:
@@ -2234,6 +2236,9 @@ class AMBF_OT_load_ambf_file(Operator):
             obj_handle.ambf_rigid_body_mass = body_data['mass']
             obj_handle.ambf_object_type = 'RIGID_BODY'
 
+            if 'visible' in body_data:
+                obj_handle.ambf_object_visible = body_data['visible']
+
             if 'inertia' in body_data:
                 obj_handle.ambf_rigid_body_specify_inertia = True
                 obj_handle.ambf_rigid_body_inertia_x = body_data['inertia']['ix']
@@ -3210,6 +3215,10 @@ class AMBF_PT_ambf_rigid_body(Panel):
             layout.separator()
 
             col = layout.column()
+            col.prop(context.object, 'ambf_object_visible', toggle=True)
+            col.scale_y = 2.0
+
+            col = layout.column()
             col.enabled = False
             col.prop(context.object, 'ambf_rigid_body_namespace')
             
@@ -3932,6 +3941,8 @@ def register():
             name="Publish Joint Positions",
             default=False
         )
+
+    Object.ambf_object_visible = BoolProperty(name="Visible", default=True, description='Show this object in AMBF')
 
     Object.ambf_collision_margin_enable = BoolProperty(name="Enable Collision Margin", default=False)
 
