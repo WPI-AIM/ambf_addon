@@ -35,6 +35,7 @@ class BodyTemplate:
         self._adf_data = OrderedDict()
         self._adf_data['name'] = ""
         self._adf_data['mesh'] = ""
+        self._adf_data['collision mesh'] = ""
         self._adf_data['collision mesh type'] = ""
         self._adf_data['mass'] = 0.0
         self._adf_data['inertia'] = {'ix': 0.0, 'iy': 0.0, 'iz': 0.0}
@@ -55,6 +56,7 @@ class GhostObjectTemplate:
         self._adf_data = OrderedDict()
         self._adf_data['name'] = ""
         self._adf_data['mesh'] = ""
+        self._adf_data['collision mesh'] = ""
         self._adf_data['collision mesh type'] = ""
         self._adf_data['collision margin'] = 0.001
         self._adf_data['scale'] = 1.0
@@ -718,6 +720,101 @@ def create_capsule(height, radius, axis='Z'):
     select_object(sphere2)
     set_active_object(cylinder)
     bpy.ops.object.join()
+
+
+def load_blender_mesh(context, mesh_filepath, name):
+    result = True
+    if mesh_filepath.suffix in ['.stl', '.STL']:
+        bpy.ops.import_mesh.stl(filepath=str(mesh_filepath.resolve()))
+
+    elif mesh_filepath.suffix in ['.obj', '.OBJ']:
+        _manually_select_obj_handle = True
+        bpy.ops.import_scene.obj(filepath=str(mesh_filepath.resolve()), axis_up='Z', axis_forward='Y')
+        # Hack, .3ds and .obj imports do not make the imported obj_handle active. A hack is
+        # to capture the selected objects in this case.
+        set_active_object(context.selected_objects[0])
+
+    elif mesh_filepath.suffix in ['.dae', '.DAE']:
+        bpy.ops.wm.collada_import(filepath=str(mesh_filepath.resolve()))
+        # If we are importing .dae meshes, they can import stuff other than meshes, such as cameras etc.
+        # We should remove these extra things and only keep the meshes
+        for temp_obj_handle in context.selected_objects:
+            if temp_obj_handle.type == 'MESH':
+                obj_handle = temp_obj_handle
+                # set_active_object(obj_handle)
+            else:
+                bpy.data.objects.remove(temp_obj_handle)
+
+        so = bpy.context.selected_objects
+        if len(so) > 1:
+            set_active_object(so[0])
+            bpy.ops.object.join()
+            so[0].name = name
+            obj_handle = get_active_object()
+
+            # The lines below are essential in joint the multiple meshes
+            # defined in the .dae into one mesh, secondly, making sure that
+            # the origin of the mesh is what it is supposed to be as
+            # using the join() function call alters the mesh origin
+            trans_o = obj_handle.matrix_world.copy()
+            obj_handle.matrix_world.identity()
+            obj_handle.data.transform(trans_o)
+
+            # Kind of a hack, blender is spawning the collada file
+            # a 90 deg offset along the axis axis, this is to correct that
+            # Maybe this will not be needed in future versions of blender
+            r_x = mathutils.Matrix.Rotation(-pi / 2, 4, 'X')
+            obj_handle.data.transform(r_x)
+        else:
+            set_active_object(so[0])
+
+    elif mesh_filepath.suffix in ['.3ds', '.3DS']:
+        _manually_select_obj_handle = True
+        bpy.ops.import_scene.autodesk_3ds(filepath=str(mesh_filepath.resolve()))
+        # Hack, .3ds and .obj imports do not make the imported obj_handle active. A hack is
+        # to capture the selected objects in this case.
+        set_active_object(context.selected_objects[0])
+
+    elif mesh_filepath.suffix == '':
+        bpy.ops.object.empty_add(type='PLAIN_AXES')
+
+    else:
+        # We failed, mark as false
+        result = False
+
+    return result
+
+
+def save_blender_mesh(obj_handle, mesh_filepath, mesh_type, use_mesh_modifiers):
+    select_object(obj_handle, True)
+
+    mesh_filepath = mesh_filepath + '.' + mesh_type
+    if mesh_type == 'STL':
+        bpy.ops.export_mesh.stl(filepath=mesh_filepath, use_selection=True,
+                                use_mesh_modifiers=use_mesh_modifiers)
+    elif mesh_type == 'OBJ':
+        bpy.ops.export_scene.obj(filepath=mesh_filepath, axis_up='Z', axis_forward='Y',
+                                 use_selection=True, use_mesh_modifiers=use_mesh_modifiers)
+    elif mesh_type == '3DS':
+        # 3DS doesn't support suppressing modifiers, so we explicitly
+        # toggle them to save as high res and low res meshes
+        # STILL BUGGY
+        for mod in obj_handle.modifiers:
+            mod.show_viewport = True
+
+        bpy.ops.export_scene.autodesk_3ds(filepath=mesh_filepath, use_selection=True)
+
+    elif mesh_type == 'PLY':
+        # .PLY export has a bug in which it only saves the mesh that is
+        # active in context of view. Hence we explicitly select this object
+        # as active in the scene on top of being selected
+        set_active_object(obj_handle)
+        bpy.ops.export_mesh.ply(filepath=mesh_filepath, use_mesh_modifiers=use_mesh_modifiers)
+        set_active_object(None)
+    else:
+        raise Exception('High Res Mesh Format Not Specified/Understood')
+
+    select_object(obj_handle, False)
     
 
 def add_collision_shape_property(obj_handle, shape_type=None):
@@ -1153,70 +1250,80 @@ class AMBF_OT_generate_ambf_file(Operator):
 
             if obj_handle.ambf_collision_type == 'MESH':
                 body_data['collision mesh type'] = obj_handle.ambf_collision_mesh_type
-            elif obj_handle.ambf_collision_type == 'SINGULAR_SHAPE':
-                shape_prop_group = obj_handle.ambf_collision_shape_prop_collection.items()[0][1]
-                body_data['collision shape'] = shape_prop_group.ambf_collision_shape
-                bcg = OrderedDict()
-                dims = obj_handle.dimensions.copy()
-                # Now we need to find out the geometry of the shape
-                if shape_prop_group.ambf_collision_shape == 'BOX':
-                    bcg = get_xyz_ordered_dict()
-                    bcg['x'] = ambf_round(shape_prop_group.ambf_collision_shape_xyz_dims[0])
-                    bcg['y'] = ambf_round(shape_prop_group.ambf_collision_shape_xyz_dims[1])
-                    bcg['z'] = ambf_round(shape_prop_group.ambf_collision_shape_xyz_dims[2])
-                elif shape_prop_group.ambf_collision_shape == 'SPHERE':
-                    bcg = {'radius': ambf_round(shape_prop_group.ambf_collision_shape_radius)}
-                elif shape_prop_group.ambf_collision_shape in ['CONE', 'CYLINDER', 'CAPSULE']:
-                    bcg = {'radius': ambf_round(shape_prop_group.ambf_collision_shape_radius),
-                           'height': ambf_round(shape_prop_group.ambf_collision_shape_height),
-                           'axis': shape_prop_group.ambf_collision_shape_axis}
-                body_data['collision geometry'] = bcg
+                if obj_handle.ambf_use_separate_collision_mesh:
+                    if obj_handle.ambf_collision_mesh:
+                        body_data['collision mesh'] = \
+                            remove_namespace_prefix(obj_handle.ambf_collision_mesh.name + '.' + output_mesh)
+                else:
+                    body_data['collision mesh'] = obj_handle_name + '.' + output_mesh
+            else:
+                del body_data['collision mesh']
+                del body_data['collision mesh type']
 
-                offset = get_pose_ordered_dict()
-                offset['position']['x'] = ambf_round(shape_prop_group.ambf_collision_shape_linear_offset[0])
-                offset['position']['y'] = ambf_round(shape_prop_group.ambf_collision_shape_linear_offset[1])
-                offset['position']['z'] = ambf_round(shape_prop_group.ambf_collision_shape_linear_offset[2])
-                offset['orientation']['r'] = ambf_round(shape_prop_group.ambf_collision_shape_angular_offset[0])
-                offset['orientation']['p'] = ambf_round(shape_prop_group.ambf_collision_shape_angular_offset[1])
-                offset['orientation']['y'] = ambf_round(shape_prop_group.ambf_collision_shape_angular_offset[2])
-                body_data['collision offset'] = offset
-            elif obj_handle.ambf_collision_type == 'COMPOUND_SHAPE':
-                if 'collision shape' in body_data:
-                    del body_data['collision shape']
-                compound_shape = []
-                shape_count = 0
-                for prop_tuple in obj_handle.ambf_collision_shape_prop_collection.items():
-                    shape_prop_group = prop_tuple[1]
+                if obj_handle.ambf_collision_type == 'SINGULAR_SHAPE':
+                    shape_prop_group = obj_handle.ambf_collision_shape_prop_collection.items()[0][1]
+                    body_data['collision shape'] = shape_prop_group.ambf_collision_shape
                     bcg = OrderedDict()
-                    bcg['name'] = str(shape_count + 1)
-                    bcg['shape'] = shape_prop_group.ambf_collision_shape
-                    bcg['geometry'] = OrderedDict()
+                    dims = obj_handle.dimensions.copy()
                     # Now we need to find out the geometry of the shape
                     if shape_prop_group.ambf_collision_shape == 'BOX':
-                        bcg['geometry'] = {'x': ambf_round(shape_prop_group.ambf_collision_shape_xyz_dims[0]),
-                                           'y': ambf_round(shape_prop_group.ambf_collision_shape_xyz_dims[1]),
-                                           'z': ambf_round(shape_prop_group.ambf_collision_shape_xyz_dims[2])}
+                        bcg = get_xyz_ordered_dict()
+                        bcg['x'] = ambf_round(shape_prop_group.ambf_collision_shape_xyz_dims[0])
+                        bcg['y'] = ambf_round(shape_prop_group.ambf_collision_shape_xyz_dims[1])
+                        bcg['z'] = ambf_round(shape_prop_group.ambf_collision_shape_xyz_dims[2])
                     elif shape_prop_group.ambf_collision_shape == 'SPHERE':
-                        bcg['geometry'] = {'radius': ambf_round(shape_prop_group.ambf_collision_shape_radius)}
+                        bcg = {'radius': ambf_round(shape_prop_group.ambf_collision_shape_radius)}
                     elif shape_prop_group.ambf_collision_shape in ['CONE', 'CYLINDER', 'CAPSULE']:
-                        geometry = dict({'radius': 0, 'height': 0, 'axis': 'Z'})
-                        geometry['radius'] = ambf_round(shape_prop_group.ambf_collision_shape_radius)
-                        geometry['height'] = ambf_round(shape_prop_group.ambf_collision_shape_height)
-                        geometry['axis'] = shape_prop_group.ambf_collision_shape_axis
-                        bcg['geometry'] = geometry
+                        bcg = {'radius': ambf_round(shape_prop_group.ambf_collision_shape_radius),
+                               'height': ambf_round(shape_prop_group.ambf_collision_shape_height),
+                               'axis': shape_prop_group.ambf_collision_shape_axis}
+                    body_data['collision geometry'] = bcg
 
                     offset = get_pose_ordered_dict()
-                    offset['position']['x'] = shape_prop_group.ambf_collision_shape_linear_offset[0]
-                    offset['position']['y'] = shape_prop_group.ambf_collision_shape_linear_offset[1]
-                    offset['position']['z'] = shape_prop_group.ambf_collision_shape_linear_offset[2]
-                    offset['orientation']['r'] = shape_prop_group.ambf_collision_shape_angular_offset[0]
-                    offset['orientation']['p'] = shape_prop_group.ambf_collision_shape_angular_offset[1]
-                    offset['orientation']['y'] = shape_prop_group.ambf_collision_shape_angular_offset[2]
-                    bcg['offset'] = offset
-                    compound_shape.append(bcg)
-                    shape_count = shape_count + 1
+                    offset['position']['x'] = ambf_round(shape_prop_group.ambf_collision_shape_linear_offset[0])
+                    offset['position']['y'] = ambf_round(shape_prop_group.ambf_collision_shape_linear_offset[1])
+                    offset['position']['z'] = ambf_round(shape_prop_group.ambf_collision_shape_linear_offset[2])
+                    offset['orientation']['r'] = ambf_round(shape_prop_group.ambf_collision_shape_angular_offset[0])
+                    offset['orientation']['p'] = ambf_round(shape_prop_group.ambf_collision_shape_angular_offset[1])
+                    offset['orientation']['y'] = ambf_round(shape_prop_group.ambf_collision_shape_angular_offset[2])
+                    body_data['collision offset'] = offset
+                elif obj_handle.ambf_collision_type == 'COMPOUND_SHAPE':
+                    if 'collision shape' in body_data:
+                        del body_data['collision shape']
+                    compound_shape = []
+                    shape_count = 0
+                    for prop_tuple in obj_handle.ambf_collision_shape_prop_collection.items():
+                        shape_prop_group = prop_tuple[1]
+                        bcg = OrderedDict()
+                        bcg['name'] = str(shape_count + 1)
+                        bcg['shape'] = shape_prop_group.ambf_collision_shape
+                        bcg['geometry'] = OrderedDict()
+                        # Now we need to find out the geometry of the shape
+                        if shape_prop_group.ambf_collision_shape == 'BOX':
+                            bcg['geometry'] = {'x': ambf_round(shape_prop_group.ambf_collision_shape_xyz_dims[0]),
+                                               'y': ambf_round(shape_prop_group.ambf_collision_shape_xyz_dims[1]),
+                                               'z': ambf_round(shape_prop_group.ambf_collision_shape_xyz_dims[2])}
+                        elif shape_prop_group.ambf_collision_shape == 'SPHERE':
+                            bcg['geometry'] = {'radius': ambf_round(shape_prop_group.ambf_collision_shape_radius)}
+                        elif shape_prop_group.ambf_collision_shape in ['CONE', 'CYLINDER', 'CAPSULE']:
+                            geometry = dict({'radius': 0, 'height': 0, 'axis': 'Z'})
+                            geometry['radius'] = ambf_round(shape_prop_group.ambf_collision_shape_radius)
+                            geometry['height'] = ambf_round(shape_prop_group.ambf_collision_shape_height)
+                            geometry['axis'] = shape_prop_group.ambf_collision_shape_axis
+                            bcg['geometry'] = geometry
 
-                body_data['compound collision shape'] = compound_shape
+                        offset = get_pose_ordered_dict()
+                        offset['position']['x'] = shape_prop_group.ambf_collision_shape_linear_offset[0]
+                        offset['position']['y'] = shape_prop_group.ambf_collision_shape_linear_offset[1]
+                        offset['position']['z'] = shape_prop_group.ambf_collision_shape_linear_offset[2]
+                        offset['orientation']['r'] = shape_prop_group.ambf_collision_shape_angular_offset[0]
+                        offset['orientation']['p'] = shape_prop_group.ambf_collision_shape_angular_offset[1]
+                        offset['orientation']['y'] = shape_prop_group.ambf_collision_shape_angular_offset[2]
+                        bcg['offset'] = offset
+                        compound_shape.append(bcg)
+                        shape_count = shape_count + 1
+
+                    body_data['compound collision shape'] = compound_shape
 
             body_data['mesh'] = obj_handle_name + '.' + output_mesh
             xyz_inertial_off = get_xyz_ordered_dict()
@@ -1724,83 +1831,26 @@ class AMBF_OT_save_meshes(Operator):
             # Only Save Meshes if the object type is ambf rigid body
             return
 
-        select_object(obj_handle)
         obj_handle_name = remove_namespace_prefix(obj_handle.name)
 
         if obj_handle.type == 'MESH':
-            # First save the texture(s) if any
-            # Store current render settings
-            _settings = context.scene.render.image_settings
+            # SAVE HIGH RES / VISUAL MESHES FIRST
+            if context.scene.ambf_save_high_res:
+                filename_high_res = os.path.join(high_res_path, obj_handle_name)
+                save_blender_mesh(obj_handle, filename_high_res, mesh_type, False)
 
-            # Change render settings to our target format
-            _settings.file_format = 'PNG'
-
-            if context.scene.ambf_save_textures:
-                for mat in obj_handle.data.materials:
-                    if mat.node_tree:
-                        for node in mat.node_tree.nodes:
-                            if node.type == 'TEX_IMAGE':
-                                im = node.image
-                                _filename = im.name_full
-                                _filename_wo_ext = _filename.split('.')[0]
-                                print("Texture Filename ", _filename)
-                                _save_as = os.path.join(high_res_path, _filename_wo_ext + '.png')
-                                im.filepath_raw = _save_as
-                                im.save_render(_save_as)
-
-            if mesh_type == 'STL':
-                obj_name = obj_handle_name + '.STL'
-                filename_high_res = os.path.join(high_res_path, obj_name)
-                filename_low_res = os.path.join(low_res_path, obj_name)
-                if context.scene.ambf_save_high_res:
-                    bpy.ops.export_mesh.stl(filepath=filename_high_res, use_selection=True, use_mesh_modifiers=False)
-                if context.scene.ambf_save_low_res:
-                    bpy.ops.export_mesh.stl(filepath=filename_low_res, use_selection=True, use_mesh_modifiers=True)
-            elif mesh_type == 'OBJ':
-                obj_name = obj_handle_name + '.OBJ'
-                filename_high_res = os.path.join(high_res_path, obj_name)
-                filename_low_res = os.path.join(low_res_path, obj_name)
-                if context.scene.ambf_save_high_res:
-                    bpy.ops.export_scene.obj(filepath=filename_high_res, axis_up='Z', axis_forward='Y',
-                                             use_selection=True, use_mesh_modifiers=False)
-                if context.scene.ambf_save_low_res:
-                    bpy.ops.export_scene.obj(filepath=filename_low_res, axis_up='Z', axis_forward='Y',
-                                             use_selection=True, use_mesh_modifiers=True)
-            elif mesh_type == '3DS':
-                obj_name = obj_handle_name + '.3DS'
-                filename_high_res = os.path.join(high_res_path, obj_name)
-                filename_low_res = os.path.join(low_res_path, obj_name)
-                # 3DS doesn't support supressing modifiers, so we explicitly
-                # toggle them to save as high res and low res meshes
-                # STILL BUGGY
-                for mod in obj_handle.modifiers:
-                    mod.show_viewport = True
-                if context.scene.ambf_save_high_res:
-                    bpy.ops.export_scene.autodesk_3ds(filepath=filename_low_res, use_selection=True)
-
-                for mod in obj_handle.modifiers:
-                    mod.show_viewport = True
-                if context.scene.ambf_save_low_res:
-                    bpy.ops.export_scene.autodesk_3ds(filepath=filename_high_res, use_selection=True)
-            elif mesh_type == 'PLY':
-                # .PLY export has a bug in which it only saves the mesh that is
-                # active in context of view. Hence we explicitly select this object
-                # as active in the scene on top of being selected
-                obj_name = obj_handle_name + '.PLY'
-                filename_high_res = os.path.join(high_res_path, obj_name)
-                filename_low_res = os.path.join(low_res_path, obj_name)
-                set_active_object(obj_handle)
-
-                if context.scene.ambf_save_high_res:
-                    bpy.ops.export_mesh.ply(filepath=filename_high_res, use_mesh_modifiers=False)
-                if context.scene.ambf_save_low_res:
-                    bpy.ops.export_mesh.ply(filepath=filename_low_res, use_mesh_modifiers=True)
-                # Make sure to deselect the mesh
-                set_active_object(None)
-            else:
-                raise Exception('Mesh Format Not Specified/Understood')
-
-        select_object(obj_handle, False)
+            # NOW SAVE LOW RES MESHES
+            elif context.scene.ambf_save_low_res:
+                if obj_handle.ambf_use_separate_collision_mesh:
+                    if obj_handle.ambf_collision_mesh:
+                        coll_mesh_name = remove_namespace_prefix(obj_handle.ambf_collision_mesh.name)
+                        filename_low_res = os.path.join(low_res_path, coll_mesh_name)
+                        save_blender_mesh(obj_handle.ambf_collision_mesh, filename_low_res, mesh_type, True)
+                    else:
+                        print("ERROR! NO SEPARATE COLLISION MESH SET FOR OBJECT: ", obj_handle.name)
+                else:
+                    filename_low_res = os.path.join(low_res_path, obj_handle_name)
+                    save_blender_mesh(obj_handle, filename_low_res, mesh_type, True)
 
     def save_meshes(self, context):
         # Get the list of currently selected objects
@@ -2115,9 +2165,9 @@ class AMBF_OT_load_ambf_file(Operator):
             path = str(ambf_filepath.parent.joinpath(filepath))
             return path
 
-    def load_mesh(self, body_data, body_name):
+    def load_ambf_mesh(self, body_data, body_id):
 
-        af_name = body_data['name']
+        body_name = body_data['name']
 
         if 'high resolution path' in body_data:
             body_high_res_path = self.get_qualified_path(body_data['high resolution path'])
@@ -2125,69 +2175,26 @@ class AMBF_OT_load_ambf_file(Operator):
             body_high_res_path = self._high_res_path
         # If body name is world. Check if a world body has already
         # been defined, and if it has been, ignore adding another world body
-        if af_name in ['world', 'World', 'WORLD']:
+        if body_name in ['world', 'World', 'WORLD']:
             for temp_obj_handle in bpy.data.objects:
                 if temp_obj_handle.type in ['MESH', 'EMPTY']:
                     if temp_obj_handle.name in ['world', 'World', 'WORLD']:
-                        self._blender_remapped_body_names[body_name] = temp_obj_handle.name
+                        self._blender_remapped_body_names[body_id] = temp_obj_handle.name
                         return
+
+        # If a collision mesh is specified, load it as well
+        if 'collision mesh' in body_data:
+            collision_mesh_name = body_data['collision mesh']
+            collision_mesh_filepath = Path(os.path.join(body_high_res_path, collision_mesh_name))
+            load_blender_mesh(self._context, collision_mesh_filepath, collision_mesh_name)
+            coll_mesh_obj = get_active_object()
+            self._blender_remapped_body_names[collision_mesh_name] = coll_mesh_obj.name
+
         body_mesh_name = body_data['mesh']
 
         mesh_filepath = Path(os.path.join(body_high_res_path, body_mesh_name))
 
-        if mesh_filepath.suffix in ['.stl', '.STL']:
-            bpy.ops.import_mesh.stl(filepath=str(mesh_filepath.resolve()))
-
-        elif mesh_filepath.suffix in ['.obj', '.OBJ']:
-            _manually_select_obj_handle = True
-            bpy.ops.import_scene.obj(filepath=str(mesh_filepath.resolve()), axis_up='Z', axis_forward='Y')
-            # Hack, .3ds and .obj imports do not make the imported obj_handle active. A hack is
-            # to capture the selected objects in this case.
-            set_active_object(self._context.selected_objects[0])
-
-        elif mesh_filepath.suffix in ['.dae', '.DAE']:
-            bpy.ops.wm.collada_import(filepath=str(mesh_filepath.resolve()))
-            # If we are importing .dae meshes, they can import stuff other than meshes, such as cameras etc.
-            # We should remove these extra things and only keep the meshes
-            for temp_obj_handle in self._context.selected_objects:
-                if temp_obj_handle.type == 'MESH':
-                    obj_handle = temp_obj_handle
-                    # set_active_object(obj_handle)
-                else:
-                    bpy.data.objects.remove(temp_obj_handle)
-
-            so = bpy.context.selected_objects
-            if len(so) > 1:
-                set_active_object(so[0])
-                bpy.ops.object.join()
-                so[0].name = af_name
-                obj_handle = get_active_object()
-
-                # The lines below are essential in joint the multiple meshes
-                # defined in the .dae into one mesh, secondly, making sure that
-                # the origin of the mesh is what it is supposed to be as
-                # using the join() function call alters the mesh origin
-                trans_o = obj_handle.matrix_world.copy()
-                obj_handle.matrix_world.identity()
-                obj_handle.data.transform(trans_o)
-
-                # Kind of a hack, blender is spawning the collada file
-                # a 90 deg offset along the axis axis, this is to correct that
-                # Maybe this will not be needed in future versions of blender
-                r_x = mathutils.Matrix.Rotation(-pi/2, 4, 'X')
-                obj_handle.data.transform(r_x)
-            else:
-                set_active_object(so[0])
-
-        elif mesh_filepath.suffix in ['.3ds', '.3DS']:
-            _manually_select_obj_handle = True
-            bpy.ops.import_scene.autodesk_3ds(filepath=str(mesh_filepath.resolve()))
-            # Hack, .3ds and .obj imports do not make the imported obj_handle active. A hack is
-            # to capture the selected objects in this case.
-            set_active_object(self._context.selected_objects[0])
-
-        elif mesh_filepath.suffix == '':
-            bpy.ops.object.empty_add(type='PLAIN_AXES')
+        load_blender_mesh(self._context, mesh_filepath, body_name)
 
         return get_active_object()
 
@@ -2340,10 +2347,17 @@ class AMBF_OT_load_ambf_file(Operator):
                     
                 obj_handle.ambf_collision_type = 'COMPOUND_SHAPE'
             else:
+                # If a separate collision mesh was specified, enable it
+                if 'collision mesh' in body_data:
+                    obj_handle.ambf_use_separate_collision_mesh = True
+                    obj_handle.ambf_collision_mesh = \
+                        bpy.data.objects[self._blender_remapped_body_names[body_data['collision mesh']]]
+
                 # Since the shape is neither a single or a compound shape, it is a mesh based collision.
                 # Now figure out what type of collision mesh is used. (CONCAVE_MESH, CONVEX_MESH or CONVEX_HULL)
                 if 'collision mesh type' in body_data:
                     obj_handle.ambf_collision_mesh_type = body_data['collision mesh type']
+
                 else:
                     # For backward compatibility, the default collision mesh type used to be CONCAVE_MESH
                     obj_handle.ambf_collision_mesh_type = 'CONCAVE_MESH'
@@ -2413,10 +2427,10 @@ class AMBF_OT_load_ambf_file(Operator):
                                      body_location_rpy['p'],
                                      body_location_rpy['y'])
 
-    def load_body(self, body_name):
-        body_data = self._adf_data[body_name]
+    def load_body(self, body_id):
+        body_data = self._adf_data[body_id]
 
-        obj_handle = self.load_mesh(body_data, body_name)
+        obj_handle = self.load_ambf_mesh(body_data, body_id)
 
         self.load_object_name(body_data, obj_handle)
 
@@ -2426,13 +2440,13 @@ class AMBF_OT_load_ambf_file(Operator):
 
         self.load_material(body_data, obj_handle)
 
-        self._blender_remapped_body_names[body_name] = obj_handle.name
+        self._blender_remapped_body_names[body_id] = obj_handle.name
         CommonConfig.loaded_body_map[obj_handle] = body_data
 
     def load_ghost(self, ghost_name):
         ghost_data = self._adf_data[ghost_name]
 
-        obj_handle = self.load_mesh(ghost_data, ghost_name)
+        obj_handle = self.load_ambf_mesh(ghost_data, ghost_name)
 
         self.load_object_name(ghost_data, obj_handle)
 
@@ -2813,8 +2827,8 @@ class AMBF_OT_load_ambf_file(Operator):
 
         self._high_res_path = self.get_qualified_path(self._adf_data['high resolution path'])
         # print(self._high_res_path)
-        for body_name in bodies_list:
-            self.load_body(body_name)
+        for body_id in bodies_list:
+            self.load_body(body_id)
 
         for joint_name in joints_list:
             self.load_ambf_joint(joint_name)
@@ -3279,6 +3293,15 @@ class AMBF_PT_ambf_rigid_body(Panel):
 
                 col = box.column()
                 col.prop(context.object, 'ambf_collision_mesh_type')
+
+                col.separator()
+
+                col = box.column()
+                col.prop(context.object, 'ambf_use_separate_collision_mesh')
+
+                col = box.column()
+                col.prop(context.object, 'ambf_collision_mesh')
+                col.enabled = context.object.ambf_use_separate_collision_mesh
 
             elif context.object.ambf_collision_type == 'SINGULAR_SHAPE':
 
@@ -3963,6 +3986,12 @@ def register():
             update=rigid_body_collision_type_update_cb,
             description='Choose between a singular or a compound collision that consists of multiple shapes'
         )
+
+    Object.ambf_use_separate_collision_mesh = BoolProperty(name='Use Separate Collision Mesh', default=False,
+                                                           description='Use a separate mesh for collision')
+
+    Object.ambf_collision_mesh = PointerProperty(name="Collision Mesh", type=Object,
+                                                 description='A separate mesh to be used for collision detection')
 
     Object.ambf_collision_mesh_type = EnumProperty \
             (
