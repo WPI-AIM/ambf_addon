@@ -1840,7 +1840,7 @@ class AMBF_OT_save_meshes(Operator):
                 save_blender_mesh(obj_handle, filename_high_res, mesh_type, False)
 
             # NOW SAVE LOW RES MESHES
-            elif context.scene.ambf_save_low_res:
+            if context.scene.ambf_save_low_res:
                 if obj_handle.ambf_use_separate_collision_mesh:
                     if obj_handle.ambf_collision_mesh:
                         coll_mesh_name = remove_namespace_prefix(obj_handle.ambf_collision_mesh.name)
