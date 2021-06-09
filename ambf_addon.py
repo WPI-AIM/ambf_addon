@@ -1254,8 +1254,10 @@ class AMBF_OT_generate_ambf_file(Operator):
                     if obj_handle.ambf_collision_mesh:
                         body_data['collision mesh'] = \
                             remove_namespace_prefix(obj_handle.ambf_collision_mesh.name + '.' + output_mesh)
+                    else:
+                        raise Exception("ERROR! For object ", obj_handle.name, " \" Use Separate Collision Mesh\" is \"True\" but \"Collision Mesh\" not specified.")
                 else:
-                    body_data['collision mesh'] = obj_handle_name + '.' + output_mesh
+                    del body_data['collision mesh']
             else:
                 del body_data['collision mesh']
                 del body_data['collision mesh type']
