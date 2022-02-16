@@ -1766,10 +1766,10 @@ class AMBF_OT_save_meshes(Operator):
     # to move the parent to origin first and then its children successively
     # otherwise moving any parent after its child has been moved with move the
     # child as well
-    def set_to_origin(self, p_obj_handle, obj_name_mat_list):
+    def set_to_origin(self, p_obj_handle, original_obj_poses_map):
         if p_obj_handle.children is None:
             return
-        obj_name_mat_list.append([p_obj_handle.name, p_obj_handle.matrix_world.copy()])
+        original_obj_poses_map[p_obj_handle.name] = p_obj_handle.matrix_world.copy()
         # Since setting the world transform clears the embedded scale
         # of the object, we need to re-scale the obj_handle after putting it to origin
         scale_mat = mathutils.Matrix()
@@ -1777,34 +1777,36 @@ class AMBF_OT_save_meshes(Operator):
         p_obj_handle.matrix_world.identity()
         p_obj_handle.matrix_world = scale_mat
         for c_obj_handle in p_obj_handle.children:
-            self.set_to_origin(c_obj_handle, obj_name_mat_list)
+            self.set_to_origin(c_obj_handle, original_obj_poses_map)
 
     # Since Blender exports meshes w.r.t world transform and not the
     # the local mesh transform, we explicitly push each obj_handle to origin
     # and remember its world transform for putting it back later on
     def set_all_meshes_to_origin(self):
-        obj_name_mat_list = []
+        original_obj_poses_map = dict()
         for p_obj_handle in bpy.data.objects:
             if p_obj_handle.parent is None:
-                self.set_to_origin(p_obj_handle, obj_name_mat_list)
-        return obj_name_mat_list
+                self.set_to_origin(p_obj_handle, original_obj_poses_map)
+        return original_obj_poses_map
 
     # This recursive function works in similar fashion to the
     # set_to_origin function, but uses the know default transform
     # to set the tree back to default in a hierarchial fashion
-    def reset_back_to_default(self, p_obj_handle, obj_name_mat_list):
+    def reset_back_to_default(self, p_obj_handle, original_obj_poses_map):
         if p_obj_handle.children is None:
             return
-        for item in obj_name_mat_list:
-            if p_obj_handle.name == item[0]:
-                p_obj_handle.matrix_world = item[1]
+        for key in original_obj_poses_map:
+            if p_obj_handle.name == key:
+                original_pose = original_obj_poses_map[key]
+                p_obj_handle.matrix_world = original_pose
+                p_obj_handle.rotation_euler = original_pose.to_euler().copy()
         for c_obj_handle in p_obj_handle.children:
-            self.reset_back_to_default(c_obj_handle, obj_name_mat_list)
+            self.reset_back_to_default(c_obj_handle, original_obj_poses_map)
 
-    def reset_meshes_to_original_position(self, obj_name_mat_list):
+    def reset_meshes_to_original_position(self, original_obj_poses_map):
         for p_obj_handle in bpy.data.objects:
             if p_obj_handle.parent is None:
-                self.reset_back_to_default(p_obj_handle, obj_name_mat_list)
+                self.reset_back_to_default(p_obj_handle, original_obj_poses_map)
 
     def save_body_textures(self, context, obj_handle, high_res_path):
         if obj_handle.type == 'MESH':
@@ -1868,7 +1870,7 @@ class AMBF_OT_save_meshes(Operator):
         os.makedirs(low_res_path, exist_ok=True)
         mesh_type = bpy.context.scene.ambf_meshes_save_type
 
-        mesh_name_mat_list = self.set_all_meshes_to_origin()
+        original_obj_poses_map = self.set_all_meshes_to_origin()
         if context.scene.ambf_save_selection_only:
             for obj_handle in selected_objects:
                 self.save_body_textures(context, obj_handle, high_res_path)
@@ -1877,7 +1879,7 @@ class AMBF_OT_save_meshes(Operator):
             for obj_handle in bpy.data.objects:
                 self.save_body_textures(context, obj_handle, high_res_path)
                 self.save_body_meshes(context, obj_handle, mesh_type, high_res_path, low_res_path)
-        self.reset_meshes_to_original_position(mesh_name_mat_list)
+        self.reset_meshes_to_original_position(original_obj_poses_map)
 
         # Now reselect the objects that we selected prior to saving meshes
         select_objects(selected_objects, True)
@@ -2786,15 +2788,17 @@ class AMBF_OT_load_ambf_file(Operator):
 
         T_j_w = self.get_joint_in_world_transform(joint_data)
         joint_obj_handle.matrix_world = T_j_w
+        joint_obj_handle.rotation_euler = T_j_w.to_euler()
 
         T_c_w = self.get_child_in_world_transform(joint_data)
         # Set the child body the pose calculated above
         # If the child_obj already has a parent, no need to set its transform again
         if child_obj_handle.parent is None:
             child_obj_handle.matrix_world = T_c_w
+            child_obj_handle.rotation_euler = T_c_w.to_euler()
 
-        make_obj1_parent_of_obj2(obj1=parent_obj_handle, obj2=joint_obj_handle)
-        make_obj1_parent_of_obj2(obj1=joint_obj_handle, obj2=child_obj_handle)
+        # make_obj1_parent_of_obj2(obj1=parent_obj_handle, obj2=joint_obj_handle)
+        # make_obj1_parent_of_obj2(obj1=joint_obj_handle, obj2=child_obj_handle)
 
         self.create_ambf_constraint(joint_obj_handle, self.get_ambf_joint_type(joint_data), parent_obj_handle,
                                        child_obj_handle)
