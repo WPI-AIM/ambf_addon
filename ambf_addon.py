@@ -116,6 +116,10 @@ def setup_yaml():
     yaml.add_representer(OrderedDict, represent_dictionary_order)
 
 
+def set_view_transform_orientation_to_local():
+    bpy.context.scene.transform_orientation_slots[0].type = 'LOCAL'
+
+
 # Enum Class for Mesh Type
 class MeshType(Enum):
     meshSTL = 0
@@ -2809,6 +2813,7 @@ class AMBF_OT_load_ambf_file(Operator):
 
     def execute(self, context):
         self._yaml_filepath = str(bpy.path.abspath(context.scene['ambf_load_adf_filepath']))
+        set_view_transform_orientation_to_local()
         print(self._yaml_filepath)
         yaml_file = open(self._yaml_filepath)
         
@@ -3002,6 +3007,7 @@ class AMBF_PT_main_panel(Panel):
     bl_category = "AMBF"
 
     setup_yaml()
+    set_view_transform_orientation_to_local()
 
     def draw(self, context):
 
