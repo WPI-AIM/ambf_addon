@@ -2177,10 +2177,16 @@ class AMBF_OT_load_ambf_file(Operator):
 
         body_name = body_data['name']
 
-        if 'high resolution path' in body_data:
+        try:
             body_high_res_path = self.get_qualified_path(body_data['high resolution path'])
-        else:
+        except:
             body_high_res_path = self._high_res_path
+
+        try:
+            body_low_res_path = self.get_qualified_path(body_data['low resolution path'])
+        except:
+            body_low_res_path = self._low_res_path
+
         # If body name is world. Check if a world body has already
         # been defined, and if it has been, ignore adding another world body
         if body_name in ['world', 'World', 'WORLD']:
@@ -2193,7 +2199,7 @@ class AMBF_OT_load_ambf_file(Operator):
         # If a collision mesh is specified, load it as well
         if 'collision mesh' in body_data:
             collision_mesh_name = body_data['collision mesh']
-            collision_mesh_filepath = Path(os.path.join(body_high_res_path, collision_mesh_name))
+            collision_mesh_filepath = Path(os.path.join(body_low_res_path, collision_mesh_name))
             load_blender_mesh(self._context, collision_mesh_filepath, collision_mesh_name)
             coll_mesh_obj = get_active_object()
             self._blender_remapped_body_names[collision_mesh_name] = coll_mesh_obj.name
@@ -2364,7 +2370,10 @@ class AMBF_OT_load_ambf_file(Operator):
                 # Since the shape is neither a single or a compound shape, it is a mesh based collision.
                 # Now figure out what type of collision mesh is used. (CONCAVE_MESH, CONVEX_MESH or CONVEX_HULL)
                 if 'collision mesh type' in body_data:
-                    obj_handle.ambf_collision_mesh_type = body_data['collision mesh type']
+                    if body_data['collision mesh type'] == '':
+                        obj_handle.ambf_collision_mesh_type = 'CONCAVE_MESH'
+                    else:
+                        obj_handle.ambf_collision_mesh_type = body_data['collision mesh type']
 
                 else:
                     # For backward compatibility, the default collision mesh type used to be CONCAVE_MESH
@@ -2825,8 +2834,15 @@ class AMBF_OT_load_ambf_file(Operator):
             self._adf_data = yaml.load(yaml_file)
         self._context = context
 
-        bodies_list = self._adf_data['bodies']
-        joints_list = self._adf_data['joints']
+        try:
+            bodies_list = self._adf_data['bodies']
+        except:
+            bodies_list = []
+
+        try:
+            joints_list = self._adf_data['joints']
+        except:
+            joints_list = []
 
         if 'namespace' in self._adf_data:
             set_global_namespace(context, self._adf_data['namespace'])
@@ -2836,7 +2852,16 @@ class AMBF_OT_load_ambf_file(Operator):
         # num_bodies = len(bodies_list)
         # print('Number of Bodies Specified = ', num_bodies)
 
-        self._high_res_path = self.get_qualified_path(self._adf_data['high resolution path'])
+        try:
+            self._high_res_path = self.get_qualified_path(self._adf_data['high resolution path'])
+        except:
+            self._high_res_path = ''
+
+        try:
+            self._low_res_path = self.get_qualified_path(self._adf_data['low resolution path'])
+        except:
+            self._low_res_path = ''
+
         # print(self._high_res_path)
         for body_id in bodies_list:
             self.load_body(body_id)
@@ -2845,7 +2870,10 @@ class AMBF_OT_load_ambf_file(Operator):
             self.load_ambf_joint(joint_name)
 
         # Set the model ignore collision flag
-        context.scene.ambf_ignore_inter_collision = self._adf_data['ignore inter-collision']
+        try:
+            context.scene.ambf_ignore_inter_collision = self._adf_data['ignore inter-collision']
+        except:
+            context.scene.ambf_ignore_inter_collision = True
 
         # print('Printing Blender Remapped Body Names')
         # print(self._blender_remapped_body_names)
