@@ -46,17 +46,22 @@ Then install pip for the python interpreter
 ```
 ./python<version> -m ensurepip
 ```
-and finally
+If you get a message such as:
+```bash
+Requirement already satisfied: <Any path that is not the current working directory path>
+```
+Then install pip using the 'get-pip' method defined here (https://pip.pypa.io/en/stable/installation/#get-pip-py)
+
+Finally
 ```
 ./pip<version> install pyyaml
 ```
 
-If for example, you downloaded blender 2.83.1 from its website, the above commands will become
+If for example, you downloaded blender 3.5.0 from its website, the above commands will become
 
 ```bash
-cd ~/Downloads/blender-2.83.1-linux64
-cd ./2.83/python/bin/
-./python3.7m -m ensurepip
+cd ~/Downloads/blender-3.5.0-linux64/3.5/python/bin/
+./python3.10 -m ensurepip
 ./pip3 install pyyaml
 ```
 2. The simulation key-frame must be at 0 while saving the ADF files to ensure proper world transforms.
