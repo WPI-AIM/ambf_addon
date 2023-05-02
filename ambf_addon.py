@@ -2671,7 +2671,7 @@ class AMBF_OT_load_ambf_file(Operator):
 
         joint_obj_handle.name = joint_name
         joint_obj_handle.scale = 0.1 * joint_obj_handle.scale
-        bpy.ops.object.transform_apply(scale=True)
+        bpy.ops.object.transform_apply(scale=True, rotation=False, location=False, properties=False)
 
         return joint_obj_handle
 
