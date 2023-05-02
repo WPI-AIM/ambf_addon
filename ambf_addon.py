@@ -1341,6 +1341,11 @@ class AMBF_OT_generate_ambf_file(Operator):
 
             if obj_handle.data.materials:
                 del body_data['color']
+                if output_mesh == 'OBJ':# If saving as OBJ, ignore material info.
+                    body_data['use material'] = False
+                else:
+                    body_data['use material'] = True
+
                 body_data['color components'] = OrderedDict()
                 body_data['color components'] = {'diffuse': {'r': 1.0, 'g': 1.0, 'b': 1.0},
                                                  'specular': {'r': 1.0, 'g': 1.0, 'b': 1.0},
