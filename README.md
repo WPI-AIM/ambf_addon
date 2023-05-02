@@ -1,48 +1,34 @@
 # Blender AMBF Add-on
-Blender Add-on for creating and loading AMBF yaml config files
+Blender addon for creating and loading AMBF Description Files (ADF) for [AMBF](https://github.com/WPI-AIM/ambf).
 
 # Introduction:
-This is a plugin to ease the creation of AF MultiBodies using Blender and load existing ambf config files in blender.
+This addon can be used to create ADFs.
+
+![blender-galen](https://user-images.githubusercontent.com/5005445/235729465-ac421bcf-4f6f-4edb-9604-c15d98fee6b2.gif)
+
 
 #### Author:
 Adnan Munawar
 
-Email: amunawar@wpi.edu
-
-#### Decription:
-1. The blender plugin is to easy the creation of multi-body config files that are used in AMBF Framework.
-AMBF stands for (Asynchoronous Multi-Body Framework). AMBF is real-time dynamics engine
-based on Bullet and CHAI-3D with ROS Support on Linux. The source code is located at:
-"https://github.com/WPI-AIM/ambf"
-This plugin helps in generation of both high and low resolution files (for collision) and subsequently
-generate the ambf config file which is based on YAML.
-
-2. AMBF Config files are akin to URDF or SDF but are written in YAML rather than XML. AMBF also supports
-soft bodies as well as multiple unconnected, semi-connected and fully connected dynamic bodies in simulation.
-
-3. AMBF files allow multiple parents as well as cyclical interconnection which is not possible with URDF and SDF.
-
-4. Joints are considered independent objects, similar to the bodies in the environment. Joints can easily be ignored,
-added and modified in the AMBF Yaml config files.
-
-5. Because of the underlying philosophy of treating joints as independent objects, the AMBF yaml config files can seperate out joints from the bodies in differnet files. E.g. one config file can contain information about the bodies only and another config file can contain information about the joints. In addition to this features, the joints can be added at run-time for any dynamic ridig body in simulation.
+#### Description:
+1. [AMBF](https://github.com/WPI-AIM/ambf) uses ADF files to represent scene objects (that may model robots, mechanisms, or environments).  ADFs are thus similar to URDFs or SDFs. While ADFs can be constructed by hand, this addon can help create them with an intuitive graphical interface to prevent mistakes, and save time and effort.
 
 #### Usage:
 
-Please head over to the Youtube channel with the basic tutorials to get you started.
+Please check the Youtube playlist with the basic tutorials to get you started.
 
 https://www.youtube.com/playlist?list=PLKH7Q-IzaPumDw77qQzF8deR1l4LgbWeP
 
 #### Known Issues:
-1. The **yaml** modules is usually not installed alongside Blenders python interpreter, therefore, while trying to load the plugin, you may encounter an issue saying **No Module Names 'yaml'**.
-This can be solved by installing `pyyaml` for the Python interpreter used by Blender. In your terminal navigate to the folder where blender resides. If you downloaded blender
-from its website to your downloads folder, after extracting the zipped file, you should have a folder with the following naming convention `blender-<version>-<os>'.
+1. The **pyyaml** package is usually not installed alongside Blender's Python interpreter, therefore, while trying to load the plugin, you may encounter an error saying **No Module Names 'yaml'**.
+This can be solved by installing `pyyaml` for the Blender's Python interpreter. 
+In your terminal navigate to the Blender's folder. If you downloaded Blender from its website to your downloads folder, after extracting the zipped file, you should have a folder with the following naming convention `blender-<version>-<os>'.
 
 ```bash
 cd ~/Downloads/blender-<version>-<os>
 cd ./<version>/python/bin
 ```
-Then install pip for the python interpreter
+Then install pip for the Python interpreter
 ```
 ./python<version> -m ensurepip
 ```
@@ -57,7 +43,7 @@ Finally
 ./pip<version> install pyyaml
 ```
 
-If for example, you downloaded blender 3.5.0 from its website, the above commands will become
+If for example, you downloaded Blender 3.5.0 from its website, the above commands will become
 
 ```bash
 cd ~/Downloads/blender-3.5.0-linux64/3.5/python/bin/
