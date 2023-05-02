@@ -1867,7 +1867,10 @@ class AMBF_OT_save_meshes(Operator):
 
     def save_meshes(self, context):
         # Get the list of currently selected objects
-        selected_objects = get_selected_objects()
+        if context.scene.ambf_save_selection_only:
+            objects_to_save = get_selected_objects()
+        else:
+            objects_to_save = bpy.data.objects
 
         # Now deselect all objects
         select_all_objects(False)
@@ -1880,18 +1883,13 @@ class AMBF_OT_save_meshes(Operator):
         mesh_type = bpy.context.scene.ambf_meshes_save_type
 
         original_obj_poses_map = self.set_all_meshes_to_origin()
-        if context.scene.ambf_save_selection_only:
-            for obj_handle in selected_objects:
-                self.save_body_textures(context, obj_handle, high_res_path)
-                self.save_body_meshes(context, obj_handle, mesh_type, high_res_path, low_res_path)
-        else:
-            for obj_handle in bpy.data.objects:
-                self.save_body_textures(context, obj_handle, high_res_path)
-                self.save_body_meshes(context, obj_handle, mesh_type, high_res_path, low_res_path)
+        for obj_handle in objects_to_save:
+            self.save_body_textures(context, obj_handle, high_res_path)
+            self.save_body_meshes(context, obj_handle, mesh_type, high_res_path, low_res_path)
         self.reset_meshes_to_original_position(original_obj_poses_map)
 
         # Now reselect the objects that we selected prior to saving meshes
-        select_objects(selected_objects, True)
+        select_objects(objects_to_save, True)
 
 
 class AMBF_OT_generate_low_res_mesh_modifiers(Operator):
