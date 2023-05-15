@@ -51,3 +51,16 @@ cd ~/Downloads/blender-3.5.0-linux64/3.5/python/bin/
 ./pip3 install pyyaml
 ```
 2. The simulation key-frame must be at 0 while saving the ADF files to ensure proper world transforms.
+
+##### Windows-specific instructions for the above
+Once you have installed Blender, you can find the python interpreter in in e.g. "C:\Program Files\Blender Foundation\Blender 3.5\3.5\python\bin"
+Using powershell, you will still follow through the 'get-pip' instructions above (They have ones for windows). The difference is that instead of running "python XYZ" in these examples, you will directly invoke the python.exe file in this directory:
+For example:
+```bash
+.\python.exe "get-pip.py"
+```
+To install pyyaml, run:
+```bash
+.\python.exe -m pip install pyyaml
+```
+
