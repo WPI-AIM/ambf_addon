@@ -2199,6 +2199,7 @@ class AMBF_OT_load_ambf_file(Operator):
                         self._blender_remapped_body_names[body_id] = temp_obj_handle.name
                         return
 
+        coll_mesh_obj = None
         # If a collision mesh is specified, load it as well
         if 'collision mesh' in body_data:
             collision_mesh_name = body_data['collision mesh']
@@ -2213,7 +2214,11 @@ class AMBF_OT_load_ambf_file(Operator):
 
         load_blender_mesh(self._context, mesh_filepath, body_name)
 
-        return get_active_object()
+        mesh_obj = get_active_object()
+
+        if coll_mesh_obj:
+            make_obj1_parent_of_obj2(mesh_obj, coll_mesh_obj)
+        return mesh_obj
 
     def load_material(self, body_data, obj_handle):
 
