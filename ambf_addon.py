@@ -6,7 +6,7 @@ bl_info = {
     "name": "Asynchronous Multi-Body Framework (AMBF) Config Creator",
     "author": "Adnan Munawar",
     "version": (0, 1),
-    "blender": (2, 9, 0),
+    "blender": (3, 0, 0),
     "location": "View3D > Add > Mesh > AMBF",
     "description": "Helps Generate AMBF Config File and Saves both High and Low Resolution(Collision) Meshes",
     "warning": "",
