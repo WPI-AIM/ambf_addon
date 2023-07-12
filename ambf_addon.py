@@ -1237,6 +1237,11 @@ class AMBF_OT_generate_ambf_file(Operator):
                     # We can delete the inertia as it will be estimated in AMBF
                     del body_data['inertia']
 
+            if obj_handle.ambf_object_override_gravity:
+                body_data['gravity'] = {'x': obj_handle.ambf_object_gravity[0],
+                                        'y': obj_handle.ambf_object_gravity[1],
+                                        'z': obj_handle.ambf_object_gravity[2]}
+
             body_data['friction'] = {'static': ambf_round(obj_handle.ambf_rigid_body_static_friction),
                                      'rolling': ambf_round(obj_handle.ambf_rigid_body_rolling_friction)}
 
@@ -1725,7 +1730,7 @@ class AMBF_OT_generate_ambf_file(Operator):
 
         self._adf['ignore inter-collision'] = self._context.scene.ambf_ignore_inter_collision
 
-        if self._context.scene.ambf_override_model_gravity:
+        if self._context.scene.ambf_model_override_gravity:
             self._adf['gravity'] = {'x': self._context.scene.ambf_model_gravity[0],
                                     'y': self._context.scene.ambf_model_gravity[1],
                                     'z': self._context.scene.ambf_model_gravity[2]}
@@ -2268,6 +2273,16 @@ class AMBF_OT_load_ambf_file(Operator):
     def load_ambf_rigid_body(self, body_data, obj_handle):
         if obj_handle.type in ['EMPTY', 'MESH']:
             obj_handle.ambf_rigid_body_mass = body_data['mass']
+
+            if 'gravity' in body_data:
+                obj_handle.ambf_object_override_gravity = True
+                obj_handle.ambf_object_gravity[0] = body_data['gravity']['x']
+                obj_handle.ambf_object_gravity[1] = body_data['gravity']['y']
+                obj_handle.ambf_object_gravity[2] = body_data['gravity']['z']
+
+            else:
+                obj_handle.ambf_object_override_gravity = False
+
             obj_handle.ambf_object_type = 'RIGID_BODY'
 
             if 'visible' in body_data:
@@ -2889,7 +2904,7 @@ class AMBF_OT_load_ambf_file(Operator):
             context.scene.ambf_ignore_inter_collision = True
 
         if 'gravity' in self._adf_data:
-            context.scene.ambf_override_model_gravity = True
+            context.scene.ambf_model_override_gravity = True
             try:
                 context.scene.ambf_model_gravity[0] = self._adf_data['gravity']['x']
                 context.scene.ambf_model_gravity[1] = self._adf_data['gravity']['y']
@@ -3199,12 +3214,12 @@ class AMBF_PT_main_panel(Panel):
 
         col = sbox.column()
         col.alignment = 'CENTER'
-        col.prop(context.scene, "ambf_override_model_gravity")
+        col.prop(context.scene, "ambf_model_override_gravity")
 
         col = sbox.column()
         col.alignment = 'CENTER'
         col.prop(context.scene, "ambf_model_gravity")
-        col.enabled = context.scene.ambf_override_model_gravity
+        col.enabled = context.scene.ambf_model_override_gravity
 
         # Ignore Inter Collision Button
         col = sbox.column()
@@ -3316,6 +3331,15 @@ class AMBF_PT_ambf_rigid_body(Panel):
             col.enabled = not context.object.ambf_rigid_body_is_static
             col.alignment = 'EXPAND'
             col.prop(context.object, 'ambf_rigid_body_mass')
+
+            col = box.row()
+            col.prop(context.object, 'ambf_object_override_gravity')
+            col.alignment = 'EXPAND'
+
+            col = box.row()
+            col.prop(context.object, 'ambf_object_gravity')
+            col.alignment = 'EXPAND'
+            col.enabled = context.object.ambf_object_override_gravity
             
             row = box.row()
             split = row.split()
@@ -4036,6 +4060,21 @@ def register():
             default=False
         )
 
+    Object.ambf_object_override_gravity = BoolProperty \
+            (
+            name="Override Object Gravity",
+            default=False,
+            description="Override this objects gravity (default = False)",
+        )
+
+    Object.ambf_object_gravity = FloatVectorProperty \
+            (
+            name='Object Gravity',
+            default=(0.0, 0.0, -9.8),
+            options={'PROPORTIONAL'},
+            subtype='XYZ',
+        )
+
     Object.ambf_object_visible = BoolProperty(name="Visible", default=True, description='Show this object in AMBF')
 
     Object.ambf_collision_margin_enable = BoolProperty(name="Enable Collision Margin", default=False)
@@ -4289,7 +4328,7 @@ def register():
             description="The maximum number of vertices the low resolution collision mesh is allowed to have",
         )
 
-    Scene.ambf_override_model_gravity = BoolProperty \
+    Scene.ambf_model_override_gravity = BoolProperty \
             (
             name="Override Model Gravity",
             default=False,
