@@ -1725,9 +1725,14 @@ class AMBF_OT_generate_ambf_file(Operator):
 
         self._adf['ignore inter-collision'] = self._context.scene.ambf_ignore_inter_collision
 
+        if self._context.scene.ambf_override_model_gravity:
+            self._adf['gravity'] = {'x': self._context.scene.ambf_model_gravity[0],
+                                    'y': self._context.scene.ambf_model_gravity[1],
+                                    'z': self._context.scene.ambf_model_gravity[2]}
+
         update_global_namespace(self._context)
 
-        if CommonConfig.namespace is not "":
+        if CommonConfig.namespace != "":
             self._adf['namespace'] = CommonConfig.namespace
 
         # We want in-order processing, so make sure to
@@ -2883,6 +2888,15 @@ class AMBF_OT_load_ambf_file(Operator):
         except:
             context.scene.ambf_ignore_inter_collision = True
 
+        if 'gravity' in self._adf_data:
+            context.scene.ambf_override_model_gravity = True
+            try:
+                context.scene.ambf_model_gravity[0] = self._adf_data['gravity']['x']
+                context.scene.ambf_model_gravity[1] = self._adf_data['gravity']['y']
+                context.scene.ambf_model_gravity[2] = self._adf_data['gravity']['z']
+            except:
+                print('ERROR! CANNOT READ MODEL GRAVITY FROM ADF')
+
         # print('Printing Blender Remapped Body Names')
         # print(self._blender_remapped_body_names)
         return {'FINISHED'}
@@ -3182,7 +3196,16 @@ class AMBF_PT_main_panel(Panel):
         sbox = box.box()
         row = sbox.row()
         row.label(text="D. SAVE ADF")
-        
+
+        col = sbox.column()
+        col.alignment = 'CENTER'
+        col.prop(context.scene, "ambf_override_model_gravity")
+
+        col = sbox.column()
+        col.alignment = 'CENTER'
+        col.prop(context.scene, "ambf_model_gravity")
+        col.enabled = context.scene.ambf_override_model_gravity
+
         # Ignore Inter Collision Button
         col = sbox.column()
         col.alignment = 'CENTER'
@@ -4264,6 +4287,21 @@ def register():
             name="",
             default=150,
             description="The maximum number of vertices the low resolution collision mesh is allowed to have",
+        )
+
+    Scene.ambf_override_model_gravity = BoolProperty \
+            (
+            name="Override Model Gravity",
+            default=False,
+            description="Override this models gravity (default = False)",
+        )
+
+    Scene.ambf_model_gravity = FloatVectorProperty\
+            (
+            name='Model Gravity',
+            default=(0.0, 0.0, -9.8),
+            options={'PROPORTIONAL'},
+            subtype='XYZ',
         )
 
     Scene.ambf_ignore_inter_collision = BoolProperty \
