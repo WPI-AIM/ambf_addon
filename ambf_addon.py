@@ -3063,6 +3063,40 @@ class AMBF_OT_ambf_constraint_activate(Operator):
         return {'FINISHED'}
 
 
+class AMBF_OT_ambf_move_collision_mesh_to_body_origin(Operator):
+    bl_idname = "ambf.ambf_move_collision_mesh_to_body_origin"
+    bl_label = "Move collision mesh to body origin"
+    bl_description = "Move the collision mesh to the correct location (i.e. body's origin, this is where AMBF will consider this mesh)"
+
+    def execute(self, context):
+        collision_mesh_obj = context.object.ambf_collision_mesh
+        mesh_obj = get_active_object()
+        if collision_mesh_obj is not None:
+            collision_mesh_obj.matrix_world = mesh_obj.matrix_world.copy()
+            make_obj1_parent_of_obj2(collision_mesh_obj, mesh_obj)
+            select_object(collision_mesh_obj, False)
+            select_object(mesh_obj)
+            set_active_object(mesh_obj)
+        return {'FINISHED'}
+
+
+class AMBF_OT_ambf_collision_mesh_use_current_location(Operator):
+    bl_idname = "ambf.ambf_collision_mesh_use_current_location"
+    bl_label = "Use current location of collision mesh"
+    bl_description = "Use the current location of the collision mesh (i.e. set its origin to be at the origin of the AMBF object without moving it)"
+
+    def execute(self, context):
+        collision_mesh_obj = context.object.ambf_collision_mesh
+        mesh_obj = get_active_object()
+        if collision_mesh_obj is not None:
+            T_rb_w = mesh_obj.matrix_world.copy()
+            T_c_w = collision_mesh_obj.matrix_world.copy()
+            T_c_rb = T_rb_w.inverted() @ T_c_w
+            collision_mesh_obj.matrix_world = T_rb_w
+            collision_mesh_obj.data.vertices.data.transform(T_c_rb)
+        return {'FINISHED'}
+
+
 class AMBF_PT_main_panel(Panel):
     """Creates a Panel in the Tool Shelf"""
     bl_label = "LOAD, CREATE AND SAVE ADFs"
@@ -3396,6 +3430,14 @@ class AMBF_PT_ambf_rigid_body(Panel):
 
                 col = box.column()
                 col.prop(context.object, 'ambf_collision_mesh')
+                col.enabled = context.object.ambf_use_separate_collision_mesh
+
+                col = box.column()
+                col.operator('ambf.ambf_move_collision_mesh_to_body_origin')
+                col.enabled = context.object.ambf_use_separate_collision_mesh
+
+                col = box.column()
+                col.operator('ambf.ambf_collision_mesh_use_current_location')
                 col.enabled = context.object.ambf_use_separate_collision_mesh
 
             elif context.object.ambf_collision_type == 'SINGULAR_SHAPE':
@@ -3940,7 +3982,9 @@ custom_classes = (AMBF_OT_toggle_low_res_mesh_modifiers_visibility,
                   AMBF_PT_main_panel,
                   AMBF_PT_ambf_rigid_body,
                   AMBF_PT_ambf_ghost_object,
-                  AMBF_PT_ambf_constraint)
+                  AMBF_PT_ambf_constraint,
+                  AMBF_OT_ambf_move_collision_mesh_to_body_origin,
+                  AMBF_OT_ambf_collision_mesh_use_current_location)
 
 
 def register():
