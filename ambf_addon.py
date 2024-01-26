@@ -790,6 +790,8 @@ def load_blender_mesh(context, mesh_filepath, name):
 
 
 def save_blender_mesh(obj_handle, mesh_filepath, mesh_type, use_mesh_modifiers):
+    hide_state = is_object_hidden(obj_handle)
+    hide_object(obj_handle, False)
     select_object(obj_handle, True)
 
     mesh_filepath = mesh_filepath + '.' + mesh_type
@@ -819,6 +821,7 @@ def save_blender_mesh(obj_handle, mesh_filepath, mesh_type, use_mesh_modifiers):
         raise Exception('High Res Mesh Format Not Specified/Understood')
 
     select_object(obj_handle, False)
+    hide_object(obj_handle, hide_state)
     
 
 def add_collision_shape_property(obj_handle, shape_type=None):
