@@ -47,8 +47,7 @@ If for example, you downloaded Blender 3.5.0 from its website, the above command
 
 ```bash
 cd ~/Downloads/blender-3.5.0-linux64/3.5/python/bin/
-./python3.10 -m ensurepip
-./pip3 install pyyaml
+./python3.10 -m pip install pyyaml
 ```
 2. The simulation key-frame must be at 0 while saving the ADF files to ensure proper world transforms.
 
