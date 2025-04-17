@@ -1143,7 +1143,8 @@ class AMBF_OT_generate_ambf_file(Operator):
     bl_description = "This generated the AMBF Config file in the location and filename specified in the field" \
                      " above"
 
-    def __init__(self):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
         self._body_names_list = []
         self._joint_names_list = []
         self.body_name_prefix = 'BODY '
@@ -2168,7 +2169,8 @@ class AMBF_OT_load_ambf_file(Operator):
     bl_label = "Load AMBF Description File (ADF)"
     bl_description = "This loads an AMBF from the specified config file"
 
-    def __init__(self):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
         self._adf_data = None
         self._joint_additional_offset = {}
         # A dict for body name as defined in YAML File and the Name Blender gives
