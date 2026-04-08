@@ -148,7 +148,6 @@ class LightTemplate:
         self._adf_data['spot exponent'] = 1.0
         self._adf_data['shadow quality'] = 1.0
         self._adf_data['cutoff angle'] = 1.0
-        self._adf_data['parent'] = ''
         # self._adf_data['color'] = ''
         # self._adf_data['intensity'] = 0.0
         # self._adf_data['spot'] = {'angle': 0.0, 'blend': 0.0}
@@ -1262,6 +1261,11 @@ def ambf_light_type_update_cb(self, context):
         self.data.type = blender_type_map.get(self.ambf_light_type, 'SPOT')
 
 
+def ambf_camera_clip_end_update_cb(self, context):
+    if self.type == 'CAMERA':
+        self.data.clip_end = self.ambf_camera_clip_end
+
+
 def draw_collision_shape_prop(context, prop, box):
     sbox = box.box()
     col = sbox.column()
@@ -2229,9 +2233,6 @@ class AMBF_OT_generate_ambf_file(Operator):
         light_data['name'] = light_obj_handle_name
         light_data['type'] = light_obj_handle.ambf_light_type
 
-        if light_obj_handle.ambf_light_parent:
-            light_data['parent'] = light_obj_handle.ambf_light_parent
-
         # Get light position and orientation
         world_pos = light_obj_handle.matrix_world.translation
         world_rot = light_obj_handle.matrix_world.to_euler()
@@ -2239,9 +2240,12 @@ class AMBF_OT_generate_ambf_file(Operator):
         light_data['location'] = {'x': ambf_round(world_pos.x), 'y': ambf_round(world_pos.y), 'z': ambf_round(world_pos.z)}
         light_data['direction'] = {'x': ambf_round(world_rot[0]), 'y': ambf_round(world_rot[1]), 'z': ambf_round(world_rot[2])}
 
-        light_data['spot exponent'] = light_obj_handle.ambf_light_spot_exponent
         light_data['shadow quality'] = light_obj_handle.ambf_light_shadow_quality
-        light_data['cutoff angle'] = light_obj_handle.ambf_light_cutoff_angle
+        if light_obj_handle.ambf_light_type == 'SPOT':
+            light_data['spot exponent'] = light_obj_handle.ambf_light_spot_exponent
+            light_data['cutoff angle'] = light_obj_handle.ambf_light_cutoff_angle
+        if light_obj_handle.ambf_light_parent:
+            light_data['parent'] = light_obj_handle.ambf_light_parent
         # light_data['attenuation'] = light_obj_handle.ambf_light_constant_attenuation #TODO: Add attenuation (linear, quadratic)
 
         light_yaml_name = self.add_light_prefix_str(light_data['name'])
@@ -3186,6 +3190,7 @@ class AMBF_OT_load_ambf_file(Operator):
         scene.camera = camera_object
 
         # Load AMBF-specific camera properties
+        camera_object.ambf_camera_clip_end = camera_data['clipping plane']['far']
         camera_object.ambf_camera_monitor = camera_data.get('monitor', 0)
         camera_object.ambf_camera_publish_image = camera_data.get('publish image', False)
         camera_object.ambf_camera_publish_image_interval = camera_data.get('publish image interval', 1)
@@ -3215,9 +3220,9 @@ class AMBF_OT_load_ambf_file(Operator):
         light_object = bpy.data.objects.new(light_name, light)
         light_object.ambf_object_type = 'LIGHT'
 
-        light_object.ambf_light_cutoff_angle = light_data['cutoff angle']
-        light_object.ambf_light_spot_exponent = light_data['spot exponent']
-        light_object.ambf_light_shadow_quality = light_data['shadow quality']
+        light_object.ambf_light_cutoff_angle = light_data.get('cutoff angle', 1.7)
+        light_object.ambf_light_spot_exponent = light_data.get('spot exponent', 1.0)
+        light_object.ambf_light_shadow_quality = light_data.get('shadow quality', 1)
         light_object.ambf_light_type = ambf_light_type if ambf_light_type in ('POINT', 'SPOT', 'DIRECTIONAL') else 'SPOT'
 
         if 'parent' in light_data and light_data['parent']:
@@ -6406,7 +6411,7 @@ class AMBF_PT_ambf_camera(Panel):
             col = box.column()
             col.prop(context.object.data, 'clip_start', text="Clip Near")
             col = box.column()
-            col.prop(context.object.data, 'clip_end', text="Clip Far")
+            col.prop(context.object, 'ambf_camera_clip_end', text="Clip Far")
 
             layout.separator()
             box = layout.box()
@@ -7396,6 +7401,16 @@ def register():
     )
 
     ''' CAMERA PROPERTIES '''
+    Object.ambf_camera_clip_end = FloatProperty(
+        name="Clip Far",
+        description="Far clipping plane distance",
+        default=1000.0,
+        min=0.001,
+        step=100,
+        precision=1,
+        update=ambf_camera_clip_end_update_cb
+    )
+
     Object.ambf_camera_monitor = bpy.props.IntProperty(
         name="Monitor",
         description="Display monitor index (0-indexed) for this camera window",
@@ -7914,6 +7929,7 @@ def unregister():
     del bpy.types.Object.ambf_light_parent
 
     ''' CAMERA PROPERTIES '''
+    del bpy.types.Object.ambf_camera_clip_end
     del bpy.types.Object.ambf_camera_monitor
     del bpy.types.Object.ambf_camera_publish_image
     del bpy.types.Object.ambf_camera_publish_image_interval
