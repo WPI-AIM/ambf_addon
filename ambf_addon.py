@@ -153,7 +153,7 @@ class LightTemplate:
         # self._adf_data['spot'] = {'angle': 0.0, 'blend': 0.0}
         # self._adf_data['distance'] = 0.0
         # self._adf_data['decay'] = 0.0
-        # self._adf_data['attenuation'] = get_xyz_ordered_dict()
+        self._adf_data['attenuation'] = {'constant': 1.0, 'linear': 0.0, 'quadratic': 0.0}
 
 class SensorTemplate:
     def __init__(self, sensor_type="Proximity", publish_frequency=None):
@@ -1266,6 +1266,11 @@ def ambf_camera_clip_end_update_cb(self, context):
         self.data.clip_end = self.ambf_camera_clip_end
 
 
+def ambf_camera_clip_start_update_cb(self, context):
+    if self.type == 'CAMERA':
+        self.data.clip_start = self.ambf_camera_clip_start
+
+
 def draw_collision_shape_prop(context, prop, box):
     sbox = box.box()
     col = sbox.column()
@@ -2204,6 +2209,22 @@ class AMBF_OT_generate_ambf_file(Operator):
             'height': camera_obj_handle.ambf_camera_publish_depth_height
         }
 
+        if camera_obj_handle.ambf_camera_enable_intrinsics:
+            camera_data['camera intrinsics'] = {
+                'fx': ambf_round(camera_obj_handle.ambf_camera_intrinsics_fx),
+                'fy': ambf_round(camera_obj_handle.ambf_camera_intrinsics_fy),
+                'cx': ambf_round(camera_obj_handle.ambf_camera_intrinsics_cx),
+                'cy': ambf_round(camera_obj_handle.ambf_camera_intrinsics_cy),
+                's':  ambf_round(camera_obj_handle.ambf_camera_intrinsics_s)
+            }
+
+        if camera_obj_handle.ambf_camera_enable_projection_matrix:
+            mat = camera_obj_handle.ambf_camera_projection_matrix
+            camera_data['projection matrix'] = [
+                [ambf_round(mat[r * 4 + c]) for c in range(4)]
+                for r in range(4)
+            ]
+
         camera_yaml_name = self.add_camera_prefix_str(camera_data['name'])
         adf_data[camera_yaml_name] = camera_data
         self._camera_names_list.append(camera_yaml_name)
@@ -2244,9 +2265,13 @@ class AMBF_OT_generate_ambf_file(Operator):
         if light_obj_handle.ambf_light_type == 'SPOT':
             light_data['spot exponent'] = light_obj_handle.ambf_light_spot_exponent
             light_data['cutoff angle'] = light_obj_handle.ambf_light_cutoff_angle
+        light_data['attenuation'] = {
+            'constant':  ambf_round(light_obj_handle.ambf_light_attenuation_constant),
+            'linear':    ambf_round(light_obj_handle.ambf_light_attenuation_linear),
+            'quadratic': ambf_round(light_obj_handle.ambf_light_attenuation_quadratic)
+        }
         if light_obj_handle.ambf_light_parent:
             light_data['parent'] = light_obj_handle.ambf_light_parent
-        # light_data['attenuation'] = light_obj_handle.ambf_light_constant_attenuation #TODO: Add attenuation (linear, quadratic)
 
         light_yaml_name = self.add_light_prefix_str(light_data['name'])
         adf_data[light_yaml_name] = light_data
@@ -3190,6 +3215,7 @@ class AMBF_OT_load_ambf_file(Operator):
         scene.camera = camera_object
 
         # Load AMBF-specific camera properties
+        camera_object.ambf_camera_clip_start = camera_data['clipping plane']['near']
         camera_object.ambf_camera_clip_end = camera_data['clipping plane']['far']
         camera_object.ambf_camera_monitor = camera_data.get('monitor', 0)
         camera_object.ambf_camera_publish_image = camera_data.get('publish image', False)
@@ -3202,6 +3228,21 @@ class AMBF_OT_load_ambf_file(Operator):
         depth_res = camera_data.get('publish depth resolution', {})
         camera_object.ambf_camera_publish_depth_width = depth_res.get('width', 640)
         camera_object.ambf_camera_publish_depth_height = depth_res.get('height', 480)
+
+        if 'camera intrinsics' in camera_data:
+            intr = camera_data['camera intrinsics']
+            camera_object.ambf_camera_enable_intrinsics = True
+            camera_object.ambf_camera_intrinsics_fx = float(intr.get('fx', 500.0))
+            camera_object.ambf_camera_intrinsics_fy = float(intr.get('fy', 500.0))
+            camera_object.ambf_camera_intrinsics_cx = float(intr.get('cx', 320.0))
+            camera_object.ambf_camera_intrinsics_cy = float(intr.get('cy', 240.0))
+            camera_object.ambf_camera_intrinsics_s  = float(intr.get('s', 0.0))
+
+        if 'projection matrix' in camera_data:
+            flat = [camera_data['projection matrix'][r][c]
+                    for r in range(4) for c in range(4)]
+            camera_object.ambf_camera_enable_projection_matrix = True
+            camera_object.ambf_camera_projection_matrix = flat
 
         return camera_object
 
@@ -3223,7 +3264,13 @@ class AMBF_OT_load_ambf_file(Operator):
         light_object.ambf_light_cutoff_angle = light_data.get('cutoff angle', 1.7)
         light_object.ambf_light_spot_exponent = light_data.get('spot exponent', 1.0)
         light_object.ambf_light_shadow_quality = light_data.get('shadow quality', 1)
-        light_object.ambf_light_type = ambf_light_type if ambf_light_type in ('POINT', 'SPOT', 'DIRECTIONAL') else 'SPOT'
+        light_object.ambf_light_type = 'SPOT'
+
+        if 'attenuation' in light_data:
+            atten = light_data['attenuation']
+            light_object.ambf_light_attenuation_constant  = float(atten.get('constant',  1.0))
+            light_object.ambf_light_attenuation_linear    = float(atten.get('linear',    0.0))
+            light_object.ambf_light_attenuation_quadratic = float(atten.get('quadratic', 0.0))
 
         if 'parent' in light_data and light_data['parent']:
             light_object.ambf_light_parent = light_data['parent']
@@ -6409,15 +6456,44 @@ class AMBF_PT_ambf_camera(Panel):
             col = box.column()
             col.prop(context.object.data, 'angle', text="Field of View")
             col = box.column()
-            col.prop(context.object.data, 'clip_start', text="Clip Near")
+            col.prop(context.object, 'ambf_camera_clip_start', text="Near Plane")
             col = box.column()
-            col.prop(context.object, 'ambf_camera_clip_end', text="Clip Far")
+            col.prop(context.object, 'ambf_camera_clip_end', text="Far Plane")
+
+            layout.separator()
+            box = layout.box()
+            row = box.row()
+            row.prop(context.object, 'ambf_camera_enable_intrinsics',
+                     text="Option 1: Camera Intrinsics", toggle=True)
+            if context.object.ambf_camera_enable_intrinsics:
+                col = box.column()
+                row = col.row()
+                row.prop(context.object, 'ambf_camera_intrinsics_fx')
+                row.prop(context.object, 'ambf_camera_intrinsics_fy')
+                row = col.row()
+                row.prop(context.object, 'ambf_camera_intrinsics_cx')
+                row.prop(context.object, 'ambf_camera_intrinsics_cy')
+                col.prop(context.object, 'ambf_camera_intrinsics_s')
+
+            layout.separator()
+            box = layout.box()
+            row = box.row()
+            row.prop(context.object, 'ambf_camera_enable_projection_matrix',
+                     text="Option 2: Projection Matrix", toggle=True)
+            if context.object.ambf_camera_enable_projection_matrix:
+                col = box.column()
+                mat = context.object.ambf_camera_projection_matrix
+                for r in range(4):
+                    row = col.row(align=True)
+                    for c in range(4):
+                        row.prop(context.object, 'ambf_camera_projection_matrix',
+                                 index=r * 4 + c, text="")
 
             layout.separator()
             box = layout.box()
             box.label(text="Display")
             col = box.column()
-            col.prop(context.object, 'ambf_camera_monitor', text="Monitor Index")
+            col.prop(context.object, 'ambf_camera_monitor', text="Monitor Number")
 
             layout.separator()
             box = layout.box()
@@ -6478,8 +6554,8 @@ class AMBF_PT_ambf_light(Panel):
             layout.separator()
             box = layout.box()
             box.label(text="Light Type")
-            col = box.column()
-            col.prop(context.object, 'ambf_light_type', text="Type")
+            row = box.row()
+            row.label(text="Spotlight", icon='LIGHT_SPOT')
 
             layout.separator()
             box = layout.box()
@@ -6494,6 +6570,15 @@ class AMBF_PT_ambf_light(Panel):
             col = box.column()
             col.enabled = is_spot
             col.prop(context.object, 'ambf_light_cutoff_angle', text="Cutoff Angle")
+
+            layout.separator()
+            box = layout.box()
+            box.label(text="Attenuation")
+            col = box.column()
+            row = col.row(align=True)
+            row.prop(context.object, 'ambf_light_attenuation_constant',  text="Constant")
+            row.prop(context.object, 'ambf_light_attenuation_linear',    text="Linear")
+            row.prop(context.object, 'ambf_light_attenuation_quadratic', text="Quadratic")
 
             layout.separator()
             box = layout.box()
@@ -7386,9 +7471,7 @@ def register():
         name="Light Type",
         description="AMBF light type",
         items=[
-            ('POINT', 'Point', 'Omnidirectional point light', '', 0),
-            ('SPOT', 'Spot', 'Directional spot light', '', 1),
-            ('DIRECTIONAL', 'Directional', 'Infinite directional (sun) light', '', 2),
+            ('SPOT', 'Spotlight', 'Directional spot light', '', 0),
         ],
         default='SPOT',
         update=ambf_light_type_update_cb
@@ -7400,9 +7483,35 @@ def register():
         default=""
     )
 
+    Object.ambf_light_attenuation_constant = FloatProperty(
+        name="Constant",
+        description="Constant attenuation factor",
+        default=1.0, min=0.0, max=10.0, precision=3
+    )
+    Object.ambf_light_attenuation_linear = FloatProperty(
+        name="Linear",
+        description="Linear attenuation factor",
+        default=0.0, min=0.0, max=10.0, precision=3
+    )
+    Object.ambf_light_attenuation_quadratic = FloatProperty(
+        name="Quadratic",
+        description="Quadratic attenuation factor",
+        default=0.0, min=0.0, max=10.0, precision=4
+    )
+
     ''' CAMERA PROPERTIES '''
+    Object.ambf_camera_clip_start = FloatProperty(
+        name="Near Plane",
+        description="Near clipping plane distance",
+        default=0.1,
+        min=0.001,
+        step=1,
+        precision=3,
+        update=ambf_camera_clip_start_update_cb
+    )
+
     Object.ambf_camera_clip_end = FloatProperty(
-        name="Clip Far",
+        name="Far Plane",
         description="Far clipping plane distance",
         default=1000.0,
         min=0.001,
@@ -7471,6 +7580,47 @@ def register():
         description="Published depth image height in pixels",
         default=480,
         min=1
+    )
+
+    ''' CAMERA INTRINSICS '''
+    Object.ambf_camera_enable_intrinsics = BoolProperty(
+        name="Enable Camera Intrinsics",
+        description="Override camera projection with intrinsic parameters",
+        default=False
+    )
+    Object.ambf_camera_intrinsics_fx = FloatProperty(
+        name="fx", description="Focal length X (pixels)", default=500.0, min=0.0, precision=3
+    )
+    Object.ambf_camera_intrinsics_fy = FloatProperty(
+        name="fy", description="Focal length Y (pixels)", default=500.0, min=0.0, precision=3
+    )
+    Object.ambf_camera_intrinsics_cx = FloatProperty(
+        name="cx", description="Principal point X (pixels)", default=320.0, min=0.0, precision=3
+    )
+    Object.ambf_camera_intrinsics_cy = FloatProperty(
+        name="cy", description="Principal point Y (pixels)", default=240.0, min=0.0, precision=3
+    )
+    Object.ambf_camera_intrinsics_s = FloatProperty(
+        name="s", description="Skew coefficient", default=0.0, precision=4
+    )
+
+    ''' CAMERA PROJECTION MATRIX '''
+    Object.ambf_camera_enable_projection_matrix = BoolProperty(
+        name="Enable Projection Matrix",
+        description="Override camera projection with a custom 4x4 matrix",
+        default=False
+    )
+    Object.ambf_camera_projection_matrix = FloatVectorProperty(
+        name="Projection Matrix",
+        description="Custom 4x4 camera projection matrix (row-major)",
+        size=16,
+        default=(
+            1.0, 0.0, 0.0, 0.0,
+            0.0, 1.0, 0.0, 0.0,
+            0.0, 0.0, 1.0, 0.0,
+            0.0, 0.0, 0.0, 1.0
+        ),
+        precision=4
     )
 
     ''' GHOST OBJECT PROPERTIES'''
@@ -7927,8 +8077,12 @@ def unregister():
     del bpy.types.Object.ambf_light_constant_attenuation
     del bpy.types.Object.ambf_light_type
     del bpy.types.Object.ambf_light_parent
+    del bpy.types.Object.ambf_light_attenuation_constant
+    del bpy.types.Object.ambf_light_attenuation_linear
+    del bpy.types.Object.ambf_light_attenuation_quadratic
 
     ''' CAMERA PROPERTIES '''
+    del bpy.types.Object.ambf_camera_clip_start
     del bpy.types.Object.ambf_camera_clip_end
     del bpy.types.Object.ambf_camera_monitor
     del bpy.types.Object.ambf_camera_publish_image
@@ -7939,6 +8093,14 @@ def unregister():
     del bpy.types.Object.ambf_camera_publish_depth_interval
     del bpy.types.Object.ambf_camera_publish_depth_width
     del bpy.types.Object.ambf_camera_publish_depth_height
+    del bpy.types.Object.ambf_camera_enable_intrinsics
+    del bpy.types.Object.ambf_camera_intrinsics_fx
+    del bpy.types.Object.ambf_camera_intrinsics_fy
+    del bpy.types.Object.ambf_camera_intrinsics_cx
+    del bpy.types.Object.ambf_camera_intrinsics_cy
+    del bpy.types.Object.ambf_camera_intrinsics_s
+    del bpy.types.Object.ambf_camera_enable_projection_matrix
+    del bpy.types.Object.ambf_camera_projection_matrix
 
     ''' GHOST OBJECT PROPERTIES '''
     del bpy.types.Object.ambf_ghost_object_properties
