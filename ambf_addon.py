@@ -822,7 +822,7 @@ def save_blender_mesh(obj_handle, mesh_filepath, mesh_type, use_mesh_modifiers):
 
     select_object(obj_handle, False)
     hide_object(obj_handle, hide_state)
-    
+
 
 def add_collision_shape_property(obj_handle, shape_type=None):
     obj_handle.ambf_collision_shape_prop_collection.add()
@@ -878,7 +878,7 @@ def estimate_collision_shape_geometry(obj_handle):
                 prop_group.ambf_collision_shape_radius = dims[median_ax_idx] / 2.0
                 prop_group.ambf_collision_shape_height = dims[major_ax_idx]
                 prop_group.ambf_collision_shape_axis = major_ax_char.upper()
-                
+
 
 def collision_shape_update_dimensions(shape_prop):
     if shape_prop.ambf_collision_shape_disable_update_cbs:
@@ -894,7 +894,7 @@ def collision_shape_update_dimensions(shape_prop):
     lx = shape_prop.ambf_collision_shape_xyz_dims[0]
     ly = shape_prop.ambf_collision_shape_xyz_dims[1]
     lz = shape_prop.ambf_collision_shape_xyz_dims[2]
-    
+
     lx = ambf_round(lx)
     ly = ambf_round(ly)
     lz = ambf_round(lz)
@@ -945,7 +945,7 @@ def collision_shape_update_local_offset(obj_handle, shape_prop):
 
     coll_shape_obj_handle.matrix_world = T_p_w @ T_c_p
     coll_shape_obj_handle.scale = scale_old
-    
+
 
 def set_3d_cursor_location(location):
     bpy.context.scene.cursor.location = location
@@ -962,7 +962,7 @@ def collision_shape_create_visual(obj_handle, shape_prop_group):
         lx = shape_prop_group.ambf_collision_shape_xyz_dims[0]
         ly = shape_prop_group.ambf_collision_shape_xyz_dims[1]
         lz = shape_prop_group.ambf_collision_shape_xyz_dims[2]
-            
+
         if shape_prop_group.ambf_collision_shape == 'BOX':
             bpy.ops.mesh.primitive_cube_add(size=1.0)
             coll_shape_obj_handle = get_active_object()
@@ -972,7 +972,7 @@ def collision_shape_create_visual(obj_handle, shape_prop_group):
 
         elif shape_prop_group.ambf_collision_shape == 'SPHERE':
             bpy.ops.mesh.primitive_uv_sphere_add(radius=radius)
-            
+
         elif shape_prop_group.ambf_collision_shape in ['CONE', 'CYLINDER', 'CAPSULE']:
             if shape_prop_group.ambf_collision_shape_axis == 'X':
                 dir_axis = 0
@@ -986,7 +986,7 @@ def collision_shape_create_visual(obj_handle, shape_prop_group):
                 dir_axis = 2
                 rot_axis = mathutils.Vector((0, 0, 1))
                 rot_angle = 0
-                
+
             rpy_rot = rot_axis * rot_angle
 
             if shape_prop_group.ambf_collision_shape == 'CONE':
@@ -1002,7 +1002,7 @@ def collision_shape_create_visual(obj_handle, shape_prop_group):
 
             else:
                 print("FAIL! Shouldn't Get Here")
-                
+
         coll_shape_obj_handle = get_active_object()
         coll_shape_obj_handle.ambf_object_type = 'COLLISION_SHAPE'
         bpy.ops.object.transform_apply(scale=True, rotation=True)
@@ -1189,7 +1189,7 @@ class AMBF_OT_generate_ambf_file(Operator):
         body_yaml_name = self.add_body_prefix_str(obj_handle_name)
         output_mesh = bpy.context.scene.ambf_meshes_save_type
         body_data['name'] = obj_handle_name
-        
+
         body_data['passive'] = obj_handle.ambf_rigid_body_passive
         if obj_handle.ambf_rigid_body_passive:
             body_data['publish children names'] = False
@@ -1577,7 +1577,7 @@ class AMBF_OT_generate_ambf_file(Operator):
         # t_c_p = t_w_p * t_c_w
         t_c_p = t_w_p @ t_c_w
         pivot = t_c_p.translation
-        
+
         constraint_axis.resize_4d()
         constraint_axis[3] = 0.0
         # The third col of rotation matrix is the z axis of child in parent
@@ -1701,7 +1701,7 @@ class AMBF_OT_generate_ambf_file(Operator):
             joint_data['controller output type'] = joint_obj_handle.ambf_constraint_controller_output_type
         else:
             del joint_data['controller']
-            
+
         joint_data['enable feedback'] = joint_obj_handle.ambf_constraint_enable_feedback
 
         joint_data['passive'] = joint_obj_handle.ambf_constraint_passive
@@ -1722,7 +1722,7 @@ class AMBF_OT_generate_ambf_file(Operator):
 
         # For inorder processing, set the bodies and joints tag at the top of the map
         self._adf = OrderedDict()
-        
+
         self._adf['bodies'] = []
         self._adf['joints'] = []
         print('SAVE PATH', bpy.path.abspath(save_dir))
@@ -1758,7 +1758,7 @@ class AMBF_OT_generate_ambf_file(Operator):
         # Now populate the bodies and joints tag
         self._adf['bodies'] = self._body_names_list
         self._adf['joints'] = self._joint_names_list
-        
+
         yaml.dump(self._adf, output_file)
 
         header_str = "# AMBF Version: %s\n" \
@@ -1775,7 +1775,7 @@ class AMBF_OT_generate_ambf_file(Operator):
 class AMBF_OT_save_meshes(Operator):
     bl_idname = "ambf.save_meshes"
     bl_label = "Save Meshes"
-    bl_description = "This saves the meshes in base folder specifed in the field above. Two folders" \
+    bl_description = "This saves the meshes in base folder specified in the field above. Two folders" \
                      " are created in the base folder named, \"high_res\" and \"low_res\" to store the" \
                      " high-res and low-res meshes separately"
 
@@ -2266,7 +2266,7 @@ class AMBF_OT_load_ambf_file(Operator):
                         intensity = body_data['color components']['specular']['r'] / mat.diffuse_color[2]
                     except:
                         intensity = 0.0
-                        
+
             mat.specular_intensity = intensity
 
 #            mat.ambient = body_data['color components']['ambient']['level']
@@ -2364,7 +2364,7 @@ class AMBF_OT_load_ambf_file(Operator):
                     ocs.ambf_collision_shape_angular_offset[0] = obj_handle.ambf_rigid_body_angular_inertial_offset[0]
                     ocs.ambf_collision_shape_angular_offset[1] = obj_handle.ambf_rigid_body_angular_inertial_offset[1]
                     ocs.ambf_collision_shape_angular_offset[2] = obj_handle.ambf_rigid_body_angular_inertial_offset[2]
-                
+
                 obj_handle.ambf_collision_type = 'SINGULAR_SHAPE'
             elif 'compound collision shape' in body_data:
                 shape_count = 0
@@ -2391,7 +2391,7 @@ class AMBF_OT_load_ambf_file(Operator):
                     ocs.ambf_collision_shape_angular_offset[0] = shape_item['offset']['orientation']['r']
                     ocs.ambf_collision_shape_angular_offset[1] = shape_item['offset']['orientation']['p']
                     ocs.ambf_collision_shape_angular_offset[2] = shape_item['offset']['orientation']['y']
-                    
+
                 obj_handle.ambf_collision_type = 'COMPOUND_SHAPE'
             else:
                 # If a separate collision mesh was specified, enable it
@@ -2421,7 +2421,7 @@ class AMBF_OT_load_ambf_file(Operator):
                         obj_handle.ambf_collision_groups[group] = True
                     else:
                         print('WARNING, Collision Group Outside [0-20]')
-                        
+
             if 'passive' in body_data:
                 obj_handle.ambf_rigid_body_passive = body_data['passive']
 
@@ -2532,7 +2532,7 @@ class AMBF_OT_load_ambf_file(Operator):
                 joint_type = 'SIX_DOF_SPRING'
 
         return joint_type
-    
+
     def set_default_ambf_constraint_axis(self, joint_obj_handle):
         if joint_obj_handle.ambf_object_type == 'CONSTRAINT':
             if joint_obj_handle.ambf_constraint_type in ['REVOLUTE', 'TORSION_SPRING', 'CONE_TWIST', 'SIX_DOF', 'SIX_DOF_SPRING']:
@@ -2775,7 +2775,7 @@ class AMBF_OT_load_ambf_file(Operator):
                     joint_obj_handle.ambf_constraint_six_dof_equilibrium_linear[2] = joint_data['equilibrium point']["linear"]["z"]
 
 
-                
+
         self.set_default_ambf_constraint_axis(joint_obj_handle)
 
         if not limits_defined:
@@ -2795,7 +2795,7 @@ class AMBF_OT_load_ambf_file(Operator):
                         joint_obj_handle.ambf_constraint_equilibrium_point = (joint_obj_handle.ambf_constraint_limits_lower
                                                                               + joint_obj_handle.ambf_constraint_limits_higher) / 2.0
 
-                
+
         if 'enable feedback' in joint_data:
                 joint_obj_handle.ambf_constraint_enable_feedback = joint_data['enable feedback']
 
@@ -2858,7 +2858,7 @@ class AMBF_OT_load_ambf_file(Operator):
         set_view_transform_orientation_to_local()
         print(self._yaml_filepath)
         yaml_file = open(self._yaml_filepath)
-        
+
         # Check YAML version
         ver = [int(x, 10) for x in yaml.__version__.split('.')]
         if ver[0] >= 5:
@@ -3123,10 +3123,10 @@ class AMBF_PT_main_panel(Panel):
                     bpy.data.objects.remove(o)
 
         layout = self.layout
-        
+
         col = layout.column()
         col.prop(context.scene, 'ambf_enable_forced_cleanup')
-        
+
         box = layout.box()
         box.enabled = context.scene.ambf_enable_forced_cleanup
         box.label(text='WARNING! CLEAN UP ALL OBJECTS')
@@ -3142,13 +3142,13 @@ class AMBF_PT_main_panel(Panel):
 
         col = box.column()
         col.operator("ambf.ambf_collision_shape_cleanup")
-        
+
         col = box.column()
         col.operator("ambf.ambf_hide_passive_joints")
 
         col = box.column()
         col.operator("ambf.ambf_hide_all_joints")
-        
+
         box = layout.box()
         row = box.row()
         # Load AMBF File Into Blender
@@ -3159,20 +3159,20 @@ class AMBF_PT_main_panel(Panel):
         col = box.column()
         col.alignment = 'CENTER'
         col.prop(context.scene, 'ambf_load_adf_filepath')
-        
+
         col = box.column()
         col.alignment = 'CENTER'
         col.operator("ambf.load_ambf_file")
-        
+
         ### SEPERATOR
         layout.separator()
 
         box = layout.box()
-        
+
         row = box.row()
         row.alignment = 'CENTER'
         row.label(text='CREATE ADF:', icon='EXPORT')
-        
+
         # Panel Label
         sbox = box.box()
         row = sbox.row()
@@ -3186,7 +3186,7 @@ class AMBF_PT_main_panel(Panel):
         row.label(text='Coll Mesh Max Verts: ')
         row = split.row()
         row.prop(context.scene, 'ambf_mesh_max_vertices')
-        
+
         # Low Res Mesh Modifier Button
         col = sbox.column()
         col.alignment = 'CENTER'
@@ -3195,7 +3195,7 @@ class AMBF_PT_main_panel(Panel):
         sbox = box.box()
         row = sbox.row()
         row.label(text="B. OPTIONAL (ALL BODIES)")
-        
+
         # Column for creating joint
         col = sbox.column()
         col.operator('ambf.estimate_collision_shapes_geometry')
@@ -3205,7 +3205,7 @@ class AMBF_PT_main_panel(Panel):
 
         col = sbox.column()
         col.operator("ambf.estimate_inertial_offsets")
-        
+
         col = sbox.column()
         col.operator("ambf.estimate_inertias")
 
@@ -3269,12 +3269,12 @@ class AMBF_PT_main_panel(Panel):
         col = sbox.column()
         col.alignment = 'CENTER'
         col.prop(context.scene, "ambf_precision")
-        
+
         # AMBF Namespace
         col = sbox.column()
         col.alignment = 'CENTER'
         col.prop(context.scene, 'ambf_namespace', text='Global NS')
-        
+
         # Config File Save Location
         col = sbox.column()
         col.prop(context.scene, 'ambf_adf_path', text='Save As')
@@ -3282,7 +3282,7 @@ class AMBF_PT_main_panel(Panel):
         col = sbox.column()
         col.alignment = 'CENTER'
         col.operator("ambf.add_generate_ambf_file")
-        
+
         ### SEPERATOR
         layout.separator()
 
@@ -3304,20 +3304,20 @@ class AMBF_PT_main_panel(Panel):
         col = box.column()
         col.alignment = 'CENTER'
         col.operator("ambf.toggle_low_res_mesh_modifiers_visibility")
-        
+
         col = box.column()
         col.operator("ambf.auto_rename_joints")
-        
+
         row = box.row()
         row.scale_y = 1.5
         row.operator("ambf.create_joint")
-        
-        
+
+
         ### SEPERATOR
         layout.separator()
 
         box = layout.box()
-        
+
         row = box.row()
         row.alignment = 'CENTER'
         row.label(text="LEGACY:", icon='CONSOLE')
@@ -3330,7 +3330,7 @@ class AMBF_PT_ambf_rigid_body(Panel):
     bl_space_type = 'PROPERTIES'
     bl_region_type = 'WINDOW'
     bl_context = "physics"
-    
+
     @classmethod
     def poll(self, context):
         active = False
@@ -3338,19 +3338,19 @@ class AMBF_PT_ambf_rigid_body(Panel):
         if active_obj_handle: # Check if an obj_handle is active
             if active_obj_handle.type in ['EMPTY', 'MESH']:
                 active = True
-                
+
         return active
-    
+
     def draw(self, context):
         layout = self.layout
-        
+
         col = layout.row()
         col.alignment = 'EXPAND'
         col.scale_y = 2
         col.operator('ambf.ambf_rigid_body_activate', text='Enable AMBF Rigid Body', icon='RNA_ADD')
 
         if context.object.ambf_object_type == 'RIGID_BODY':
-            layout.separator() 
+            layout.separator()
             layout.separator()
 
             col = layout.column()
@@ -3360,12 +3360,12 @@ class AMBF_PT_ambf_rigid_body(Panel):
             col = layout.column()
             col.enabled = False
             col.prop(context.object, 'ambf_rigid_body_namespace')
-            
+
             box = layout.box()
 
             row = box.row()
             row.prop(context.object, 'ambf_rigid_body_is_static', toggle=True)
-            
+
             col = row.row()
             col.enabled = not context.object.ambf_rigid_body_is_static
             col.alignment = 'EXPAND'
@@ -3379,7 +3379,7 @@ class AMBF_PT_ambf_rigid_body(Panel):
             col.prop(context.object, 'ambf_object_gravity')
             col.alignment = 'EXPAND'
             col.enabled = context.object.ambf_object_override_gravity
-            
+
             row = box.row()
             split = row.split()
             row = split.row()
@@ -3390,33 +3390,33 @@ class AMBF_PT_ambf_rigid_body(Panel):
             col = col.column()
             col.scale_y = 1.5
             col.prop(context.object, 'ambf_rigid_body_specify_inertia', toggle=True)
-            
+
             row = split.row()
             row.enabled = context.object.ambf_rigid_body_specify_inertia and not context.object.ambf_rigid_body_is_static
             col = row.column()
             col.prop(context.object, 'ambf_rigid_body_inertia_x')
-            
+
             col = col.column()
             col.prop(context.object, 'ambf_rigid_body_inertia_y')
-            
+
             col = col.column()
             col.prop(context.object, 'ambf_rigid_body_inertia_z')
-            
+
             # Inertial Offsets
             box.separator()
             col = box.column()
             col.operator("ambf.estimate_inertial_offset_per_object")
-            
+
             col = box.column()
             col = col.split(factor=0.5)
             col.alignment = 'EXPAND'
             col.prop(context.object, 'ambf_rigid_body_linear_inertial_offset')
-            
+
             col = col.column()
             col.enabled = False
             col.alignment = 'EXPAND'
             col.prop(context.object, 'ambf_rigid_body_angular_inertial_offset')
-            
+
             layout.separator()
 
             box = layout.box()
@@ -3451,9 +3451,9 @@ class AMBF_PT_ambf_rigid_body(Panel):
                 col.operator('ambf.estimate_collision_shape_geometry_per_object')
                 propgroup = context.object.ambf_collision_shape_prop_collection.items()[0][1]
                 draw_collision_shape_prop(context, propgroup, box)
-                
+
             elif context.object.ambf_collision_type == 'COMPOUND_SHAPE':
-                
+
                 cnt = len(context.object.ambf_collision_shape_prop_collection.items())
                 for i in range(cnt):
                     propgroup = context.object.ambf_collision_shape_prop_collection.items()[i][1]
@@ -3464,15 +3464,15 @@ class AMBF_PT_ambf_rigid_body(Panel):
                 row.operator('ambf.ambf_collision_shape_remove', text='REMOVE SHAPE')
                 if cnt == 1:
                     row.enabled = False
-            
+
             box.separator()
             row = box.row()
             row.prop(context.object, 'ambf_collision_margin_enable', toggle=True)
-            
+
             row = row.row()
             row.enabled = context.object.ambf_collision_margin_enable
             row.prop(context.object, 'ambf_collision_margin')
-            
+
             row = box.column()
             row.alignment = 'EXPAND'
             row.prop(context.object, 'ambf_collision_groups', toggle=True)
@@ -3480,61 +3480,61 @@ class AMBF_PT_ambf_rigid_body(Panel):
             col = box.column()
             col.prop(context.object, 'ambf_collision_show_shapes_per_object', toggle=True)
             col.scale_y = 1.5
-            
+
             layout.separator()
-            
+
             box = layout.box()
-            
+
             row = box.row()
             row.prop(context.object, 'ambf_rigid_body_static_friction')
 
             row = box.row()
             row.prop(context.object, 'ambf_rigid_body_rolling_friction')
-            
+
             box.separator()
-            
+
             row = box.row()
             row.prop(context.object, 'ambf_rigid_body_linear_damping')
-            
+
             row = box.row()
             row.prop(context.object, 'ambf_rigid_body_angular_damping')
-            
+
             box.separator()
-            
+
             row = box.row()
             row.prop(context.object, 'ambf_rigid_body_restitution')
-            
+
             layout.separator()
-            
+
             # Rigid Body Controller Properties
             box = layout.box()
             row = box.row()
             row.alignment = 'CENTER'
             row.prop(context.object, 'ambf_rigid_body_enable_controllers', toggle=True)
             row.scale_y=2
-        
+
             col = box.column()
             col.label(text='Linear Gains')
-            
+
             col = box.column()
             col.enabled = context.object.ambf_rigid_body_enable_controllers
             row = col.row()
             row.prop(context.object, 'ambf_rigid_body_linear_controller_p_gain', text='P')
-        
+
             row = row.row()
             row.prop(context.object, 'ambf_rigid_body_linear_controller_i_gain', text='I')
 
             row = row.row()
             row.prop(context.object, 'ambf_rigid_body_linear_controller_d_gain', text='D')
-            
+
             col = box.column()
             col.label(text='Angular Gains')
-            
+
             col = box.column()
             col.enabled = context.object.ambf_rigid_body_enable_controllers
             row = col.row()
             row.prop(context.object, 'ambf_rigid_body_angular_controller_p_gain', text='P')
-        
+
             row = row.row()
             row.prop(context.object, 'ambf_rigid_body_angular_controller_i_gain', text='I')
 
@@ -3543,15 +3543,15 @@ class AMBF_PT_ambf_rigid_body(Panel):
 
             row = col.row()
             row.prop(context.object, 'ambf_rigid_body_controller_output_type')
-            
+
             layout.separator()
-            
+
             # Publish various children properties
             box = layout.box()
-            
+
             col = box.column()
             col.prop(context.object, 'ambf_rigid_body_passive')
-            
+
             col = box.column()
             col.prop(context.object, 'ambf_rigid_body_publish_children_names')
             col.enabled = not context.object.ambf_rigid_body_passive
@@ -3656,7 +3656,7 @@ class AMBF_PT_ambf_ghost_object(Panel):
 
             col = box.column()
             col.prop(context.object, 'ambf_rigid_body_passive')
-    
+
 
 class AMBF_PT_ambf_constraint(Panel):
     """Add Rigid Body Properties"""
@@ -3665,7 +3665,7 @@ class AMBF_PT_ambf_constraint(Panel):
     bl_space_type = 'PROPERTIES'
     bl_region_type = 'WINDOW'
     bl_context= "physics"
-    
+
     @classmethod
     def poll(self, context):
         active = False
@@ -3673,33 +3673,33 @@ class AMBF_PT_ambf_constraint(Panel):
         if active_obj_handle: # Check if an obj_handle is active
             if active_obj_handle.type in ['EMPTY']:
                 active = True
-                          
+
         return active
-    
+
     def draw(self, context):
-        
+
         layout = self.layout
-        
+
         row = layout.row()
         row.alignment = 'EXPAND'
         row.operator('ambf.ambf_constraint_activate', text='Enable AMBF Constraint', icon='FORCE_HARMONIC')
         row.scale_y = 2
-        
+
         if context.object.ambf_object_type == 'CONSTRAINT':
             layout.separator()
             col = layout.column()
             col.operator('ambf.auto_rename_joint_per_object')
-            
+
             col = layout.column()
             col.alignment = 'CENTER'
             col.prop(context.object, 'ambf_constraint_name')
-            
+
             col = layout.column()
             col.prop(context.object, 'ambf_constraint_type')
-            
+
             col = layout.column()
             col.prop_search(context.object, "ambf_object_parent", context.scene, "objects")
-            
+
             col = layout.column()
             col.prop_search(context.object, "ambf_object_child", context.scene, "objects")
 
@@ -3713,9 +3713,9 @@ class AMBF_PT_ambf_constraint(Panel):
                 if context.scene.objects.get(context.object.ambf_object_child.name) is None:
                     context.object.ambf_object_child = None
 
-            
+
             layout.separator()
-            
+
             if context.object.ambf_constraint_type in ['PRISMATIC', 'REVOLUTE', 'LINEAR_SPRING', 'TORSION_SPRING']:
                 row = layout.row()
                 row.alignment = 'EXPAND'
@@ -3732,43 +3732,43 @@ class AMBF_PT_ambf_constraint(Panel):
                     row = layout.row()
                     row.prop(context.object, 'ambf_constraint_equilibrium_point')
                     row.scale_y=1.5
-                    
+
                 layout.separator()
-                
+
                 split = layout.split(factor=0.3)
                 row = split.column()
                 row.alignment = 'CENTER'
                 row.prop(context.object, 'ambf_constraint_limits_enable', toggle=True)
                 row.scale_y=2
-                
+
                 if context.object.ambf_constraint_type in ['REVOLUTE', 'TORSION_SPRING']:
                     units = '(Degrees)'
-                    
+
                 elif context.object.ambf_constraint_type in ['PRISMATIC', 'LINEAR_SPRING']:
                     units = '(Meters)'
-                
+
                 row = split.column()
                 row.enabled = context.object.ambf_constraint_limits_enable
                 r1 = row.split(factor=0.8)
                 r1.prop(context.object, 'ambf_constraint_limits_lower', text='Low')
                 r2 = r1.row()
                 r2.label(text=units)
-                
+
                 row = row.column()
                 row.enabled = context.object.ambf_constraint_limits_enable
                 r1 = row.split(factor=0.8)
                 r1.prop(context.object, 'ambf_constraint_limits_higher', text='High')
                 r2 = r1.row()
                 r2.label(text=units)
- 
+
                 if context.object.ambf_constraint_type in ['PRISMATIC', 'REVOLUTE']:
                     layout.separator()
-                    
+
                     if context.object.ambf_constraint_enable_controller_gains and not context.object.ambf_constraint_passive:
                         enable_gain_setting = True
                     else:
                         enable_gain_setting = False
-                    
+
                     col = layout.column()
                     split = col.split(factor=0.3)
                     c1 = split.column()
@@ -3783,11 +3783,11 @@ class AMBF_PT_ambf_constraint(Panel):
                     c2.operator('ambf.estimate_joint_controller_gain_per_object', text='Estimate')
                     c2.scale_y=3
                     c2.enabled = enable_gain_setting
-        
+
                     c3 = s2.column()
                     c3.enabled = enable_gain_setting
                     c3.prop(context.object, 'ambf_constraint_controller_p_gain', text='P')
-        
+
                     r3 = c3.row()
                     r3.prop(context.object, 'ambf_constraint_controller_i_gain', text='I')
 
@@ -3996,7 +3996,7 @@ def register():
     from bpy.utils import register_class
     for cls in custom_classes:
         register_class(cls)
-        
+
     Object.ambf_object_type = EnumProperty \
             (
             name="Object Type",
@@ -4173,7 +4173,7 @@ def register():
             options={'PROPORTIONAL'},
             subtype='LAYER'
         )
-    
+
     Object.ambf_constraint_type = EnumProperty \
             (
             items=
