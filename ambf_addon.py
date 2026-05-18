@@ -2545,6 +2545,9 @@ class AMBF_OT_generate_ambf_file(Operator):
 
         prepend_comment_to_file(output_filename, header_str)
 
+        # Auto-link saved file to the launch field for quick access
+        context.scene.ambf_launch_adf_path = output_filename
+
 
 class AMBF_OT_save_meshes(Operator):#
     bl_idname = "ambf.save_meshes"
@@ -3048,16 +3051,20 @@ class AMBF_OT_remove_object_namespaces(Operator):
 class AMBF_OT_launch_ambf_simulator(Operator):
     bl_idname = "ambf.launch_simulator"
     bl_label = "Launch in AMBF Simulator"
-    bl_description = "Save the ADF file and open it in the AMBF simulator"
+    bl_description = "Open the selected ADF file directly in the AMBF simulator"
 
     def execute(self, context):
         import subprocess, os
 
-        adf_path = bpy.path.abspath(context.scene.ambf_adf_path)
-        simulator_path = context.scene.ambf_simulator_path
+        adf_path = bpy.path.abspath(context.scene.ambf_launch_adf_path)
+        simulator_path = bpy.path.abspath(context.scene.ambf_simulator_path)
 
         if not adf_path:
-            self.report({'ERROR'}, "No ADF save path set. Fill in 'Save As' under D. SAVE ADF first.")
+            self.report({'ERROR'}, "No ADF file selected. Set the 'ADF to Launch' path first.")
+            return {'CANCELLED'}
+
+        if not os.path.isfile(adf_path):
+            self.report({'ERROR'}, f"ADF file not found: {adf_path}")
             return {'CANCELLED'}
 
         if not simulator_path:
@@ -3066,13 +3073,6 @@ class AMBF_OT_launch_ambf_simulator(Operator):
 
         if not os.path.isfile(simulator_path):
             self.report({'ERROR'}, f"Simulator not found at: {simulator_path}")
-            return {'CANCELLED'}
-
-        # Save the ADF file first
-        bpy.ops.ambf.generate_ambf_file()
-
-        if not os.path.isfile(adf_path):
-            self.report({'ERROR'}, f"ADF file was not created at: {adf_path}")
             return {'CANCELLED'}
 
         try:
@@ -4324,7 +4324,8 @@ class AMBF_OT_load_ambf_file(Operator):
         cls._low_res_path = ''
         cls._yaml_filepath = ''
 
-        yaml_path = str(bpy.path.abspath(context.scene.ambf_load_adf_filepath)) # Changed 
+        yaml_path = str(bpy.path.abspath(context.scene.ambf_load_adf_filepath)) # Changed
+        cls._yaml_filepath = yaml_path
         # check if the file path is valid
         if not yaml_path:
             self.report({'ERROR'}, "Select an ADF file path first.")
@@ -5484,6 +5485,9 @@ class AMBF_PT_main_panel(Panel):
         row = box.row()
         row.alignment = 'CENTER'
         row.label(text="LAUNCH IN AMBF SIMULATOR:", icon='PLAY')
+
+        col = box.column()
+        col.prop(context.scene, 'ambf_launch_adf_path', text='ADF to Launch')
 
         col = box.column()
         col.prop(context.scene, 'ambf_simulator_path', text='Simulator Path')
@@ -7994,6 +7998,13 @@ def register():
         subtype='FILE_PATH'
     )
 
+    Scene.ambf_launch_adf_path = StringProperty(
+        name="ADF to Launch",
+        description="ADF file to open in the AMBF simulator. Auto-filled when you save an ADF.",
+        default="",
+        subtype='FILE_PATH'
+    )
+
     Scene.ambf_meshes_path = StringProperty \
             (
             name="Meshes (Save To)",
@@ -8229,6 +8240,7 @@ def unregister():
     ''' SCENARIO PROPERTIES '''
     del bpy.types.Scene.ambf_adf_path
     del bpy.types.Scene.ambf_simulator_path
+    del bpy.types.Scene.ambf_launch_adf_path
     del bpy.types.Scene.ambf_meshes_path
     del bpy.types.Scene.ambf_meshes_save_type
     del bpy.types.Scene.ambf_mesh_max_vertices
