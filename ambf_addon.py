@@ -884,22 +884,46 @@ def create_capsule(height, radius, axis='Z'):
     bpy.ops.object.join()
 
 
+def _resolve_blender_operator(op_path):
+    op_handle = bpy.ops
+    for attr in op_path.split('.'):
+        if not hasattr(op_handle, attr):
+            return None
+        op_handle = getattr(op_handle, attr)
+    return op_handle
+
+
+def _call_first_available_operator(candidates, error_message):
+    for op_path, kwargs in candidates:
+        op_handle = _resolve_blender_operator(op_path)
+        if op_handle is not None:
+            return op_handle(**kwargs)
+    raise RuntimeError(error_message)
+
+
 def load_blender_mesh(context, mesh_filepath, name):
     result = True
     if mesh_filepath.suffix in ['.stl', '.STL']:
         path = str(mesh_filepath.resolve())
-
-        if hasattr(bpy.ops.import_mesh, "stl"):
-            bpy.ops.import_mesh.stl(filepath=path)
-        elif hasattr(bpy.ops.wm, "stl_import"):
-            bpy.ops.wm.stl_import(filepath=path)
-        else:
-            raise RuntimeError("No STL import operator available in Blender.")
+        _call_first_available_operator(
+            [
+                ("wm.stl_import", {"filepath": path}),
+                ("import_mesh.stl", {"filepath": path}),
+            ],
+            "No STL import operator available in Blender."
+        )
 
     elif mesh_filepath.suffix in ['.obj', '.OBJ']:
         print('Importing OBJ: ', mesh_filepath)
         _manually_select_obj_handle = True
-        bpy.ops.import_scene.obj(filepath=str(mesh_filepath.resolve()), axis_up='Z', axis_forward='Y')
+        path = str(mesh_filepath.resolve())
+        _call_first_available_operator(
+            [
+                ("wm.obj_import", {"filepath": path, "up_axis": 'Z', "forward_axis": 'Y'}),
+                ("import_scene.obj", {"filepath": path, "axis_up": 'Z', "axis_forward": 'Y'}),
+            ],
+            "No OBJ import operator available in Blender."
+        )
         # Hack, .3ds and .obj imports do not make the imported obj_handle active. A hack is
         # to capture the selected objects in this case.
         set_active_object(context.selected_objects[0])
@@ -940,7 +964,15 @@ def load_blender_mesh(context, mesh_filepath, name):
 
     elif mesh_filepath.suffix in ['.3ds', '.3DS']:
         _manually_select_obj_handle = True
-        bpy.ops.import_scene.autodesk_3ds(filepath=str(mesh_filepath.resolve()))
+        path = str(mesh_filepath.resolve())
+        _call_first_available_operator(
+            [
+                ("import_scene.autodesk_3ds", {"filepath": path}),
+                ("import_scene.max3ds", {"filepath": path}),
+                ("wm.max3ds_import", {"filepath": path}),
+            ],
+            "No 3DS import operator available in Blender."
+        )
         # Hack, .3ds and .obj imports do not make the imported obj_handle active. A hack is
         # to capture the selected objects in this case.
         set_active_object(context.selected_objects[0])
@@ -963,11 +995,41 @@ def save_blender_mesh(obj_handle, mesh_filepath, mesh_type, use_mesh_modifiers):
 
     mesh_filepath = mesh_filepath + '.' + mesh_type
     if mesh_type == 'STL':
-        bpy.ops.export_mesh.stl(filepath=mesh_filepath, use_selection=True,
-                                use_mesh_modifiers=use_mesh_modifiers)
+        _call_first_available_operator(
+            [
+                ("wm.stl_export", {
+                    "filepath": mesh_filepath,
+                    "export_selected_objects": True,
+                    "apply_modifiers": use_mesh_modifiers,
+                }),
+                ("export_mesh.stl", {
+                    "filepath": mesh_filepath,
+                    "use_selection": True,
+                    "use_mesh_modifiers": use_mesh_modifiers,
+                }),
+            ],
+            "No STL export operator available in Blender."
+        )
     elif mesh_type == 'OBJ':
-        bpy.ops.export_scene.obj(filepath=mesh_filepath, axis_up='Z', axis_forward='Y',
-                                 use_selection=True, use_mesh_modifiers=use_mesh_modifiers)
+        _call_first_available_operator(
+            [
+                ("wm.obj_export", {
+                    "filepath": mesh_filepath,
+                    "up_axis": 'Z',
+                    "forward_axis": 'Y',
+                    "export_selected_objects": True,
+                    "apply_modifiers": use_mesh_modifiers,
+                }),
+                ("export_scene.obj", {
+                    "filepath": mesh_filepath,
+                    "axis_up": 'Z',
+                    "axis_forward": 'Y',
+                    "use_selection": True,
+                    "use_mesh_modifiers": use_mesh_modifiers,
+                }),
+            ],
+            "No OBJ export operator available in Blender."
+        )
     elif mesh_type == '3DS':
         # 3DS doesn't support suppressing modifiers, so we explicitly
         # toggle them to save as high res and low res meshes
@@ -975,14 +1037,34 @@ def save_blender_mesh(obj_handle, mesh_filepath, mesh_type, use_mesh_modifiers):
         for mod in obj_handle.modifiers:
             mod.show_viewport = True
 
-        bpy.ops.export_scene.autodesk_3ds(filepath=mesh_filepath, use_selection=True)
+        _call_first_available_operator(
+            [
+                ("export_scene.autodesk_3ds", {"filepath": mesh_filepath, "use_selection": True}),
+                ("export_scene.max3ds", {"filepath": mesh_filepath, "use_selection": True}),
+                ("wm.max3ds_export", {"filepath": mesh_filepath, "export_selected_objects": True}),
+            ],
+            "No 3DS export operator available in Blender."
+        )
 
     elif mesh_type == 'PLY':
         # .PLY export has a bug in which it only saves the mesh that is
         # active in context of view. Hence we explicitly select this object
         # as active in the scene on top of being selected
         set_active_object(obj_handle)
-        bpy.ops.export_mesh.ply(filepath=mesh_filepath, use_mesh_modifiers=use_mesh_modifiers)
+        _call_first_available_operator(
+            [
+                ("wm.ply_export", {
+                    "filepath": mesh_filepath,
+                    "export_selected_objects": True,
+                    "apply_modifiers": use_mesh_modifiers,
+                }),
+                ("export_mesh.ply", {
+                    "filepath": mesh_filepath,
+                    "use_mesh_modifiers": use_mesh_modifiers,
+                }),
+            ],
+            "No PLY export operator available in Blender."
+        )
         set_active_object(None)
     else:
         raise Exception('High Res Mesh Format Not Specified/Understood')
