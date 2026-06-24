@@ -886,32 +886,32 @@ def create_capsule(height, radius, axis='Z'):
 
 def load_blender_mesh(context, mesh_filepath, name):
     result = True
-    if mesh_filepath.suffix in ['.stl', '.STL']:
-        path = str(mesh_filepath.resolve())
+    path = str(mesh_filepath.resolve())
 
-        if hasattr(bpy.ops.import_mesh, "stl"):
-            bpy.ops.import_mesh.stl(filepath=path)
-        elif hasattr(bpy.ops.wm, "stl_import"):
+    if mesh_filepath.suffix in ['.stl', '.STL']:
+        if hasattr(bpy.ops.wm, "stl_import"):
             bpy.ops.wm.stl_import(filepath=path)
+        elif hasattr(bpy.ops.import_mesh, "stl"):
+            bpy.ops.import_mesh.stl(filepath=path)
         else:
             raise RuntimeError("No STL import operator available in Blender.")
 
     elif mesh_filepath.suffix in ['.obj', '.OBJ']:
         print('Importing OBJ: ', mesh_filepath)
-        _manually_select_obj_handle = True
-        bpy.ops.import_scene.obj(filepath=str(mesh_filepath.resolve()), axis_up='Z', axis_forward='Y')
-        # Hack, .3ds and .obj imports do not make the imported obj_handle active. A hack is
-        # to capture the selected objects in this case.
+        if hasattr(bpy.ops.wm, "obj_import"):
+            bpy.ops.wm.obj_import(filepath=path, forward_axis='Y', up_axis='Z')
+        elif hasattr(bpy.ops.import_scene, "obj"):
+            bpy.ops.import_scene.obj(filepath=path, axis_up='Z', axis_forward='Y')
+        else:
+            raise RuntimeError("No OBJ import operator available in Blender.")
         set_active_object(context.selected_objects[0])
 
     elif mesh_filepath.suffix in ['.dae', '.DAE']:
-        bpy.ops.wm.collada_import(filepath=str(mesh_filepath.resolve()))
-        # If we are importing .dae meshes, they can import stuff other than meshes, such as cameras etc.
-        # We should remove these extra things and only keep the meshes
+        bpy.ops.wm.collada_import(filepath=path)
+        # Remove non-mesh objects (cameras, lights, etc.) that collada may import
         for temp_obj_handle in context.selected_objects:
             if temp_obj_handle.type == 'MESH':
                 obj_handle = temp_obj_handle
-                # set_active_object(obj_handle)
             else:
                 bpy.data.objects.remove(temp_obj_handle)
 
@@ -930,19 +930,19 @@ def load_blender_mesh(context, mesh_filepath, name):
             obj_handle.matrix_world.identity()
             obj_handle.data.transform(trans_o)
 
-            # Kind of a hack, blender is spawning the collada file
-            # a 90 deg offset along the axis axis, this is to correct that
-            # Maybe this will not be needed in future versions of blender
+            # Correct the 90-deg X-axis offset that Blender applies on collada import
             r_x = mathutils.Matrix.Rotation(-pi / 2, 4, 'X')
             obj_handle.data.transform(r_x)
         else:
             set_active_object(so[0])
 
-    elif mesh_filepath.suffix in ['.3ds', '.3DS']:
-        _manually_select_obj_handle = True
-        bpy.ops.import_scene.autodesk_3ds(filepath=str(mesh_filepath.resolve()))
-        # Hack, .3ds and .obj imports do not make the imported obj_handle active. A hack is
-        # to capture the selected objects in this case.
+    elif mesh_filepath.suffix in ['.ply', '.PLY']:
+        if hasattr(bpy.ops.wm, "ply_import"):
+            bpy.ops.wm.ply_import(filepath=path)
+        elif hasattr(bpy.ops.import_mesh, "ply"):
+            bpy.ops.import_mesh.ply(filepath=path)
+        else:
+            raise RuntimeError("No PLY import operator available in Blender.")
         set_active_object(context.selected_objects[0])
 
     elif mesh_filepath.suffix == '':
@@ -954,7 +954,6 @@ def load_blender_mesh(context, mesh_filepath, name):
 
     return result
 
-# TODO: save to mesh not working for all except .stl
 def save_blender_mesh(obj_handle, mesh_filepath, mesh_type, use_mesh_modifiers):
     print('\nHandle Save Blender Mesh: ', obj_handle.name, 'TO: ', mesh_filepath)
     hide_state = is_object_hidden(obj_handle)
@@ -963,29 +962,35 @@ def save_blender_mesh(obj_handle, mesh_filepath, mesh_type, use_mesh_modifiers):
 
     mesh_filepath = mesh_filepath + '.' + mesh_type
     if mesh_type == 'STL':
-        bpy.ops.export_mesh.stl(filepath=mesh_filepath, use_selection=True,
-                                use_mesh_modifiers=use_mesh_modifiers)
+        if hasattr(bpy.ops.wm, "stl_export"):
+            bpy.ops.wm.stl_export(filepath=mesh_filepath, export_selected_objects=True,
+                                  apply_modifiers=use_mesh_modifiers)
+        elif hasattr(bpy.ops.export_mesh, "stl"):
+            bpy.ops.export_mesh.stl(filepath=mesh_filepath, use_selection=True,
+                                    use_mesh_modifiers=use_mesh_modifiers)
+        else:
+            raise RuntimeError("No STL export operator available in Blender.")
     elif mesh_type == 'OBJ':
-        bpy.ops.export_scene.obj(filepath=mesh_filepath, axis_up='Z', axis_forward='Y',
-                                 use_selection=True, use_mesh_modifiers=use_mesh_modifiers)
-    elif mesh_type == '3DS':
-        # 3DS doesn't support suppressing modifiers, so we explicitly
-        # toggle them to save as high res and low res meshes
-        # STILL BUGGY
-        for mod in obj_handle.modifiers:
-            mod.show_viewport = True
-
-        bpy.ops.export_scene.autodesk_3ds(filepath=mesh_filepath, use_selection=True)
-
+        if hasattr(bpy.ops.wm, "obj_export"):
+            bpy.ops.wm.obj_export(filepath=mesh_filepath, forward_axis='Y', up_axis='Z',
+                                  export_selected_objects=True, apply_modifiers=use_mesh_modifiers)
+        elif hasattr(bpy.ops.export_scene, "obj"):
+            bpy.ops.export_scene.obj(filepath=mesh_filepath, axis_up='Z', axis_forward='Y',
+                                     use_selection=True, use_mesh_modifiers=use_mesh_modifiers)
+        else:
+            raise RuntimeError("No OBJ export operator available in Blender.")
     elif mesh_type == 'PLY':
-        # .PLY export has a bug in which it only saves the mesh that is
-        # active in context of view. Hence we explicitly select this object
-        # as active in the scene on top of being selected
         set_active_object(obj_handle)
-        bpy.ops.export_mesh.ply(filepath=mesh_filepath, use_mesh_modifiers=use_mesh_modifiers)
+        if hasattr(bpy.ops.wm, "ply_export"):
+            bpy.ops.wm.ply_export(filepath=mesh_filepath, export_selected_objects=True,
+                                  apply_modifiers=use_mesh_modifiers)
+        elif hasattr(bpy.ops.export_mesh, "ply"):
+            bpy.ops.export_mesh.ply(filepath=mesh_filepath, use_mesh_modifiers=use_mesh_modifiers)
+        else:
+            raise RuntimeError("No PLY export operator available in Blender.")
         set_active_object(None)
     else:
-        raise Exception('High Res Mesh Format Not Specified/Understood')
+        raise Exception('Mesh format not supported: ' + mesh_type)
 
     select_object(obj_handle, False)
     hide_object(obj_handle, hide_state)
@@ -2545,6 +2550,9 @@ class AMBF_OT_generate_ambf_file(Operator):
 
         prepend_comment_to_file(output_filename, header_str)
 
+        # Auto-link saved file to the launch field for quick access
+        context.scene.ambf_launch_adf_path = output_filename
+
 
 class AMBF_OT_save_meshes(Operator):#
     bl_idname = "ambf.save_meshes"
@@ -2833,6 +2841,22 @@ class AMBF_OT_create_light(Operator):
         return {'FINISHED'}
 
 
+class AMBF_OT_create_empty_rigid_body(Operator):
+    bl_idname = "ambf.create_empty_rigid_body"
+    bl_label = "Create Empty Rigid Body"
+    bl_description = "Creates a new Blender Empty object and marks it as an AMBF rigid body (no mesh — useful for invisible links, reference frames, or attachment points)"
+
+    def execute(self, context):
+        select_all_objects(False)
+        bpy.ops.object.empty_add(type='PLAIN_AXES')
+        active_obj_handle = get_active_object()
+        active_obj_handle.name = 'empty_body'
+        active_obj_handle.ambf_object_type = 'RIGID_BODY'
+        if len(active_obj_handle.ambf_collision_shape_prop_collection.items()) == 0:
+            add_collision_shape_property(active_obj_handle)
+        return {'FINISHED'}
+
+
 class AMBF_OT_remove_low_res_mesh_modifiers(Operator):
     bl_idname = "ambf.remove_low_res_mesh_modifiers"
     bl_label = "Remove All Modifiers"
@@ -3048,16 +3072,20 @@ class AMBF_OT_remove_object_namespaces(Operator):
 class AMBF_OT_launch_ambf_simulator(Operator):
     bl_idname = "ambf.launch_simulator"
     bl_label = "Launch in AMBF Simulator"
-    bl_description = "Save the ADF file and open it in the AMBF simulator"
+    bl_description = "Open the selected ADF file directly in the AMBF simulator"
 
     def execute(self, context):
         import subprocess, os
 
-        adf_path = bpy.path.abspath(context.scene.ambf_adf_path)
-        simulator_path = context.scene.ambf_simulator_path
+        adf_path = bpy.path.abspath(context.scene.ambf_launch_adf_path)
+        simulator_path = bpy.path.abspath(context.scene.ambf_simulator_path)
 
         if not adf_path:
-            self.report({'ERROR'}, "No ADF save path set. Fill in 'Save As' under D. SAVE ADF first.")
+            self.report({'ERROR'}, "No ADF file selected. Set the 'ADF to Launch' path first.")
+            return {'CANCELLED'}
+
+        if not os.path.isfile(adf_path):
+            self.report({'ERROR'}, f"ADF file not found: {adf_path}")
             return {'CANCELLED'}
 
         if not simulator_path:
@@ -3066,13 +3094,6 @@ class AMBF_OT_launch_ambf_simulator(Operator):
 
         if not os.path.isfile(simulator_path):
             self.report({'ERROR'}, f"Simulator not found at: {simulator_path}")
-            return {'CANCELLED'}
-
-        # Save the ADF file first
-        bpy.ops.ambf.generate_ambf_file()
-
-        if not os.path.isfile(adf_path):
-            self.report({'ERROR'}, f"ADF file was not created at: {adf_path}")
             return {'CANCELLED'}
 
         try:
@@ -4324,7 +4345,8 @@ class AMBF_OT_load_ambf_file(Operator):
         cls._low_res_path = ''
         cls._yaml_filepath = ''
 
-        yaml_path = str(bpy.path.abspath(context.scene.ambf_load_adf_filepath)) # Changed 
+        yaml_path = str(bpy.path.abspath(context.scene.ambf_load_adf_filepath)) # Changed
+        cls._yaml_filepath = yaml_path
         # check if the file path is valid
         if not yaml_path:
             self.report({'ERROR'}, "Select an ADF file path first.")
@@ -5486,6 +5508,9 @@ class AMBF_PT_main_panel(Panel):
         row.label(text="LAUNCH IN AMBF SIMULATOR:", icon='PLAY')
 
         col = box.column()
+        col.prop(context.scene, 'ambf_launch_adf_path', text='ADF to Launch')
+
+        col = box.column()
         col.prop(context.scene, 'ambf_simulator_path', text='Simulator Path')
 
         col = box.column()
@@ -5540,6 +5565,10 @@ class AMBF_PT_main_panel(Panel):
         row.scale_y = 1.5
         row.operator("ambf.create_light")
 
+        row = box.row()
+        row.scale_y = 1.5
+        row.operator("ambf.create_empty_rigid_body")
+
         ### SEPERATOR
         layout.separator()
 
@@ -5560,13 +5589,10 @@ class AMBF_PT_ambf_rigid_body(Panel):
     
     @classmethod
     def poll(self, context):
-        active = False
         active_obj_handle = get_active_object()
-        if active_obj_handle: # Check if an obj_handle is active
-            if active_obj_handle.type == 'MESH':
-                active = True
-                
-        return active
+        if active_obj_handle:
+            return active_obj_handle.type in ['MESH', 'EMPTY']
+        return False
     
     def draw(self, context):
         layout = self.layout
@@ -7394,6 +7420,7 @@ custom_classes = (
         AMBF_OT_ambf_constraint_activate,
         AMBF_OT_create_camera,
         AMBF_OT_create_light,
+        AMBF_OT_create_empty_rigid_body,
         AMBF_OT_ambf_camera_activate,
         AMBF_OT_ambf_light_activate,
         AMBF_OT_ambf_sensor_activate,
@@ -7994,6 +8021,13 @@ def register():
         subtype='FILE_PATH'
     )
 
+    Scene.ambf_launch_adf_path = StringProperty(
+        name="ADF to Launch",
+        description="ADF file to open in the AMBF simulator. Auto-filled when you save an ADF.",
+        default="",
+        subtype='FILE_PATH'
+    )
+
     Scene.ambf_meshes_path = StringProperty \
             (
             name="Meshes (Save To)",
@@ -8229,6 +8263,7 @@ def unregister():
     ''' SCENARIO PROPERTIES '''
     del bpy.types.Scene.ambf_adf_path
     del bpy.types.Scene.ambf_simulator_path
+    del bpy.types.Scene.ambf_launch_adf_path
     del bpy.types.Scene.ambf_meshes_path
     del bpy.types.Scene.ambf_meshes_save_type
     del bpy.types.Scene.ambf_mesh_max_vertices
